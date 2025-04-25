@@ -30,7 +30,7 @@ class MainWindow(QMainWindow):
         
         # Contenedor principal de interfaces
         self.stacked_widget = QStackedWidget(self)
-
+ 
         # Crear botones para cambiar entre interfaces en el menú lateral
         self.boton_interfaz_0 = QPushButton("Home", self)
         self.boton_interfaz_0.clicked.connect(lambda: self.change_interface(0))  
@@ -85,7 +85,7 @@ class MainWindow(QMainWindow):
         self.stacked_widget.addWidget(self.interface_2)
         self.stacked_widget.addWidget(self.interface_3)
         self.stacked_widget.addWidget(self.interface_4)
-        self.stacked_widget.addWidget(self.interface_5)
+        self.stacked_widget.addWidget(self.interface_5) 
         #self.stacked_widget.addWidget(self.interface_6)    
 
         # Establecer el QStackedWidget como el contenido central

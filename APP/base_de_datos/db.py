@@ -10,20 +10,21 @@ class DatabaseConnection:
         self.connection = None
         self.cursor = None
 
-#self, username="PROYECTO_IS", password="123", host="localhost", port=1521, sid="XE"
-
     def connect(self):
         """Establecer la conexión a la base de datos"""
         try:
             dsn = oracledb.makedsn(self.host, self.port, self.sid)
-            self.connection = oracledb.connect(user=self.username, password=self.password, dsn=dsn)
+            self.connection = oracledb.connect(
+                user=self.username, 
+                password=self.password, 
+                dsn=dsn
+            )
             self.cursor = self.connection.cursor()
             print("Conexión exitosa a la base de datos Oracle")
+            return True
         except oracledb.DatabaseError as e:
             print(f"Error de conexión: {e}")
-            # Considerar lanzar la excepción nuevamente o retornar un valor que indique el error
-            # raise e
-            # return False
+            return False
 
     def close(self):
         """Cerrar la conexión y el cursor"""
@@ -40,28 +41,49 @@ class DatabaseConnection:
 
     def fetch_all(self, query, params=None):
         """Ejecutar una consulta SELECT y devolver todos los resultados"""
-        if self.cursor:
-            try:
-                self.cursor.execute(query, params or [])
-                return self.cursor.fetchall()
-            except oracledb.Error as e:
-                print(f"Error al ejecutar la consulta fetch_all: {e}")
-                return None
-        else:
-            print("Error: No hay cursor disponible (posiblemente conexión fallida).")
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params or [])
+                return cursor.fetchall()
+        except oracledb.Error as e:
+            print(f"Error en fetch_all: {e}")
             return None
 
-    def execute_query(self, query, params=None):
-        """Ejecutar una consulta (INSERT, UPDATE, DELETE)"""
-        if self.cursor and self.connection:
-            try:
-                self.cursor.execute(query, params)
+    def fetch_one(self, query, params=None):
+        """Ejecutar una consulta SELECT y devolver un solo resultado"""
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params or [])
+                return cursor.fetchone()
+        except oracledb.Error as e:
+            print(f"Error en fetch_one: {e}")
+            return None
+
+    def execute_query(self, query, params=None, return_rows=False):
+        """
+        Ejecutar una consulta (INSERT, UPDATE, DELETE)
+        Si return_rows=True, devuelve el número de filas afectadas
+        """
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params or [])
+                rows_affected = cursor.rowcount
                 self.connection.commit()
-            except oracledb.DatabaseError as e:
-                print(f"Error al ejecutar la consulta execute_query: {e}")
-                self.connection.rollback()
-                return False  # Indica que la ejecución falló
-            return True   # Indica que la ejecución fue exitosa
-        else:
-            print("Error: No hay conexión o cursor disponible.")
+                return rows_affected if return_rows else True
+        except oracledb.DatabaseError as e:
+            print(f"Error en execute_query: {e}")
+            self.connection.rollback()
             return False
+
+    def execute_many(self, query, params_list):
+        """Ejecutar múltiples inserciones/actualizaciones en una sola operación"""
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.executemany(query, params_list)
+                rows_affected = cursor.rowcount
+                self.connection.commit()
+                return rows_affected
+        except oracledb.DatabaseError as e:
+            print(f"Error en execute_many: {e}")
+            self.connection.rollback()
+            return 0

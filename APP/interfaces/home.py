@@ -2,6 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
                              QScrollArea, QPushButton, QFrame, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer, QTime
 from PyQt6.QtGui import QIcon
+import oracledb
 from base_de_datos.db import DatabaseConnection
 
 
@@ -24,16 +25,19 @@ class InterfazHome(QWidget):
         layout = QVBoxLayout()
         top_layout = QHBoxLayout()
 
+        # Botón de menú
         self.btn_menu = QPushButton("☰")
         self.btn_menu.setFixedSize(40, 40)
-        self.btn_menu.clicked.connect(self.main_window.toggle_menu)
         top_layout.addWidget(self.btn_menu)
 
-        self.btn_correo = QPushButton()
+        # Botón de correo
+        self.btn_correo = QPushButton()  # Define el botón antes de usarlo
         self.btn_correo.setIcon(QIcon("iconos/correo.png"))
         self.btn_correo.setFixedSize(40, 40)
+        self.btn_correo.clicked.connect(lambda: self.main_window.change_interface(3))  # Ahora funciona correctamente
         top_layout.addWidget(self.btn_correo)
 
+        # Reloj
         self.label_reloj = QLabel()
         self.label_reloj.setStyleSheet("font-size: 18px;")
         self.actualizar_reloj()
@@ -41,6 +45,7 @@ class InterfazHome(QWidget):
         timer.timeout.connect(self.actualizar_reloj)
         timer.start(1000)
         top_layout.addWidget(self.label_reloj)
+
         top_layout.addStretch()
         layout.addLayout(top_layout)
 
@@ -157,12 +162,115 @@ class InterfazHome(QWidget):
         print("Asignar tren...")
 
     def accion_cancelar(self):
-        fila = self.tabla_viajes.currentRow()
+        fila = self.tabla_proximos.currentRow()
         if fila == -1:
-            QMessageBox.warning(self, "Atención", "Selecciona un registro para cancelar.")
+            QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para cancelar.")
             return
-        confirmar = QMessageBox.question(self, "Cancelar", "¿Estás seguro de eliminar este registro?",
-                                         QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
-        if confirmar == QMessageBox.StandardButton.Yes:
-            cod = self.tabla_viajes.item(fila, 0).text()
-            QMessageBox.information(self, "Eliminar", f"(Simulado) Eliminando el horario {cod}.")
+
+        id_horario = self.tabla_proximos.item(fila, 0).text()
+        print(f"[DEBUG] Intentando eliminar ID_HORARIO: {id_horario}")
+
+        # Verificar primero si el horario existe
+        horario_existe = self.db.fetch_one("SELECT 1 FROM HORARIO WHERE ID_HORARIO = :1", [id_horario])
+        if not horario_existe:
+            QMessageBox.warning(self, "Error", f"No se encontró el horario {id_horario} en la base de datos.")
+            return
+
+        confirmar = QMessageBox.question(
+            self, "Confirmar", f"¿Estás seguro de eliminar el horario {id_horario} y todos sus registros relacionados?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if confirmar == QMessageBox.StandardButton.No:
+            return
+
+        try:
+            # Desactivar autocommit para manejar transacción manualmente
+            self.db.connection.autocommit = False
+
+            # 1. Eliminar incidencias primero
+            resultado = self.db.execute_query(
+                "DELETE FROM INCIDENCIA WHERE ID_HORARIO = :1", 
+                [id_horario],
+                return_rows=True
+            )
+            print(f"[DEBUG] Filas eliminadas de INCIDENCIA: {resultado}")
+
+            # 2. Eliminar del historial
+            resultado = self.db.execute_query(
+                "DELETE FROM HISTORIAL WHERE ID_HORARIO = :1",
+                [id_horario],
+                return_rows=True
+            )
+            print(f"[DEBUG] Filas eliminadas de HISTORIAL: {resultado}")
+
+            # 3. Eliminar asignación de tren
+            resultado = self.db.execute_query(
+                "DELETE FROM ASIGNACION_TREN WHERE ID_HORARIO = :1",
+                [id_horario],
+                return_rows=True
+            )
+            print(f"[DEBUG] Filas eliminadas de ASIGNACION_TREN: {resultado}")
+
+            # 4. Finalmente eliminar el horario
+            resultado = self.db.execute_query(
+                "DELETE FROM HORARIO WHERE ID_HORARIO = :1",
+                [id_horario],
+                return_rows=True
+            )
+            print(f"[DEBUG] Filas eliminadas de HORARIO: {resultado}")
+
+            if resultado == 0:
+                raise Exception("No se eliminó ningún registro de HORARIO")
+
+            # Confirmar todos los cambios
+            self.db.connection.commit()
+            
+            QMessageBox.information(self, "Éxito", f"Horario {id_horario} eliminado correctamente.")
+            
+            # Actualizar las tablas
+            self.tabla_proximos.setRowCount(0)
+            self.cargar_datos_proximos()
+            self.cargar_datos_viajes()
+
+        except oracledb.DatabaseError as e:
+            # Revertir en caso de error
+            self.db.connection.rollback()
+            error_msg = f"Error de base de datos: {e.args[0].message}"
+            print(f"[ERROR] {error_msg}")
+            QMessageBox.critical(self, "Error", error_msg)
+            
+        except Exception as e:
+            self.db.connection.rollback()
+            print(f"[ERROR] {str(e)}")
+            QMessageBox.critical(self, "Error", str(e))
+            
+        finally:
+            # Restaurar autocommit
+            self.db.connection.autocommit = True
+
+    def prueba_base_datos(self):
+        # Crear una instancia de la conexión a la base de datos
+        db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
+        if db.connect():
+            try:
+                # Ejemplo de fetch_one
+                id_horario = 405  # Cambia este valor según los datos en tu base de datos
+                resultado = db.fetch_one("SELECT * FROM HORARIO WHERE ID_HORARIO = :1", [id_horario])
+                if resultado:
+                    print("Registro encontrado:", resultado)
+                else:
+                    print(f"No se encontró un registro con ID_HORARIO = {id_horario}")
+
+                # Ejemplo de execute_query con conteo de filas
+                filas_eliminadas = db.execute_query(
+                    "DELETE FROM INCIDENCIA WHERE ID_HORARIO = :1",
+                    [id_horario],
+                    return_rows=True
+                )
+                print(f"Filas eliminadas de INCIDENCIA: {filas_eliminadas}")
+
+            except Exception as e:
+                print(f"[ERROR] {e}")
+            finally:
+                db.close()
