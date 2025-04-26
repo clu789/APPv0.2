@@ -3,15 +3,16 @@ from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection  
 
 class MonitoreoInterface(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, main_window,db):
         super().__init__()
         self.main_window = main_window  # Referencia a la ventana principal
         
         self.setWindowTitle("Monitoreo en Tiempo Real")
         self.setGeometry(200, 200, 800, 500)
         
-        self.db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-        self.db.connect()
+        # Conexión a la base de datos
+        self.db = db
+
         
         self.initUI()
         self.load_real_time_data()
@@ -22,14 +23,10 @@ class MonitoreoInterface(QWidget):
         
         # Crear encabezado con botón del menú lateral y título
         header_layout = QHBoxLayout()
-        self.btn_menu = QPushButton("☰")  # Botón de tres rayas
-        self.btn_menu.setFixedSize(40, 40)  # Tamaño del botón
-        self.btn_menu.clicked.connect(self.main_window.toggle_menu)  # Función para abrir/cerrar el menú
 
         label = QLabel("Monitoreo en Tiempo Real")
         
         # Alineación de los widgets
-        header_layout.addWidget(self.btn_menu)
         header_layout.addWidget(label)
 
         # Ajuste de márgenes para el encabezado

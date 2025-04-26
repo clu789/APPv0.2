@@ -1,31 +1,27 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QTableWidget, QTableWidgetItem
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout, QTableWidget, QTableWidgetItem, QMessageBox
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 
 class GestionInfraestructura(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, main_window,db):
         super().__init__()
         self.main_window = main_window  # Referencia a MainWindow
         self.setWindowTitle("Gestión de Infraestructura")
         self.setGeometry(200, 200, 900, 500)
 
         # Conexión a la base de datos
-        self.db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-        self.db.connect()
+        self.db = db  # Usar la conexión existente
+
 
         # Layout principal
         self.layout = QVBoxLayout()
 
         # Encabezado con el botón de menú y título
         header_layout = QHBoxLayout()
-        self.btn_menu = QPushButton("☰")  # Botón de tres rayas
-        self.btn_menu.setFixedSize(40, 40)  # Tamaño del botón
-        self.btn_menu.clicked.connect(self.main_window.toggle_menu)  # Función para abrir/cerrar el menú
 
         label = QLabel("Gestión de Infraestructura")
         
         # Alineación de los widgets
-        header_layout.addWidget(self.btn_menu)
         header_layout.addWidget(label)
         header_layout.setContentsMargins(0, 0, 0, 0)  # Eliminar márgenes alrededor
         header_layout.setSpacing(20)  # Eliminar espacio entre los widgets

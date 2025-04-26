@@ -3,14 +3,14 @@ from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 
 class OptimizacionDinamica(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, main_window,db):
         super().__init__()
         self.main_window = main_window  # Ventana principal
         self.setWindowTitle("Optimización Dinámica")
         self.setGeometry(100, 100, 1000, 600)
 
-        self.db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-        self.db.connect()
+        self.db = db  # Usar la conexión existente
+
 
         self.initUI()
         self.load_delays()
@@ -21,12 +21,8 @@ class OptimizacionDinamica(QWidget):
 
         # Encabezado con título y botón de menú
         header_layout = QHBoxLayout()
-        self.btn_menu = QPushButton("☰")  # Botón de tres rayas
-        self.btn_menu.setFixedSize(40, 40)
-        self.btn_menu.clicked.connect(self.main_window.toggle_menu)
 
         label = QLabel("Optimización Dinámica")
-        header_layout.addWidget(self.btn_menu)
         header_layout.addWidget(label)
         layout.addLayout(header_layout)
 

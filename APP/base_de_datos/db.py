@@ -1,7 +1,18 @@
 import oracledb
 
 class DatabaseConnection:
-    def __init__(self, username, password, host, port, sid):
+    _instance = None
+
+    def __new__(cls, *args, **kwargs):
+        if not cls._instance:
+            cls._instance = super().__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
+
+    def __init__(self, username=None, password=None, host=None, port=None, sid=None):
+        if self._initialized:
+            return
+
         self.username = username
         self.password = password
         self.host = host
@@ -9,14 +20,18 @@ class DatabaseConnection:
         self.sid = sid
         self.connection = None
         self.cursor = None
+        self._initialized = True
 
     def connect(self):
-        """Establecer la conexión a la base de datos"""
+        """Establecer la conexión a la base de datos si no está activa"""
+        if self.connection and self.connection.ping() is None:
+            return True  # Ya hay conexión activa
+            
         try:
             dsn = oracledb.makedsn(self.host, self.port, self.sid)
             self.connection = oracledb.connect(
-                user=self.username, 
-                password=self.password, 
+                user=self.username,
+                password=self.password,
                 dsn=dsn
             )
             self.cursor = self.connection.cursor()

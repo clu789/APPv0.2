@@ -1,5 +1,5 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
-                             QScrollArea, QPushButton, QFrame, QMessageBox)
+                            QScrollArea, QPushButton, QFrame, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer, QTime
 from PyQt6.QtGui import QIcon
 import oracledb
@@ -7,15 +7,13 @@ from base_de_datos.db import DatabaseConnection
 
 
 class InterfazHome(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, main_window, db):
         super().__init__()
         self.main_window = main_window
+        self.db = db  # Usar la conexión existente
 
         self.setWindowTitle("Panel de Control - Home")
         self.setGeometry(100, 100, 1200, 700)
-
-        self.db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-        self.db.connect()
 
         self.initUI()
         self.cargar_datos_viajes()
@@ -25,17 +23,20 @@ class InterfazHome(QWidget):
         layout = QVBoxLayout()
         top_layout = QHBoxLayout()
 
+
         # Botón de menú
-        self.btn_menu = QPushButton("☰")
-        self.btn_menu.setFixedSize(40, 40)
-        top_layout.addWidget(self.btn_menu)
+        # Eliminando el botón de menú y su conexión
+        # self.btn_menu = QPushButton("☰")
+        # self.btn_menu.setFixedSize(40, 40)
+        # top_layout.addWidget(self.btn_menu)
 
         # Botón de correo
-        self.btn_correo = QPushButton()  # Define el botón antes de usarlo
-        self.btn_correo.setIcon(QIcon("iconos/correo.png"))
+        self.btn_correo = QPushButton()  
+        self.btn_correo.setIcon(QIcon("icons/alert.png"))
         self.btn_correo.setFixedSize(40, 40)
-        self.btn_correo.clicked.connect(lambda: self.main_window.change_interface(3))  # Ahora funciona correctamente
-        top_layout.addWidget(self.btn_correo)
+        self.btn_correo.clicked.connect(lambda: self.main_window.cambiar_interfaz(3))
+        top_layout.addWidget(self.btn_correo)   
+
 
         # Reloj
         self.label_reloj = QLabel()
@@ -99,15 +100,15 @@ class InterfazHome(QWidget):
     def cargar_datos_viajes(self):
         query = """
             SELECT H.ID_HORARIO, 
-                   TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
-                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), 
-                   TO_CHAR(H.HORA_SALIDA_REAL, 'HH24:MI:SS'), 
-                   TO_CHAR(H.HORA_LLEGADA_REAL, 'HH24:MI:SS'),
-                   R.DURACION_ESTIMADA,
-                   E1.NOMBRE AS ORIGEN,
-                   E2.NOMBRE AS DESTINO,
-                   T.NOMBRE AS NOMBRE_TREN,
-                   I.TIPO AS TIPO_INCIDENCIA
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), 
+                    TO_CHAR(H.HORA_SALIDA_REAL, 'HH24:MI:SS'), 
+                    TO_CHAR(H.HORA_LLEGADA_REAL, 'HH24:MI:SS'),
+                    R.DURACION_ESTIMADA,
+                    E1.NOMBRE AS ORIGEN,
+                    E2.NOMBRE AS DESTINO,
+                    T.NOMBRE AS NOMBRE_TREN,
+                    I.TIPO AS TIPO_INCIDENCIA
             FROM ASIGNACION_TREN A
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             JOIN TREN T ON A.ID_TREN = T.ID_TREN
@@ -130,13 +131,13 @@ class InterfazHome(QWidget):
     def cargar_datos_proximos(self):
         query = """
             SELECT H.ID_HORARIO, 
-                   TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
-                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), 
-                   R.DURACION_ESTIMADA,
-                   E1.NOMBRE AS ORIGEN,
-                   E2.NOMBRE AS DESTINO,
-                   T.NOMBRE AS NOMBRE_TREN,
-                   T.ESTADO
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), 
+                    R.DURACION_ESTIMADA,
+                    E1.NOMBRE AS ORIGEN,
+                    E2.NOMBRE AS DESTINO,
+                    T.NOMBRE AS NOMBRE_TREN,
+                    T.ESTADO
             FROM ASIGNACION_TREN A
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             JOIN TREN T ON A.ID_TREN = T.ID_TREN
@@ -190,7 +191,7 @@ class InterfazHome(QWidget):
 
             # 1. Eliminar incidencias primero
             resultado = self.db.execute_query(
-                "DELETE FROM INCIDENCIA WHERE ID_HORARIO = :1", 
+                "DELETE FROM INCIDENCIA WHERE ID_HORARIO = :1",
                 [id_horario],
                 return_rows=True
             )
@@ -225,9 +226,9 @@ class InterfazHome(QWidget):
 
             # Confirmar todos los cambios
             self.db.connection.commit()
-            
+
             QMessageBox.information(self, "Éxito", f"Horario {id_horario} eliminado correctamente.")
-            
+
             # Actualizar las tablas
             self.tabla_proximos.setRowCount(0)
             self.cargar_datos_proximos()
@@ -239,12 +240,12 @@ class InterfazHome(QWidget):
             error_msg = f"Error de base de datos: {e.args[0].message}"
             print(f"[ERROR] {error_msg}")
             QMessageBox.critical(self, "Error", error_msg)
-            
+
         except Exception as e:
             self.db.connection.rollback()
             print(f"[ERROR] {str(e)}")
             QMessageBox.critical(self, "Error", str(e))
-            
+
         finally:
             # Restaurar autocommit
             self.db.connection.autocommit = True

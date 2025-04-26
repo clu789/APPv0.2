@@ -1,24 +1,17 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, 
-                             QTableWidgetItem, QSplitter, QPushButton)
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
+                            QTableWidgetItem, QSplitter, QPushButton)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
-from base_de_datos.db import DatabaseConnection  
 from PyQt6.QtWidgets import QMessageBox
 
 class GestionHorariosRutas(QWidget):
-    def __init__(self, main_window):
+    def __init__(self, main_window, db):
         super().__init__()
-        self.main_window = main_window  
+        self.main_window = main_window
+        self.db = db  # Usar la conexión existente
 
         self.setWindowTitle("Gestión de Horarios y Rutas")
         self.setGeometry(100, 100, 1000, 600)
-
-        self.db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-        self.db.connect()
-
-        if not self.db.connection:
-                QMessageBox.critical(self, "Error", "No se pudo conectar a la base de datos. Verifica tu SID o el listener.")
-                return
 
         self.initUI()
         self.load_routes()
@@ -28,16 +21,11 @@ class GestionHorariosRutas(QWidget):
     def initUI(self):
         layout = QVBoxLayout()
 
-        # Crear el encabezado con el título y el botón de tres rayas
+        # Crear el encabezado con el título
         header_layout = QHBoxLayout()
-        self.btn_menu = QPushButton("☰")  # Botón de tres rayas
-        self.btn_menu.setFixedSize(40, 40)  # Tamaño del botón
-        self.btn_menu.clicked.connect(self.main_window.toggle_menu)  # Función para abrir/cerrar el menú
-
         label = QLabel("Gestión de Horarios y Rutas")
 
-        # Alineación de los widgets a la izquierda
-        header_layout.addWidget(self.btn_menu)
+        # Alineación del widget a la izquierda
         header_layout.addWidget(label)
 
         # Ajuste de márgenes para que estén más cerca
@@ -49,13 +37,13 @@ class GestionHorariosRutas(QWidget):
 
         # Separador para organizar tabla e imagen de ruta
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        
+
         # Sección izquierda: Tablas de rutas y horarios
         left_section = QVBoxLayout()
-        
+
         # Tabla de rutas con secuencia de estaciones
         self.tabla_rutas = QTableWidget()
-        self.tabla_rutas.setColumnCount(3)  
+        self.tabla_rutas.setColumnCount(3)
         self.tabla_rutas.setHorizontalHeaderLabels(["ID Ruta", "Duración", "Estaciones"])
         left_section.addWidget(self.tabla_rutas)
 
@@ -96,11 +84,11 @@ class GestionHorariosRutas(QWidget):
         self.btn_agregar_horario = QPushButton("Agregar Horario")
         self.btn_editar_horario = QPushButton("Editar Horario")
         self.btn_eliminar_horario = QPushButton("Eliminar Horario")
-        
+
         button_layout.addWidget(self.btn_agregar_horario)
         button_layout.addWidget(self.btn_editar_horario)
         button_layout.addWidget(self.btn_eliminar_horario)
-        
+
         layout.addLayout(button_layout)
 
         self.setLayout(layout)
@@ -108,8 +96,8 @@ class GestionHorariosRutas(QWidget):
     def load_routes(self):
         """Carga las rutas con su duración y secuencia de estaciones"""
         query = """
-            SELECT R.ID_RUTA, R.DURACION_ESTIMADA, 
-                   LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
+            SELECT R.ID_RUTA, R.DURACION_ESTIMADA,
+                    LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
             FROM RUTA R
             JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
             JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
@@ -121,7 +109,7 @@ class GestionHorariosRutas(QWidget):
         for i, route in enumerate(routes):
             self.tabla_rutas.setItem(i, 0, QTableWidgetItem(str(route[0])))
             self.tabla_rutas.setItem(i, 1, QTableWidgetItem(str(route[1])))
-            self.tabla_rutas.setItem(i, 2, QTableWidgetItem(route[2]))  
+            self.tabla_rutas.setItem(i, 2, QTableWidgetItem(route[2]))
 
         self.tabla_rutas.resizeColumnsToContents()
         self.tabla_rutas.resizeRowsToContents()
@@ -144,22 +132,22 @@ class GestionHorariosRutas(QWidget):
     def load_schedules(self):
         """Carga los horarios con los trenes asignados"""
         query = """
-            SELECT H.ID_HORARIO, 
-                   TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
-                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'),
-                   T.NOMBRE
+            SELECT H.ID_HORARIO,
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'),
+                    T.NOMBRE
             FROM HORARIO H
             LEFT JOIN ASIGNACION_TREN A ON H.ID_HORARIO = A.ID_HORARIO
             LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
         """
         schedules = self.db.fetch_all(query)
-        
+
         self.tabla_horarios.setRowCount(len(schedules))
         for i, schedule in enumerate(schedules):
             self.tabla_horarios.setItem(i, 0, QTableWidgetItem(str(schedule[0])))
-            self.tabla_horarios.setItem(i, 1, QTableWidgetItem(schedule[1]))  
-            self.tabla_horarios.setItem(i, 2, QTableWidgetItem(schedule[2]))  
-            self.tabla_horarios.setItem(i, 3, QTableWidgetItem(schedule[3] if schedule[3] else "No asignado"))  
+            self.tabla_horarios.setItem(i, 1, QTableWidgetItem(schedule[1]))
+            self.tabla_horarios.setItem(i, 2, QTableWidgetItem(schedule[2]))
+            self.tabla_horarios.setItem(i, 3, QTableWidgetItem(schedule[3] if schedule[3] else "No asignado"))
 
         self.tabla_horarios.resizeColumnsToContents()
         self.tabla_horarios.resizeRowsToContents()
@@ -167,13 +155,13 @@ class GestionHorariosRutas(QWidget):
     def load_train_availability(self):
         """Calcula la disponibilidad de los trenes"""
         query = """
-            SELECT T.ID_TREN, T.NOMBRE, 
-                   CASE 
-                       WHEN T.ESTADO <> 'ACTIVO' THEN 'No disponible'
-                       WHEN EXISTS (SELECT 1 FROM ASIGNACION_TREN A WHERE A.ID_TREN = T.ID_TREN) 
-                       THEN 'Asignado'
-                       ELSE 'Disponible'
-                   END AS DISPONIBILIDAD
+            SELECT T.ID_TREN, T.NOMBRE,
+                    CASE
+                        WHEN T.ESTADO <> 'ACTIVO' THEN 'No disponible'
+                        WHEN EXISTS (SELECT 1 FROM ASIGNACION_TREN A WHERE A.ID_TREN = T.ID_TREN)
+                        THEN 'Asignado'
+                        ELSE 'Disponible'
+                    END AS DISPONIBILIDAD
             FROM TREN T
         """
         trains = self.db.fetch_all(query)
@@ -191,21 +179,21 @@ class GestionHorariosRutas(QWidget):
         """Carga la imagen de la ruta desde la base de datos"""
         query = "SELECT IMAGEN FROM RUTA WHERE ID_RUTA = :1"
         image_data = self.db.fetch_all(query, (id_ruta,))  # Ahora se usa fetch_all
-        
+
         if image_data and image_data[0][0]:
             # Obtener el LOB
             image_lob = image_data[0][0]
-            
+
             # Leer el LOB completo en memoria
             image_bytes = image_lob.read()  # Leer el contenido del LOB
-            
+
             # Convertir los bytes a un QPixmap
             pixmap = QPixmap()
             pixmap.loadFromData(image_bytes)  # Cargar la imagen desde los bytes
-            
+
             # Ajustar el tamaño de la imagen para que no distorsione el layout
             pixmap = pixmap.scaled(800, 600, Qt.AspectRatioMode.KeepAspectRatio)
-            
+
             self.img_ruta.setPixmap(pixmap)  # Establecer la imagen en el QLabel
         else:
             self.img_ruta.setText("No disponible")  # Si no hay imagen disponible, mostrar mensaje
