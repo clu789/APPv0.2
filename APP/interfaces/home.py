@@ -86,6 +86,13 @@ class InterfazHome(QWidget):
 
         self.setLayout(layout)
 
+    
+    def cargar_datos(self):
+        print("[DEBUG] Recargando datos de Viajes en Curso y Próximamente...")
+        self.cargar_datos_viajes()
+        self.cargar_datos_proximos()
+
+
     def crear_scroll_para_tabla(self, tabla):
         tabla.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
         tabla.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -99,16 +106,17 @@ class InterfazHome(QWidget):
 
     def cargar_datos_viajes(self):
         query = """
-            SELECT H.ID_HORARIO, 
-                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
-                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), 
-                    TO_CHAR(H.HORA_SALIDA_REAL, 'HH24:MI:SS'), 
-                    TO_CHAR(H.HORA_LLEGADA_REAL, 'HH24:MI:SS'),
-                    R.DURACION_ESTIMADA,
-                    E1.NOMBRE AS ORIGEN,
-                    E2.NOMBRE AS DESTINO,
-                    T.NOMBRE AS NOMBRE_TREN,
-                    I.TIPO AS TIPO_INCIDENCIA
+            SELECT 
+                H.ID_HORARIO, 
+                TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA_PROG,  -- Fecha + hora
+                TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA_PROG,
+                TO_CHAR(H.HORA_SALIDA_REAL, 'DD/MM/YYYY HH24:MI') AS SALIDA_REAL,
+                TO_CHAR(H.HORA_LLEGADA_REAL, 'DD/MM/YYYY HH24:MI') AS LLEGADA_REAL,
+                R.DURACION_ESTIMADA,
+                E1.NOMBRE AS ORIGEN,
+                E2.NOMBRE AS DESTINO,
+                T.NOMBRE AS NOMBRE_TREN,
+                I.TIPO AS TIPO_INCIDENCIA
             FROM ASIGNACION_TREN A
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             JOIN TREN T ON A.ID_TREN = T.ID_TREN
@@ -119,25 +127,27 @@ class InterfazHome(QWidget):
             JOIN RUTA_DETALLE RD2 ON RD2.ID_RUTA = A.ID_RUTA
             JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
             WHERE RD2.ORDEN = (SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = A.ID_RUTA)
-              AND H.HORA_SALIDA_PROGRAMADA <= SYSDATE
+              AND H.HORA_SALIDA_PROGRAMADA <= SYSDATE  -- Comparación con fecha+hora exacta
         """
         viajes = self.db.fetch_all(query)
+        self.tabla_viajes.setRowCount(0)  
         if viajes:
             self.tabla_viajes.setRowCount(len(viajes))
             for i, v in enumerate(viajes):
                 for j, dato in enumerate(v):
-                    self.tabla_viajes.setItem(i, j, QTableWidgetItem(str(dato)))
+                    self.tabla_viajes.setItem(i, j, QTableWidgetItem(str(dato if dato is not None else "")))
 
     def cargar_datos_proximos(self):
         query = """
-            SELECT H.ID_HORARIO, 
-                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), 
-                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), 
-                    R.DURACION_ESTIMADA,
-                    E1.NOMBRE AS ORIGEN,
-                    E2.NOMBRE AS DESTINO,
-                    T.NOMBRE AS NOMBRE_TREN,
-                    T.ESTADO
+            SELECT 
+                H.ID_HORARIO, 
+                TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'DD/MM/YY HH24:MI') AS SALIDA_PROG,  -- Fecha + hora
+                TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'DD/MM/YY HH24:MI') AS LLEGADA_PROG,
+                R.DURACION_ESTIMADA,
+                E1.NOMBRE AS ORIGEN,
+                E2.NOMBRE AS DESTINO,
+                T.NOMBRE AS NOMBRE_TREN,
+                T.ESTADO
             FROM ASIGNACION_TREN A
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             JOIN TREN T ON A.ID_TREN = T.ID_TREN
@@ -147,14 +157,17 @@ class InterfazHome(QWidget):
             JOIN RUTA_DETALLE RD2 ON RD2.ID_RUTA = A.ID_RUTA
             JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
             WHERE RD2.ORDEN = (SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = A.ID_RUTA)
-              AND H.HORA_SALIDA_PROGRAMADA > SYSDATE
+            AND H.HORA_SALIDA_PROGRAMADA > SYSDATE  -- Comparación con fecha+hora exacta
+            ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
         """
         proximos = self.db.fetch_all(query)
         if proximos:
             self.tabla_proximos.setRowCount(len(proximos))
+            self.tabla_proximos.setRowCount(0) 
             for i, p in enumerate(proximos):
                 for j, dato in enumerate(p):
-                    self.tabla_proximos.setItem(i, j, QTableWidgetItem(str(dato)))
+                    self.tabla_proximos.setItem(i, j, QTableWidgetItem(str(dato if dato is not None else "")))
+
 
     def accion_modificar(self):
         print("Modificar registro...")

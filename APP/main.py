@@ -19,6 +19,9 @@ class MainWindow(QMainWindow):
         if not self.db.connect():
             QMessageBox.critical(self, "Error", "No se pudo conectar a la base de datos")
             return
+        
+        # Conectar la señal de actualización de eventos
+        self.db.event_manager.update_triggered.connect(self.actualizar_interfaz)
 
         # Crear widget central
         central_widget = QWidget()
@@ -69,6 +72,14 @@ class MainWindow(QMainWindow):
     def cambiar_interfaz(self, index):
         """Cambia a la interfaz seleccionada"""
         self.stacked_widget.setCurrentIndex(index)
+
+    def actualizar_interfaz(self):
+        """Actualiza las interfaces cuando ocurre un evento"""
+        print("Actualizando interfaz debido a un evento...")
+        for interface in self.interfaces:
+            if hasattr(interface, 'cargar_datos'):
+                interface.cargar_datos()
+
 
 if __name__ == "__main__":
     app = QApplication([])

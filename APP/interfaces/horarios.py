@@ -197,3 +197,10 @@ class GestionHorariosRutas(QWidget):
             self.img_ruta.setPixmap(pixmap)  # Establecer la imagen en el QLabel
         else:
             self.img_ruta.setText("No disponible")  # Si no hay imagen disponible, mostrar mensaje
+
+    def cargar_datos(self):
+        """Recarga los datos de la interfaz de gestión de horarios y rutas"""
+        print("Cargando datos en GestionHorariosRutas...")
+        self.load_routes()
+        self.load_schedules()
+        self.load_train_availability()

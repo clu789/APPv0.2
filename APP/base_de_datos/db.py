@@ -1,4 +1,5 @@
 import oracledb
+from base_de_datos.event_manager import EventManager
 
 class DatabaseConnection:
     _instance = None
@@ -20,6 +21,7 @@ class DatabaseConnection:
         self.sid = sid
         self.connection = None
         self.cursor = None
+        self.event_manager = None  # Inicializar el gestor de eventos
         self._initialized = True
 
     def connect(self):
@@ -35,6 +37,10 @@ class DatabaseConnection:
                 dsn=dsn
             )
             self.cursor = self.connection.cursor()
+            
+            # Iniciar el gestor de eventos
+            self.event_manager = EventManager(self)
+            
             print("Conexión exitosa a la base de datos Oracle")
             return True
         except oracledb.DatabaseError as e:
