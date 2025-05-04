@@ -7,6 +7,7 @@ from interfaces.monitoreo import MonitoreoInterface
 from interfaces.incidencias import GestionIncidencias
 from interfaces.infraestructura import GestionInfraestructura
 from interfaces.optimizacion import OptimizacionDinamica
+from interfaces.asignacion import InterfazAsignacion
 from PyQt6.QtWidgets import QStackedWidget
 
 class MainWindow(QMainWindow):
@@ -38,7 +39,7 @@ class MainWindow(QMainWindow):
         # 1. Menú lateral
         self.menu = MenuLateral(username="NOMBRE DE USUARIO")
         self.menu.setMinimumWidth(50)
-        self.menu.setMaximumWidth(300)
+        self.menu.setMaximumWidth(300)  
 
         # 2. Área de contenido
         self.stacked_widget = QStackedWidget()
@@ -50,7 +51,8 @@ class MainWindow(QMainWindow):
             MonitoreoInterface(self, self.db),
             GestionIncidencias(self, self.db),
             GestionInfraestructura(self, self.db),
-            OptimizacionDinamica(self, self.db) # Nueva interfaz de optimización
+            OptimizacionDinamica(self, self.db), # Nueva interfaz de optimización
+            InterfazAsignacion(self, self.db) 
         ]
 
         for interface in self.interfaces:

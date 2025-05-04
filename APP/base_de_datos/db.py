@@ -108,3 +108,23 @@ class DatabaseConnection:
             print(f"Error en execute_many: {e}")
             self.connection.rollback()
             return 0
+            
+    def commit(self):
+            """Realiza commit de la transacción actual"""
+            if self.connection:
+                try:
+                    self.connection.commit()
+                    return True
+                except oracledb.DatabaseError as e:
+                    print(f"Error al hacer commit: {e}")
+                    return False
+
+    def rollback(self):
+            """Realiza rollback de la transacción actual"""
+            if self.connection:
+                try:
+                    self.connection.rollback()
+                    return True
+                except oracledb.DatabaseError as e:
+                    print(f"Error al hacer rollback: {e}")
+                    return False
