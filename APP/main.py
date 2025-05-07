@@ -58,6 +58,8 @@ class MainWindow(QMainWindow):
         # Conectar la señal de actualización a cada interfaz
         for interfaz in self.interfaces:
             self.db.event_manager.update_triggered.connect(interfaz.actualizar_datos)
+            #self.db.event_manager.update_triggered.connect(self.interfaz_home.actualizar_datos)
+
 
         for interface in self.interfaces:
             self.stacked_widget.addWidget(interface)

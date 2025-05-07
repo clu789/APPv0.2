@@ -1,3 +1,4 @@
+import random
 from PyQt6.QtCore import QTimer, QDateTime, QObject, pyqtSignal
 
 class EventManager(QObject):
@@ -71,23 +72,27 @@ class EventManager(QObject):
         """Encuentra el próximo evento pendiente más cercano"""
         query = """
         WITH eventos AS (
-            SELECT 
-                ID_HORARIO,
-                'SALIDA' AS TIPO,
-                HORA_SALIDA_PROGRAMADA AS HORA_EVENTO,
-                HORA_SALIDA_REAL
-            FROM HORARIO
-            WHERE HORA_SALIDA_REAL IS NULL
+        SELECT 
+            ID_HORARIO,
+            'SALIDA' AS TIPO,
+            HORA_SALIDA_PROGRAMADA AS HORA_EVENTO,
+            HORA_SALIDA_REAL
+        FROM HORARIO
+        WHERE HORA_SALIDA_REAL IS NULL
+        AND HORA_SALIDA_PROGRAMADA > SYSDATE
 
-            UNION ALL
+        UNION ALL
 
-            SELECT 
-                ID_HORARIO,
-                'LLEGADA' AS TIPO,
-                HORA_LLEGADA_PROGRAMADA AS HORA_EVENTO,
-                HORA_LLEGADA_REAL
-            FROM HORARIO
-            WHERE HORA_LLEGADA_REAL IS NULL
+        SELECT 
+            ID_HORARIO,
+            'LLEGADA' AS TIPO,
+            HORA_LLEGADA_PROGRAMADA AS HORA_EVENTO,
+            HORA_LLEGADA_REAL
+        FROM HORARIO
+        WHERE HORA_LLEGADA_REAL IS NULL
+        AND HORA_LLEGADA_PROGRAMADA > SYSDATE
+        -- Asegurar que ya exista una salida real
+        AND HORA_SALIDA_REAL IS NOT NULL
         )
         SELECT 
             ID_HORARIO,
@@ -118,26 +123,74 @@ class EventManager(QObject):
     def handle_event(self, event_id, event_type):
         """Actualiza la base de datos cuando ocurre un evento"""
         print(f"Procesando evento: {event_type} para horario {event_id}")
-
-        column = "HORA_SALIDA_REAL" if event_type == "SALIDA" else "HORA_LLEGADA_REAL"
-        query = f"""
-        UPDATE HORARIO
-        SET {column} = SYSTIMESTAMP
-        WHERE ID_HORARIO = :id
-        """
-
+        
+        now = QDateTime.currentDateTime()
+        
+        if event_type == "SALIDA":
+            # Asegurar que el tiempo real no sea anterior al programado
+            scheduled_time = self.next_event_time
+            if now < scheduled_time:
+                print("¡Error! Intento de registrar salida antes de la hora programada")
+                # Reprogramar para el momento correcto
+                delay = scheduled_time.msecsTo(now)
+                QTimer.singleShot(abs(delay), lambda: self.handle_event(event_id, event_type))
+                return
+                
+            departure_real = self._get_varied_time(now)
+            query = """
+            UPDATE HORARIO
+            SET HORA_SALIDA_REAL = TO_DATE(:time, 'YYYY-MM-DD HH24:MI:SS')
+            WHERE ID_HORARIO = :id
+            """
+            params = {'id': event_id, 'time': departure_real.toString("yyyy-MM-dd HH:mm:ss")}
+        
+        else:  # LLEGADA
+            # Obtener datos necesarios
+            query_data = """
+            SELECT 
+                TO_CHAR(HORA_SALIDA_PROGRAMADA, 'YYYY-MM-DD HH24:MI:SS'),
+                TO_CHAR(HORA_SALIDA_REAL, 'YYYY-MM-DD HH24:MI:SS'),
+                TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'YYYY-MM-DD HH24:MI:SS')
+            FROM HORARIO
+            WHERE ID_HORARIO = :id
+            """
+            result = self.db.fetch_one(query_data, {'id': event_id})
+            
+            if not result:
+                print("Error: No se encontró el horario")
+                return
+                
+            scheduled_departure = QDateTime.fromString(result[0], "yyyy-MM-dd HH:mm:ss")
+            actual_departure = QDateTime.fromString(result[1], "yyyy-MM-dd HH:mm:ss") if result[1] else None
+            scheduled_arrival = QDateTime.fromString(result[2], "yyyy-MM-dd HH:mm:ss")
+            
+            # Validaciones
+            if not actual_departure:
+                print("Error: No hay hora de salida real registrada")
+                return
+                
+            if now < scheduled_arrival.addSecs(-60):  # Máximo 1 minuto antes
+                print("¡Advertencia! Llegada real registrada demasiado temprano")
+                
+            arrival_real = self._get_arrival_time(actual_departure, scheduled_arrival)
+            
+            query = """
+            UPDATE HORARIO
+            SET HORA_LLEGADA_REAL = TO_DATE(:time, 'YYYY-MM-DD HH24:MI:SS')
+            WHERE ID_HORARIO = :id
+            """
+            params = {'id': event_id, 'time': arrival_real.toString("yyyy-MM-dd HH:mm:ss")}
+        
+        # Ejecutar la actualización
         try:
-            self.db.execute_query(query, {'id': event_id})
-            print(f"\u2714\ufe0f Evento {event_type} registrado exitosamente para horario {event_id}")
-
-            # Notificar a las interfaces para actualización
+            self.db.execute_query(query, params)
+            print(f"✓ Evento {event_type} registrado para horario {event_id}")
             self.update_triggered.emit()
-
-            # Programar siguiente evento
             self.schedule_next_event()
         except Exception as e:
             print(f"Error al registrar evento: {e}")
             QTimer.singleShot(60000, lambda: self.handle_event(event_id, event_type))
+
 
     def verify_events(self):
         """Verificación periódica de nuevos eventos más cercanos"""
@@ -166,3 +219,25 @@ class EventManager(QObject):
                 print("No se encontraron nuevos eventos más próximos. Manteniendo el estado actual.")
         else:
             print("No hay eventos próximos en la base de datos.")
+        
+    def _get_varied_time(self, base_time, max_delay_minutes=6):
+        """Genera un tiempo con variabilidad aleatoria (solo retrasos)"""
+        # 40% de probabilidad de ser exactamente a tiempo
+        if random.random() < 0.4:
+            return base_time
+            
+        # 60% de probabilidad de retraso (1-6 minutos)
+        delay_minutes = random.randint(1, max_delay_minutes)
+        return base_time.addSecs(delay_minutes * 60)
+    
+    def _get_arrival_time(self, departure_real, scheduled_arrival):
+        """Calcula tiempo de llegada real basado en salida real y llegada programada"""
+        scheduled_departure = self.next_event_time  # Hora de salida programada
+        scheduled_duration = scheduled_departure.msecsTo(scheduled_arrival) / 1000  # duración en segundos
+        
+        # Añadir algo de variabilidad al tiempo de viaje (entre -5% y +10% del tiempo programado)
+        variation_factor = 1 + (random.random() * 0.15 - 0.05)  # entre 0.95 y 1.10
+        actual_duration = scheduled_duration * variation_factor
+        
+        arrival_real = departure_real.addSecs(int(actual_duration))
+        return arrival_real
