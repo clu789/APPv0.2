@@ -185,7 +185,10 @@ class EventManager(QObject):
         try:
             self.db.execute_query(query, params)
             print(f"✓ Evento {event_type} registrado para horario {event_id}")
+
+            # Emitir señal para actualizar las interfaces
             self.update_triggered.emit()
+             # Programar el siguiente evento
             self.schedule_next_event()
         except Exception as e:
             print(f"Error al registrar evento: {e}")
