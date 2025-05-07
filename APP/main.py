@@ -51,9 +51,14 @@ class MainWindow(QMainWindow):
             MonitoreoInterface(self, self.db),
             GestionIncidencias(self, self.db),
             GestionInfraestructura(self, self.db),
-            OptimizacionDinamica(self, self.db), # Nueva interfaz de optimización
-            InterfazAsignacion(self, self.db) 
+            OptimizacionDinamica(self, self.db),
+            InterfazAsignacion(self, self.db)
         ]
+
+        # Conectar la señal de actualización a cada interfaz
+        for interfaz in self.interfaces:
+            print("se detecta la señarl de actualización")
+            self.db.event_manager.update_triggered.connect(interfaz.actualizar_datos)
 
         for interface in self.interfaces:
             self.stacked_widget.addWidget(interface)

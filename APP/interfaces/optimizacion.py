@@ -48,6 +48,14 @@ class OptimizacionDinamica(QWidget):
 
         self.setLayout(layout)
 
+        #Recargar los datos de la interfaz
+  
+    def actualizar_datos(self):
+        """Recarga los datos de la interfaz"""
+        print("Actualizando datos de incidencias...")
+        self.load_delays()
+        self.load_train_suggestions()
+
     def load_delays(self):
         """Carga los retrasos detectados comparando horarios programados y reales"""
         query = """

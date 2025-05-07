@@ -68,6 +68,13 @@ class MonitoreoInterface(QWidget):
         # Conectar botón de actualización
         self.btn_refrescar.clicked.connect(self.load_real_time_data)
 
+        #Recargar los datos de la interfaz
+        
+    def actualizar_datos(self):
+        """Recarga los datos de la interfaz"""
+        print("Actualizando datos de MonitoreoInterface")
+        self.load_real_time_data()
+
     def load_real_time_data(self):
         """Carga el estado actual de los trenes en servicio"""
         query_trains = """

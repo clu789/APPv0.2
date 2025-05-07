@@ -62,6 +62,12 @@ class GestionIncidencias(QWidget):
         # Conectar botón de actualización
         self.btn_actualizar.clicked.connect(self.load_incidencias)
 
+    #Recargar los datos de la interfaz
+    def actualizar_datos(self):
+        """Recarga los datos de la interfaz"""
+        print("Actualizando datos de incidencias...")
+        self.load_incidencias()
+
     def load_incidencias(self):
         """Carga las incidencias desde la base de datos"""
         query = """

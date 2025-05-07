@@ -48,6 +48,14 @@ class GestionInfraestructura(QWidget):
         self.load_trenes_data()
         self.load_estaciones_data()
 
+        #Recargar los datos de la interfaz
+    
+    def actualizar_datos(self):
+        """Recarga los datos de la interfaz"""
+        print("Actualizando datos de GestionInfraestructura")
+        self.load_trenes_data()
+        self.load_estaciones_data()
+
     def create_trenes_table(self):
         """Crea la tabla de trenes"""
         self.trenes_table = QTableWidget()

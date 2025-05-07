@@ -80,6 +80,22 @@ class DatabaseConnection:
             print(f"Error en fetch_one: {e}")
             return None
 
+    def execute_and_fetch(self, query, params=None):
+        """
+        Ejecuta una consulta (INSERT/UPDATE/DELETE con RETURNING o SELECT) 
+        y devuelve los resultados, haciendo commit.
+        """
+        try:
+            with self.connection.cursor() as cursor:
+                cursor.execute(query, params or [])
+                result = cursor.fetchall()
+                self.connection.commit()
+                return result
+        except oracledb.Error as e:
+            print(f"Error en execute_and_fetch: {e}")
+            self.connection.rollback()
+            return None
+
     def execute_query(self, query, params=None, return_rows=False):
         """
         Ejecutar una consulta (INSERT, UPDATE, DELETE)

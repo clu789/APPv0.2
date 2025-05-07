@@ -93,6 +93,13 @@ class GestionHorariosRutas(QWidget):
 
         self.setLayout(layout)
 
+    def actualizar_datos(self):
+        """Recarga los datos de la interfaz"""
+        print("Actualizando datos de GestionHorariosRutas")
+        self.load_routes()
+        self.load_schedules()
+        self.load_train_availability()
+
     def load_routes(self):
         """Carga las rutas con su duración y secuencia de estaciones"""
         query = """
@@ -204,3 +211,4 @@ class GestionHorariosRutas(QWidget):
         self.load_routes()
         self.load_schedules()
         self.load_train_availability()
+

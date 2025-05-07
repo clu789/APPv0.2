@@ -9,14 +9,9 @@ class InterfazHome(QWidget):
         super().__init__()
         self.main_window = main_window
         self.db = db
+        self.init_ui()
 
-        self.setWindowTitle("Panel de Control - Home")
-        self.setGeometry(100, 100, 1200, 700)
-
-        self.initUI()
-        self.cargar_datos()
-
-    def initUI(self):
+    def init_ui(self):
         layout = QVBoxLayout()
         top_layout = QHBoxLayout()
 
@@ -71,6 +66,14 @@ class InterfazHome(QWidget):
 
         self.setLayout(layout)
 
+        # Recargar los datos necesarios para esta interfaz
+
+    def actualizar_datos(self):
+        """Recarga los datos de la interfaz"""
+        print("Actualizando datos de InterfazHome")
+        self.cargar_datos()
+
+    
     def crear_scroll_para_tabla(self, tabla):
         tabla.setSizeAdjustPolicy(QTableWidget.SizeAdjustPolicy.AdjustToContents)
         tabla.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -112,6 +115,7 @@ class InterfazHome(QWidget):
             WHERE RD2.ORDEN = (SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = A.ID_RUTA)
               AND H.HORA_SALIDA_REAL IS NOT NULL
               AND H.HORA_LLEGADA_REAL IS NULL
+            ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
         """
         viajes = self.db.fetch_all(query)
         self.tabla_viajes.setRowCount(0)
@@ -167,3 +171,4 @@ class InterfazHome(QWidget):
         id_horario = self.tabla_proximos.item(fila, 0).text()
         print(f"[DEBUG] Intentando eliminar ID_HORARIO: {id_horario}")
         # ... el resto de la lógica de cancelar permanece igual ...
+
