@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
 from PyQt6.QtCore import Qt, QTimer, QTime
 from PyQt6.QtGui import QIcon
 from base_de_datos.db import DatabaseConnection
+import oracledb
 
 class InterfazHome(QWidget):
     def __init__(self, main_window, db):
@@ -10,6 +11,7 @@ class InterfazHome(QWidget):
         self.main_window = main_window
         self.db = db
         self.init_ui()
+        self.cargar_datos()
 
     def init_ui(self):
         layout = QVBoxLayout()
@@ -170,5 +172,64 @@ class InterfazHome(QWidget):
 
         id_horario = self.tabla_proximos.item(fila, 0).text()
         print(f"[DEBUG] Intentando eliminar ID_HORARIO: {id_horario}")
-        # ... el resto de la lógica de cancelar permanece igual ...
 
+        # Verificar primero si el horario existe
+        horario_existe = self.db.fetch_one("SELECT 1 FROM HORARIO WHERE ID_HORARIO = :1", [id_horario])
+        if not horario_existe:
+            QMessageBox.warning(self, "Error", f"No se encontró el horario {id_horario} en la base de datos.")
+            return
+
+        confirmar = QMessageBox.question(
+            self, "Confirmar", 
+            f"¿Estás seguro de eliminar el horario {id_horario} y todos sus registros relacionados?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
+
+        if confirmar == QMessageBox.StandardButton.No:
+            return
+
+        try:
+            # Desactivar autocommit para manejar transacción manualmente
+            self.db.connection.autocommit = False
+
+            # 1. Eliminar incidencias primero
+            self.db.execute_query("DELETE FROM INCIDENCIA WHERE ID_HORARIO = :1", [id_horario])
+            
+            # 2. Eliminar del historial
+            self.db.execute_query("DELETE FROM HISTORIAL WHERE ID_HORARIO = :1", [id_horario])
+            
+            # 3. Eliminar asignación de tren
+            self.db.execute_query("DELETE FROM ASIGNACION_TREN WHERE ID_HORARIO = :1", [id_horario])
+            
+            # 4. Finalmente eliminar el horario
+            resultado = self.db.execute_query("DELETE FROM HORARIO WHERE ID_HORARIO = :1", [id_horario])
+            
+            if resultado == 0:
+                raise Exception("No se eliminó ningún registro de HORARIO")
+
+            # Confirmar todos los cambios
+            self.db.connection.commit()
+
+            QMessageBox.information(self, "Éxito", f"Horario {id_horario} eliminado correctamente.")
+
+            # Actualizar las tablas
+            self.cargar_datos()  # Esto actualiza ambas tablas (viajes y próximos)
+
+             # Emitir señal para actualizar las interfaces
+            self.db.event_manager.update_triggered.emit()
+
+        except oracledb.DatabaseError as e:
+            # Revertir en caso de error
+            self.db.connection.rollback()
+            error_msg = f"Error de base de datos: {e.args[0].message}"
+            print(f"[ERROR] {error_msg}")
+            QMessageBox.critical(self, "Error", error_msg)
+
+        except Exception as e:
+            self.db.connection.rollback()
+            print(f"[ERROR] {str(e)}")
+            QMessageBox.critical(self, "Error", str(e))
+
+        finally:
+            # Restaurar autocommit
+            self.db.connection.autocommit = True
