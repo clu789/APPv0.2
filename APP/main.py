@@ -16,7 +16,7 @@ class MainWindow(QMainWindow):
     def __init__(self, db, id_usuario):
         super().__init__()
         
-        self.id_usuario = id_usuario # Aqui se guarda el ID del usuario logueado
+        #self.id_usuario = id_usuario # Aqui se guarda el ID del usuario logueado
         
         self.setWindowTitle('Sistema de Control de Trenes')
 
@@ -40,7 +40,7 @@ class MainWindow(QMainWindow):
 #comentario test 0
 
         # 1. Menú lateral
-        self.menu = MenuLateral(username="NOMBRE DE USUARIO")
+        self.menu = MenuLateral(self.db, id_usuario)
         self.menu.setMinimumWidth(50)
         self.menu.setMaximumWidth(50)  
 

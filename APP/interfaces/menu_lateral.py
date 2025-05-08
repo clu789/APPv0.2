@@ -14,9 +14,10 @@ from PyQt6.QtCore import QSize
 class MenuLateral(QWidget):
     cambio_interfaz = pyqtSignal(int)
     
-    def __init__(self, username="Operador"):
+    def __init__(self, db, username):
         super().__init__()
         self.username = username
+        self.db = db
         self.expanded_width = 150  # Ancho expandido
         self.collapsed_width = 50  # Ancho colapsado
         self.is_expanded = False
@@ -81,12 +82,13 @@ class MenuLateral(QWidget):
         
         # Icono de usuario (se ocultará cuando el menú esté colapsado)
         self.user_icon = QLabel()
-        self.user_icon.setPixmap(QIcon("icons/usuario.png").pixmap(32, 32))
+        self.user_icon.setPixmap(QIcon("APP/icons/usuario.png").pixmap(32, 32))
         self.user_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.user_icon.setStyleSheet("background-color: transparent;")
         
             
-        self.user_label = QLabel(self.username)
+        self.user_label = QLabel()
+        self.load_user_name()
         self.user_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.user_label.setStyleSheet(f"""
             color: {self.text_color.name()};
@@ -111,12 +113,12 @@ class MenuLateral(QWidget):
         self.button_layout.setSpacing(5)
         
         self.botones = [
-            ("Home", QIcon("icons/home.png"), 0),
-            ("Horarios", QIcon("icons/schedule.png"), 1),
-            ("Monitoreo", QIcon("icons/monitor.png"), 2),
-            ("Incidencias", QIcon("icons/alert.png"), 3),
-            ("Infraestructura", QIcon("icons/infra.png"), 4),
-            ("Optimización", QIcon("icons/optimize.png"), 5)
+            ("Home", QIcon("APP/icons/home.png"), 0),
+            ("Horarios", QIcon("APP/icons/schedule.png"), 1),
+            ("Monitoreo", QIcon("APP/icons/monitor.png"), 2),
+            ("Incidencias", QIcon("APP/icons/alert.png"), 3),
+            ("Infraestructura", QIcon("APP/icons/infra.png"), 4),
+            ("Optimización", QIcon("APP/icons/optimize.png"), 5)
         ]
         
         self.button_widgets = []
@@ -257,3 +259,12 @@ class MenuLateral(QWidget):
             highlight = QColor(255, 255, 255, 20)
             painter.setBrush(QBrush(highlight))
             painter.drawRect(self.rect())
+    
+    def load_user_name(self):
+        print(self.username)
+        query = "SELECT NOMBRE||' '||APELLIDO_PATERNO FROM USUARIO WHERE ID_USUARIO = :1"
+        result = self.db.fetch_all(query, (self.username,))
+        print(result)
+        if result:
+            nombre_usuario = result[0][0]
+            self.user_label.setText(f"{nombre_usuario}")
