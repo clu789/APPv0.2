@@ -37,11 +37,12 @@ class MainWindow(QMainWindow):
 
         # Crear splitter para dividir la interfaz
         splitter = QSplitter()
+#comentario test 0
 
         # 1. Menú lateral
         self.menu = MenuLateral(username="NOMBRE DE USUARIO")
         self.menu.setMinimumWidth(50)
-        self.menu.setMaximumWidth(300)  
+        self.menu.setMaximumWidth(50)  
 
         # 2. Área de contenido
         self.stacked_widget = QStackedWidget()
