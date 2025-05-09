@@ -100,6 +100,7 @@ class LoginInterface(QWidget):
             # Reinicia en caso de éxito
             self.intentos_login = 0
             self.input_usuario.clear()
+            self.input_usuario.setFocus()
             self.input_contrasena.clear()
         else:
             self.intentos_login += 1

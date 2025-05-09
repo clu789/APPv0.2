@@ -11,8 +11,10 @@ from interfaces.optimizacion import OptimizacionDinamica
 from interfaces.asignacion import InterfazAsignacion
 from PyQt6.QtWidgets import QStackedWidget
 import sys
+from PyQt6.QtCore import pyqtSignal
 
 class MainWindow(QMainWindow):
+    cerrar_sesion_signal = pyqtSignal()
     def __init__(self, db, id_usuario):
         super().__init__()
         
@@ -74,6 +76,7 @@ class MainWindow(QMainWindow):
 
         # Conectar señal del menú
         self.menu.cambio_interfaz.connect(self.cambiar_interfaz)
+        self.menu.cerrar_sesion.connect(self.cerrar_sesion_signal.emit)
 
         main_layout.addWidget(splitter)
 
@@ -109,6 +112,13 @@ def main():
         login.close()
         ventana_principal = MainWindow(db, id_usuario)
         ventana_principal.showMaximized()
+        
+        # Al cerrar sesión, reabrimos el login
+        def volver_a_login():
+            ventana_principal.close()
+            login.show()
+
+        ventana_principal.cerrar_sesion_signal.connect(volver_a_login)
 
     login.login_exitoso.connect(iniciar_sesion_exitoso)
 

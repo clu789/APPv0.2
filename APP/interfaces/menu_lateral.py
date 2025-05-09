@@ -13,7 +13,7 @@ from PyQt6.QtCore import QSize
 
 class MenuLateral(QWidget):
     cambio_interfaz = pyqtSignal(int)
-    
+    cerrar_sesion = pyqtSignal()  # Señal para cerrar sesión
     def __init__(self, db, username):
         super().__init__()
         self.username = username
@@ -71,7 +71,7 @@ class MenuLateral(QWidget):
         # 2. Encabezado con usuario (oculto por defecto)
 
         self.user_frame = QFrame()
-        self.user_frame.setFixedHeight(80)
+        self.user_frame.setFixedHeight(100)
         self.user_frame.setStyleSheet(f"background-color: {self.menu_color.darker(120).name()};")
         
         user_layout = QVBoxLayout(self.user_frame)
@@ -95,9 +95,28 @@ class MenuLateral(QWidget):
             font-weight: bold;
             font-size: 12px;
         """)
+        
+        self.button_logout = QPushButton("Cerrar sesión")
+        self.button_logout.setFixedHeight(20)
+        #self.button_logout.setStyleSheet(f"""
+        #    QPushButton {{
+        #        background-color: transparent;
+        #        color: {self.text_color.name()};
+        #        padding: 8px 5px;
+        #        border: none;
+        #        text-align: left;
+        #        font-size: 11px;
+        #        border-radius: 4px;
+        #    }}
+        #    QPushButton:hover {{
+        #        background-color: {self.button_color.name()};
+        #    }}
+        #""")
+        self.button_logout.clicked.connect(self.cerrar_sesion.emit)
 
         user_layout.addWidget(self.user_icon, 0, Qt.AlignmentFlag.AlignCenter)
         user_layout.addWidget(self.user_label, 0, Qt.AlignmentFlag.AlignCenter)
+        user_layout.addWidget(self.button_logout, 0, Qt.AlignmentFlag.AlignCenter)
 
         # 3. Separador (oculto por defecto)
         self.separator1 = QFrame()
