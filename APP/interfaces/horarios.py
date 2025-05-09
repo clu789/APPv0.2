@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-                            QTableWidgetItem, QSplitter, QPushButton)
+                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
+from interfaces.asignacion import InterfazAsignacion
 
 class GestionHorariosRutas(QWidget):
     def __init__(self, main_window, db):
@@ -79,19 +80,59 @@ class GestionHorariosRutas(QWidget):
         layout.addWidget(QLabel("Disponibilidad de Trenes"))
         layout.addWidget(self.tabla_trenes)
 
-        # Botones de acción
-        button_layout = QHBoxLayout()
+        # Botones de acción para horarios
+        horario_buttons = QHBoxLayout()
         self.btn_agregar_horario = QPushButton("Agregar Horario")
         self.btn_editar_horario = QPushButton("Editar Horario")
         self.btn_eliminar_horario = QPushButton("Eliminar Horario")
+        horario_buttons.addWidget(self.btn_agregar_horario)
+        horario_buttons.addWidget(self.btn_editar_horario)
+        horario_buttons.addWidget(self.btn_eliminar_horario)
+        layout.addLayout(horario_buttons)
 
-        button_layout.addWidget(self.btn_agregar_horario)
-        button_layout.addWidget(self.btn_editar_horario)
-        button_layout.addWidget(self.btn_eliminar_horario)
+        # Botones de acción para rutas
+        ruta_buttons = QHBoxLayout()
+        self.btn_agregar_ruta = QPushButton("Agregar Ruta")
+        self.btn_editar_ruta = QPushButton("Editar Ruta")
+        self.btn_eliminar_ruta = QPushButton("Eliminar Ruta")
+        ruta_buttons.addWidget(self.btn_agregar_ruta)
+        ruta_buttons.addWidget(self.btn_editar_ruta)
+        ruta_buttons.addWidget(self.btn_eliminar_ruta)
+        layout.addLayout(ruta_buttons)
 
-        layout.addLayout(button_layout)
+        # Botones de acción para asignación de trenes
+        asignacion_buttons = QHBoxLayout()
+        self.btn_asignar_tren = QPushButton("Asignar Tren")
+        self.btn_asignar_tren.clicked.connect(self.mostrar_panel_asignacion)
+        self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
+        self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
+        asignacion_buttons.addWidget(self.btn_asignar_tren)
+        asignacion_buttons.addWidget(self.btn_modificar_asignacion)
+        asignacion_buttons.addWidget(self.btn_quitar_asignacion)
+        layout.addLayout(asignacion_buttons)
+        
+        # Panel de asignación de trenes (oculto por defecto)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.hide()  # Oculto inicialmente
+        self.panel_asignacion = InterfazAsignacion(self.main_window, self.db)
+        self.panel_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel_asignacion)
+        self.panel_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel_asignacion)
+        self.scroll_area.setWidget(self.panel_asignacion)
+        layout.addWidget(self.scroll_area)
 
         self.setLayout(layout)
+
+    def mostrar_panel_asignacion(self):
+        """Muestra el panel de asignación y el scroll"""
+        self.scroll_area.setMinimumHeight(200)
+        self.scroll_area.show()
+        self.showMinimized()
+        self.showMaximized()
+
+    def ocultar_panel_asignacion(self):
+        """Oculta el panel de asignación y el scroll"""
+        self.scroll_area.hide()
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""

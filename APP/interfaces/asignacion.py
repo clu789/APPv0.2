@@ -109,7 +109,7 @@ class InterfazAsignacion(QWidget):
         botones_layout.addStretch()
 
         self.btn_cancelar = QPushButton("Cancelar")
-        self.btn_cancelar.clicked.connect(self.regresar_home)
+        #self.btn_cancelar.clicked.connect(self.regresar_home)
         botones_layout.addWidget(self.btn_cancelar)
     
         self.btn_consultar = QPushButton("Consultar")
@@ -548,6 +548,6 @@ class InterfazAsignacion(QWidget):
         
         return int(resultado[0])  # Asegurarnos que devuelve un entero
 
-    def regresar_home(self):
-        """Regresa a la pantalla principal"""
-        self.main_window.cambiar_interfaz(0)
+    #def regresar_home(self):
+    #    """Regresa a la pantalla principal"""
+    #    self.main_window.cambiar_interfaz(0)
