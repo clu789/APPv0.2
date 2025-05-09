@@ -6,22 +6,31 @@ from base_de_datos.db import DatabaseConnection
 import oracledb
 
 class InterfazHome(QWidget):
-    def __init__(self, main_window, db):
+    def __init__(self, main_window, db, username):
         super().__init__()
+        self.username = username
         self.main_window = main_window
         self.db = db
+        self.setGeometry(100, 100, 1000, 600)
         self.init_ui()
         self.cargar_datos()
 
     def init_ui(self):
         layout = QVBoxLayout()
+        # Encabezado con botón de menú, mensaje de bienvenida, reloj y boton incidencias
         top_layout = QHBoxLayout()
-
+        top_layout.setContentsMargins(0, 0, 0, 0)
+        top_layout.setSpacing(20)
         self.btn_correo = QPushButton()
         self.btn_correo.setIcon(QIcon("APP/icons/alert.png"))
         self.btn_correo.setFixedSize(40, 40)
         self.btn_correo.clicked.connect(lambda: self.main_window.cambiar_interfaz(3))
         top_layout.addWidget(self.btn_correo)
+
+        self.label_bienvenida = QLabel()
+        self.load_user_name()
+        self.label_bienvenida.setStyleSheet("font-weight: bold; font-size: 16px;")
+        top_layout.addWidget(self.label_bienvenida)
 
         self.label_reloj = QLabel()
         self.label_reloj.setStyleSheet("font-size: 18px;")
@@ -233,3 +242,12 @@ class InterfazHome(QWidget):
         finally:
             # Restaurar autocommit
             self.db.connection.autocommit = True
+
+    def load_user_name(self):
+        print(self.username)
+        query = "SELECT NOMBRE FROM USUARIO WHERE ID_USUARIO = :1"
+        result = self.db.fetch_all(query, (self.username,))
+        print(result)
+        if result:
+            nombre_usuario = result[0][0]
+            self.label_bienvenida.setText(f"Bienvenido de vuelta, {nombre_usuario}!")
