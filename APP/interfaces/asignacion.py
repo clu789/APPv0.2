@@ -22,6 +22,16 @@ class InterfazAsignacion(QWidget):
         main_layout.setContentsMargins(15, 15, 15, 15)  # Márgenes uniformes
         main_layout.setSpacing(15)
 
+        # Título del panel
+        self.label_titulo = QLabel("Asignar ruta:")
+        self.label_titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
+        main_layout.addWidget(self.label_titulo)
+
+        # Mensaje de estado
+        self.label_mensaje = QLabel("")
+        self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
+        self.label_mensaje.setStyleSheet("font-size: 20px; color: green; font-weight: bold;")
+        main_layout.addWidget(self.label_mensaje)
 
         # Panel izquierdo (controles)
         panel_controles = QFrame()
@@ -121,7 +131,7 @@ class InterfazAsignacion(QWidget):
                 # Agregar un QLabel 
         self.label_mensaje = QLabel("")
         self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label_mensaje.setStyleSheet("color: green; font-weight: bold;")
+        self.label_mensaje.setStyleSheet("font-size: 18px;color: green; font-weight: bold;")
         controles_layout.addWidget(self.label_mensaje)
 
         self.img_container = QWidget()

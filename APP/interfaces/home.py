@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem,
                             QScrollArea, QPushButton, QFrame, QMessageBox)
 from PyQt6.QtCore import Qt, QTimer, QTime
+from interfaces.asignacion import InterfazAsignacion  
 from PyQt6.QtGui import QIcon
 from base_de_datos.db import DatabaseConnection
 import oracledb
@@ -62,12 +63,14 @@ class InterfazHome(QWidget):
         ])
         layout.addWidget(self.crear_scroll_para_tabla(self.tabla_proximos))
 
+         # Botones de acción
         botones_layout = QHBoxLayout()
         botones_layout.addStretch()
         self.btn_modificar = QPushButton("Modificar")
         self.btn_modificar.clicked.connect(self.accion_modificar)
         self.btn_asignar = QPushButton("Asignar")
-        self.btn_asignar.clicked.connect(lambda: self.main_window.cambiar_interfaz(6))
+        self.btn_asignar.clicked.connect(self.mostrar_panel_asignacion)
+       # self.btn_asignar.clicked.connect(lambda: self.main_window.cambiar_interfaz(6))
         self.btn_cancelar = QPushButton("Cancelar")
         self.btn_cancelar.clicked.connect(self.accion_cancelar)
         botones_layout.addWidget(self.btn_modificar)
@@ -75,9 +78,29 @@ class InterfazHome(QWidget):
         botones_layout.addWidget(self.btn_cancelar)
         layout.addLayout(botones_layout)
 
+        # Panel de asignación (oculto por defecto)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.hide()  # Oculto inicialmente
+
+        self.panel_asignacion = InterfazAsignacion(self.main_window, self.db)
+        self.panel_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel_asignacion)
+        self.panel_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel_asignacion)
+
+        self.scroll_area.setWidget(self.panel_asignacion)
+        layout.addWidget(self.scroll_area)
+
         self.setLayout(layout)
 
         # Recargar los datos necesarios para esta interfaz
+
+    def mostrar_panel_asignacion(self):
+        """Muestra el panel de asignación y el scroll"""
+        self.scroll_area.show()
+
+    def ocultar_panel_asignacion(self):
+        """Oculta el panel de asignación y el scroll"""
+        self.scroll_area.hide()
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
