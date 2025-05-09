@@ -3,10 +3,15 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QMessageBox
 )
 from PyQt6.QtGui import QPixmap, QFont
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtCore import Qt, pyqtSignal
 from base_de_datos.db import DatabaseConnection
 
+class LineEditSeleccion(QLineEdit):
+    def focusInEvent(self, event):
+        super().focusInEvent(event)
+        # Espera un instante antes de seleccionar todo el texto (soluciona conflicto con el click del mouse)
+        QTimer.singleShot(0, self.selectAll)
 
 class LoginInterface(QWidget):
     login_exitoso = pyqtSignal(str)
@@ -48,7 +53,7 @@ class LoginInterface(QWidget):
         # Campo de usuario
         self.label_usuario = QLabel("Usuario:")
         self.label_usuario.setFont(fuente_grande)
-        self.input_usuario = QLineEdit()
+        self.input_usuario = LineEditSeleccion()
         self.input_usuario.setFont(fuente_grande)
         layout_principal.addWidget(self.label_usuario)
         layout_principal.addWidget(self.input_usuario)
@@ -56,7 +61,7 @@ class LoginInterface(QWidget):
         # Campo de contraseña
         self.label_contrasena = QLabel("Contraseña:")
         self.label_contrasena.setFont(fuente_grande)
-        self.input_contrasena = QLineEdit()
+        self.input_contrasena = LineEditSeleccion()
         self.input_contrasena.setEchoMode(QLineEdit.EchoMode.Password)  # Oculta caracteres
         self.input_contrasena.setFont(fuente_grande)
         layout_principal.addWidget(self.label_contrasena)
@@ -76,6 +81,8 @@ class LoginInterface(QWidget):
         self.setLayout(layout_principal)
         self.intentos_login = 0
         self.boton_login.clicked.connect(self.verificar_credenciales)
+        self.input_usuario.returnPressed.connect(self.boton_login.click)
+        self.input_contrasena.returnPressed.connect(self.boton_login.click)
 
     def verificar_credenciales(self):
         usuario = self.input_usuario.text()
@@ -90,7 +97,10 @@ class LoginInterface(QWidget):
 
         if resultado and resultado[0][0] > 0:
             self.login_exitoso.emit(usuario)
-            self.intentos_login = 0  # Reinicia en caso de éxito
+            # Reinicia en caso de éxito
+            self.intentos_login = 0
+            self.input_usuario.clear()
+            self.input_contrasena.clear()
         else:
             self.intentos_login += 1
             if self.intentos_login >= 3:
@@ -100,3 +110,4 @@ class LoginInterface(QWidget):
             else:
                 QMessageBox.critical(self, "Error", "Usuario o contraseña incorrectos.")
                 self.input_contrasena.clear()
+                self.input_contrasena.setFocus()
