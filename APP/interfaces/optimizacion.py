@@ -60,12 +60,12 @@ class OptimizacionDinamica(QWidget):
         """Carga los retrasos detectados comparando horarios programados y reales"""
         query = """
             SELECT H.ID_HORARIO, 
-                   ROUND((H.HORA_SALIDA_REAL - H.HORA_SALIDA_PROGRAMADA) * 1440) AS RETRASO, 
+                   ROUND((A.HORA_SALIDA_REAL - H.HORA_SALIDA_PROGRAMADA) * 1440) AS RETRASO, 
                    T.NOMBRE
             FROM HORARIO H
             LEFT JOIN ASIGNACION_TREN A ON H.ID_HORARIO = A.ID_HORARIO
             LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
-            WHERE H.HORA_SALIDA_REAL IS NOT NULL
+            WHERE A.HORA_SALIDA_REAL IS NOT NULL
             ORDER BY RETRASO DESC
         """
         delays = self.db.fetch_all(query)
