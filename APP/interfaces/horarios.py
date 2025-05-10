@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea)
+                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 from interfaces.asignacion import InterfazAsignacion
+from interfaces.paneles.panel_horarios import InterfazAgregarHorario
 
 class GestionHorariosRutas(QWidget):
     def __init__(self, main_window, db):
@@ -63,6 +64,7 @@ class GestionHorariosRutas(QWidget):
         # Sección derecha: Imagen de la ruta
         right_section = QVBoxLayout()
         self.img_ruta = QLabel("Imagen de la ruta")
+        self.img_ruta.setMaximumSize(800, 400)
         self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right_section.addWidget(self.img_ruta)
 
@@ -83,6 +85,7 @@ class GestionHorariosRutas(QWidget):
         # Botones de acción para horarios
         horario_buttons = QHBoxLayout()
         self.btn_agregar_horario = QPushButton("Agregar Horario")
+        self.btn_agregar_horario.clicked.connect(lambda: self.mostrar_panel(0))
         self.btn_editar_horario = QPushButton("Editar Horario")
         self.btn_eliminar_horario = QPushButton("Eliminar Horario")
         horario_buttons.addWidget(self.btn_agregar_horario)
@@ -93,6 +96,7 @@ class GestionHorariosRutas(QWidget):
         # Botones de acción para rutas
         ruta_buttons = QHBoxLayout()
         self.btn_agregar_ruta = QPushButton("Agregar Ruta")
+        self.btn_agregar_ruta.clicked.connect(lambda: self.mostrar_panel(1))
         self.btn_editar_ruta = QPushButton("Editar Ruta")
         self.btn_eliminar_ruta = QPushButton("Eliminar Ruta")
         ruta_buttons.addWidget(self.btn_agregar_ruta)
@@ -103,7 +107,7 @@ class GestionHorariosRutas(QWidget):
         # Botones de acción para asignación de trenes
         asignacion_buttons = QHBoxLayout()
         self.btn_asignar_tren = QPushButton("Asignar Tren")
-        self.btn_asignar_tren.clicked.connect(self.mostrar_panel_asignacion)
+        self.btn_asignar_tren.clicked.connect(lambda: self.mostrar_panel(2))
         self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
         self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
         asignacion_buttons.addWidget(self.btn_asignar_tren)
@@ -111,28 +115,53 @@ class GestionHorariosRutas(QWidget):
         asignacion_buttons.addWidget(self.btn_quitar_asignacion)
         layout.addLayout(asignacion_buttons)
         
+        # Contenedor apilado
+        self.stacked = QStackedWidget()
+        self.stacked.hide()
+        
+        #Panel para agregar horarios
+        self.scroll_horarios = QScrollArea()
+        self.scroll_horarios.setWidgetResizable(True)
+        self.scroll_horarios.hide()
+        self.panel_horarios = InterfazAgregarHorario(self.main_window, self.db)
+        self.panel_horarios.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_horarios.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_horarios.btn_confirmar.clicked.connect(self.actualizar_datos)
+        self.scroll_horarios.setWidget(self.panel_horarios)
+        
+        #Panel para agregar rutas
+        self.scroll_rutas = QScrollArea()
+        self.scroll_rutas.setWidgetResizable(True)
+        self.scroll_rutas.hide()
+        #self.panel_rutas = InterfazAsignacion(self.main_window, self.db)
+        #self.panel_rutas.btn_cancelar.clicked.connect(self.ocultar_panel_asignacion)
+        #self.panel_rutas.btn_confirmar.clicked.connect(self.ocultar_panel_asignacion)
+        #self.scroll_rutas.setWidget(self.panel_rutas)
+        
         # Panel de asignación de trenes (oculto por defecto)
-        self.scroll_area = QScrollArea()
-        self.scroll_area.setWidgetResizable(True)
-        self.scroll_area.hide()  # Oculto inicialmente
+        self.scroll_asignacion = QScrollArea()
+        self.scroll_asignacion.setWidgetResizable(True)
+        self.scroll_asignacion.hide()  # Oculto inicialmente
         self.panel_asignacion = InterfazAsignacion(self.main_window, self.db)
-        self.panel_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel_asignacion)
-        self.panel_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel_asignacion)
-        self.scroll_area.setWidget(self.panel_asignacion)
-        layout.addWidget(self.scroll_area)
+        self.panel_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.scroll_asignacion.setWidget(self.panel_asignacion)
+        
+        self.stacked.addWidget(self.scroll_horarios)
+        self.stacked.addWidget(self.scroll_rutas)
+        self.stacked.addWidget(self.scroll_asignacion)
+        layout.addWidget(self.stacked)
 
         self.setLayout(layout)
 
-    def mostrar_panel_asignacion(self):
+    def mostrar_panel(self, index):
         """Muestra el panel de asignación y el scroll"""
-        self.scroll_area.setMinimumHeight(200)
-        self.scroll_area.show()
-        self.showMinimized()
-        self.showMaximized()
+        self.stacked.setCurrentIndex(index)
+        self.stacked.show()
 
-    def ocultar_panel_asignacion(self):
+    def ocultar_panel(self):
         """Oculta el panel de asignación y el scroll"""
-        self.scroll_area.hide()
+        self.stacked.hide()
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
@@ -187,6 +216,7 @@ class GestionHorariosRutas(QWidget):
             FROM HORARIO H
             LEFT JOIN ASIGNACION_TREN A ON H.ID_HORARIO = A.ID_HORARIO
             LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
+            ORDER BY 1 ASC
         """
         schedules = self.db.fetch_all(query)
 
@@ -203,13 +233,7 @@ class GestionHorariosRutas(QWidget):
     def load_train_availability(self):
         """Calcula la disponibilidad de los trenes"""
         query = """
-            SELECT T.ID_TREN, T.NOMBRE,
-                    CASE
-                        WHEN T.ESTADO <> 'ACTIVO' THEN 'No disponible'
-                        WHEN EXISTS (SELECT 1 FROM ASIGNACION_TREN A WHERE A.ID_TREN = T.ID_TREN)
-                        THEN 'Asignado'
-                        ELSE 'Disponible'
-                    END AS DISPONIBILIDAD
+            SELECT T.ID_TREN, T.NOMBRE, T.ESTADO
             FROM TREN T
         """
         trains = self.db.fetch_all(query)
