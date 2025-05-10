@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
 from interfaces.asignacion import InterfazAsignacion
 from interfaces.paneles.panel_horarios import InterfazAgregarHorario
+from interfaces.paneles.panel_rutas import InterfazAgregarRuta
 
 class GestionHorariosRutas(QWidget):
     def __init__(self, main_window, db):
@@ -133,10 +134,11 @@ class GestionHorariosRutas(QWidget):
         self.scroll_rutas = QScrollArea()
         self.scroll_rutas.setWidgetResizable(True)
         self.scroll_rutas.hide()
-        #self.panel_rutas = InterfazAsignacion(self.main_window, self.db)
-        #self.panel_rutas.btn_cancelar.clicked.connect(self.ocultar_panel_asignacion)
-        #self.panel_rutas.btn_confirmar.clicked.connect(self.ocultar_panel_asignacion)
-        #self.scroll_rutas.setWidget(self.panel_rutas)
+        self.panel_rutas = InterfazAgregarRuta(self.main_window, self.db)
+        self.panel_rutas.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_rutas.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_rutas.btn_confirmar.clicked.connect(self.actualizar_datos)
+        self.scroll_rutas.setWidget(self.panel_rutas)
         
         # Panel de asignación de trenes (oculto por defecto)
         self.scroll_asignacion = QScrollArea()
