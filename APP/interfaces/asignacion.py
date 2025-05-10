@@ -206,7 +206,7 @@ class InterfazAsignacion(QWidget):
 
             # 4. Escalar adecuadamente
             max_width = self.panel_imagen.width() - 20
-            max_height = self.panel_imagen.height() - 20
+            max_height = self.panel_imagen.height() - 50  # Reducir más el eje Y
             
             scaled_pix = pixmap.scaled(
                 max_width, 
@@ -446,6 +446,7 @@ class InterfazAsignacion(QWidget):
             cursor = self.db.connection.cursor()
 
             # ========== PRIMERA INSERCIÓN: HORARIO ==========
+
             id_horario_var = cursor.var(oracledb.NUMBER)
             cursor.execute("""
                 BEGIN
@@ -461,6 +462,7 @@ class InterfazAsignacion(QWidget):
             print(f"[DEBUG] Horario insertado. ID: {id_horario}")
 
             # ========== SEGUNDA INSERCIÓN: ASIGNACION_TREN ==========
+
             id_asignacion_var = cursor.var(oracledb.NUMBER)
             cursor.execute("""
                 BEGIN
@@ -480,6 +482,7 @@ class InterfazAsignacion(QWidget):
             print(f"[DEBUG] Asignación insertada. ID: {id_asignacion}")
 
             # ========== TERCERA INSERCIÓN: HISTORIAL ==========
+
             # Asumimos que el usuario con ID 1 está realizando la acción
             cursor.execute("""
                 INSERT INTO HISTORIAL (ID_HISTORIAL, FECHA_REGISTRO, ID_HORARIO, ID_USUARIO)

@@ -252,9 +252,14 @@ class InterfazHome(QWidget):
 
     def mostrar_panel_asignacion(self):
         """Muestra el panel de asignación y ajusta el tamaño de las tablas"""
-        # Reducir altura de las tablas para hacer espacio
-        self.tabla_viajes.setMaximumHeight(150)
-        self.tabla_proximos.setMaximumHeight(150)
+        # Reducir altura de las tablas pero no demasiado
+        reduced_height = 250  # Nueva altura para las tablas cuando el panel está visible
+        self.tabla_viajes.setMaximumHeight(reduced_height)
+        self.tabla_proximos.setMaximumHeight(reduced_height)
+        
+        # Ajustar el tamaño del panel de asignación para que ocupe el espacio restante
+        available_height = self.height() - (reduced_height * 2 + 200)  # 200 es espacio para otros elementos
+        self.panel_asignacion.setMinimumHeight(max(300, available_height))
         
         # Mostrar panel de asignación
         self.panel_asignacion.show()
@@ -262,20 +267,22 @@ class InterfazHome(QWidget):
         # Ajustar scroll
         self.main_scroll.verticalScrollBar().setValue(0)
         self.main_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-
+    
     def ocultar_panel_asignacion(self):
-        """Oculta el panel de asignación y restaura el tamaño de las tablas"""
-        # Restaurar altura original de las tablas
-        self.tabla_viajes.setMaximumHeight(self.original_table_heights['viajes'])
-        self.tabla_proximos.setMaximumHeight(self.original_table_heights['proximos'])
-        
-        # Ocultar panel de asignación
-        self.panel_asignacion.hide()
-        
-        # Ajustar scroll
-        self.main_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+            """Oculta el panel de asignación y restaura el tamaño de las tablas"""
+            # Restaurar altura original de las tablas
+            self.tabla_viajes.setMaximumHeight(16777215)  # Valor Qt por defecto para "sin límite"
+            self.tabla_proximos.setMaximumHeight(16777215)
+            self.tabla_viajes.setMinimumHeight(self.original_table_heights['viajes'])
+            self.tabla_proximos.setMinimumHeight(self.original_table_heights['proximos'])
+            
+            # Ocultar panel de asignación
+            self.panel_asignacion.hide()
+            
+            # Ajustar scroll
+            self.main_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-    # ... (resto de los métodos permanecen iguales)
+
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
         print("Actualizando datos de InterfazHome")
@@ -313,7 +320,6 @@ class InterfazHome(QWidget):
               AND A.HORA_SALIDA_REAL IS NOT NULL
               AND A.HORA_LLEGADA_REAL IS NULL
               ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
-            ---ORDER BY A.HORA_SALIDA_REAL ASC
         """
         viajes = self.db.fetch_all(query)
 

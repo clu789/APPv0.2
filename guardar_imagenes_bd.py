@@ -34,10 +34,19 @@ def guardar_imagen_ruta(ruta_id, archivo_imagen):
     cursor.close()
 
 # Ejemplo de uso
-guardar_imagen_ruta(1, r'D:\6 semestre\is\PFinal\APPv0.2\imagenes\ruta1.jpg')
-guardar_imagen_ruta(2, r'D:\6 semestre\is\PFinal\APPv0.2\imagenes\ruta2.jpg')
-guardar_imagen_ruta(3, r'D:\6 semestre\is\PFinal\APPv0.2\imagenes\ruta2_0.png')
-guardar_imagen_ruta(4, r'D:\6 semestre\is\PFinal\APPv0.2\imagenes\ruta1.png')
-print("Imágenes guardadas correctamente en la base de datos.")
-# Cerrar la conexión
-conn.close()
+if __name__ == "__main__":
+    guardar_imagen_ruta(1, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-1-Metro-mapa.png')
+    guardar_imagen_ruta(2, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-2-Metro-mapa.png')
+    guardar_imagen_ruta(3, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-3-Metro-mapa.png')
+    guardar_imagen_ruta(4, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-4-Metro-mapa.png')
+    guardar_imagen_ruta(5, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-5-Metro-mapa.png')
+    guardar_imagen_ruta(6, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-6-Metro-mapa.png')
+    guardar_imagen_ruta(7, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-7-Metro-mapa.png')
+    guardar_imagen_ruta(8, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-8-Metro-mapa.png')
+    guardar_imagen_ruta(9, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-9-Metro-mapa.png')
+    guardar_imagen_ruta(10, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-A-Metro-mapa.png')
+    guardar_imagen_ruta(11, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-B-Metro-mapa.png')
+    guardar_imagen_ruta(12, r'D:/6 semestre/is/PFinal/APPv0.2/imagenes/Linea-12-Metro-mapa.png')
+    print("Imágenes guardadas correctamente en la base de datos.")
+    # Cerrar la conexión
+    conn.close()
