@@ -1,18 +1,18 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, 
-                            QDateEdit, QPushButton, QMessageBox, QSizePolicy, 
+                            QPushButton, QMessageBox, QSizePolicy, 
                             QSpacerItem, QFrame, QScrollArea)
-from PyQt6.QtCore import Qt, QDate, QDateTime, QTime, QSize
+from PyQt6.QtCore import Qt, QDateTime, QTime, QSize, pyqtSignal
 from PyQt6.QtGui import QPixmap
 import oracledb
 from datetime import datetime, timedelta
 
 class InterfazAsignacion(QWidget):
+    asignacion_exitosa = pyqtSignal()  # Señal para indicar que se realizó una asignación exitosa
+
     def __init__(self, main_window, db):
         super().__init__()
         self.main_window = main_window
         self.db = db
-        self.TIEMPO_ABORDAJE = 5  # minutos entre viajes
-        self.TIEMPO_TRANSFERENCIA = 30  # minutos para cambiar de ruta
         self.init_ui()
 
     def init_ui(self):
@@ -22,17 +22,6 @@ class InterfazAsignacion(QWidget):
         main_layout.setContentsMargins(15, 15, 15, 15)  # Márgenes uniformes
         main_layout.setSpacing(15)
 
-        # Título del panel
-        self.label_titulo = QLabel("Asignar ruta:")
-        self.label_titulo.setStyleSheet("font-size: 18px; font-weight: bold;")
-        main_layout.addWidget(self.label_titulo)
-
-        # Mensaje de estado
-        self.label_mensaje = QLabel("")
-        self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignTop)
-        self.label_mensaje.setStyleSheet("font-size: 20px; color: green; font-weight: bold;")
-        main_layout.addWidget(self.label_mensaje)
-
         # Panel izquierdo (controles)
         panel_controles = QFrame()
         panel_controles.setFixedWidth(300)  # Ancho fijo
@@ -41,58 +30,19 @@ class InterfazAsignacion(QWidget):
 
         # Configuración común para los controles
         control_style = """
-            QComboBox, QDateEdit, QLabel {
+            QComboBox, QLabel {
                 margin-bottom: 8px;
                 min-height: 25px;
             }
         """
 
-        # Sección de fecha
-        fecha_layout = QHBoxLayout()
-        fecha_layout.setSpacing(10)
-        fecha_layout.addWidget(QLabel("Fecha:"))
-        self.calendario = QDateEdit()
-        self.calendario.setStyleSheet(control_style)
-        self.calendario.setDisplayFormat("dd/MM/yyyy")
-        self.calendario.setDate(QDate.currentDate())
-        self.calendario.setCalendarPopup(True)
-        self.calendario.setMinimumDate(QDate.currentDate())
-        self.calendario.dateChanged.connect(self.actualizar_horas_disponibles)
-        fecha_layout.addWidget(self.calendario)
-        controles_layout.addLayout(fecha_layout)
+        # Mensaje de estado
+        self.label_mensaje = QLabel("Seleccione una ruta para comenzar")
+        self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        self.label_mensaje.setStyleSheet("font-size: 12px; color: black;")
+        controles_layout.addWidget(self.label_mensaje)
 
-        # Sección de hora
-        hora_layout = QHBoxLayout()
-        hora_layout.setSpacing(10)
-        hora_layout.addWidget(QLabel("Hora:"))
-        self.combo_hora = QComboBox()
-        self.combo_hora.setStyleSheet(control_style)
-        self.combo_hora.setEditable(True)
-        self.actualizar_horas_disponibles()
-        hora_layout.addWidget(self.combo_hora)
-
-        hora_layout.addWidget(QLabel(":"))
-
-        self.combo_minutos = QComboBox()
-        self.combo_minutos.setStyleSheet(control_style)
-        self.combo_minutos.setEditable(True)
-        for m in range(0, 60, 5):  # Cada 5 minutos
-            self.combo_minutos.addItem(f"{m:02d}")
-        hora_layout.addWidget(self.combo_minutos)
-        controles_layout.addLayout(hora_layout)
-
-        # Tren
-        tren_layout = QHBoxLayout()
-        tren_layout.setSpacing(10)
-        tren_layout.addWidget(QLabel("Unidad:"))
-        self.combo_tren = QComboBox()
-        self.combo_tren.setStyleSheet(control_style)
-        self.combo_tren.addItem("Seleccionar")
-        self.cargar_trenes_disponibles()
-        tren_layout.addWidget(self.combo_tren)
-        controles_layout.addLayout(tren_layout)
-
-        # Ruta
+        # Sección de Ruta
         ruta_layout = QHBoxLayout()
         ruta_layout.setSpacing(10)
         ruta_layout.addWidget(QLabel("Ruta:"))
@@ -100,9 +50,30 @@ class InterfazAsignacion(QWidget):
         self.combo_ruta.setStyleSheet(control_style)
         self.combo_ruta.addItem("Seleccionar")
         self.cargar_rutas()
-        self.combo_ruta.currentIndexChanged.connect(self.ajustar_tamano_ventana)
+        self.combo_ruta.currentIndexChanged.connect(self.on_ruta_selected)
         ruta_layout.addWidget(self.combo_ruta)
         controles_layout.addLayout(ruta_layout)
+
+        # Sección de Horario
+        horario_layout = QHBoxLayout()
+        horario_layout.setSpacing(10)
+        horario_layout.addWidget(QLabel("Horario:"))
+        self.combo_horario = QComboBox()
+        self.combo_horario.setStyleSheet(control_style)
+        self.combo_horario.addItem("Seleccione una ruta primero")
+        self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)    
+        horario_layout.addWidget(self.combo_horario)
+        controles_layout.addLayout(horario_layout)
+
+        # Tren
+        tren_layout = QHBoxLayout()
+        tren_layout.setSpacing(10)
+        tren_layout.addWidget(QLabel("Unidad:"))
+        self.combo_tren = QComboBox()
+        self.combo_tren.setStyleSheet(control_style)
+        self.combo_tren.addItem("Seleccione un horario primero")
+        tren_layout.addWidget(self.combo_tren)
+        controles_layout.addLayout(tren_layout)
 
         # Botones
         botones_layout = QHBoxLayout()
@@ -116,7 +87,7 @@ class InterfazAsignacion(QWidget):
         self.btn_consultar.clicked.connect(self.validar_asignacion)
         botones_layout.addWidget(self.btn_consultar)
 
-        self.btn_confirmar = QPushButton("Confirmar")
+        self.btn_confirmar = QPushButton("Asignar")
         self.btn_confirmar.clicked.connect(self.confirmar_asignacion)
         botones_layout.addWidget(self.btn_confirmar)
 
@@ -125,14 +96,8 @@ class InterfazAsignacion(QWidget):
         # Panel derecho (imagen)
         self.panel_imagen = QScrollArea()
         self.panel_imagen.setWidgetResizable(True)
-        self.panel_imagen.setMinimumWidth(200)  # Ancho mínimo cuando no hay imagen
+        self.panel_imagen.setMinimumWidth(200)
         self.panel_imagen.hide()  # Oculto inicialmente
-
-                # Agregar un QLabel 
-        self.label_mensaje = QLabel("")
-        self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.label_mensaje.setStyleSheet("font-size: 18px;color: green; font-weight: bold;")
-        controles_layout.addWidget(self.label_mensaje)
 
         self.img_container = QWidget()
         self.img_layout = QVBoxLayout(self.img_container)
@@ -143,43 +108,44 @@ class InterfazAsignacion(QWidget):
         self.panel_imagen.setWidget(self.img_container)
 
         main_layout.addWidget(panel_controles)
+        main_layout.addSpacing(20)  # Espacio adicional para mover la imagen a la derecha
         main_layout.addWidget(self.panel_imagen)
 
-        # Conexión para redimensionamiento
-        self.combo_ruta.currentIndexChanged.connect(self.ajustar_tamano_ventana)
-
-    #Recargar los datos de la interfaz
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
         print("Actualizando datos de InterfazAsignacion")
-        self.cargar_trenes_disponibles()
         self.cargar_rutas()
+        self.combo_horario.clear()
+        self.combo_horario.addItem("Seleccione una ruta primero")
+        self.combo_tren.clear()
+        self.combo_tren.addItem("Seleccione un horario primero")
+        self.label_mensaje.setText("Seleccione una ruta para comenzar")
 
-    def ajustar_tamano_ventana(self, index):
-        if index > 0:  # Si se seleccionó una ruta válida
+    def on_ruta_selected(self):
+        if self.combo_ruta.currentIndex() > 0:
             id_ruta = self.combo_ruta.currentData()
-            self.load_route_image(id_ruta)
             self.panel_imagen.show()
             self.setFixedSize(900, 600)
+            self.load_route_image(id_ruta)
+            self.cargar_horarios_disponibles(id_ruta)
         else:
             self.panel_imagen.hide()
             self.setFixedSize(500, 600)
+            self.combo_horario.clear()
+            self.combo_horario.addItem("Seleccione una ruta primero")
+            self.combo_tren.clear()
+            self.combo_tren.addItem("Seleccione un horario primero")
 
-    def actualizar_horas_disponibles(self):
-        """Actualiza las horas disponibles según la fecha seleccionada"""
-        self.combo_hora.clear()
-        
-        hora_actual = QTime.currentTime().hour()
-        minuto_actual = QTime.currentTime().minute()
-        
-        # Si es hoy, mostramos horas desde la actual
-        if self.calendario.date() == QDate.currentDate():
-            hora_inicio = hora_actual
+    def on_horario_selected(self, index):
+        """Se ejecuta cuando se selecciona un horario"""
+        if index > 0:  # Si se seleccionó un horario válido (no el primer item)
+            id_horario = self.combo_horario.currentData()
+            self.combo_tren.clear()
+            self.combo_tren.addItem("Cargando trenes...")
+            self.cargar_trenes_disponibles(id_horario)
         else:
-            hora_inicio = 0  # Si es otro día, mostramos todas las horas
-            
-        for h in range(hora_inicio, 24):
-            self.combo_hora.addItem(f"{h:02d}")
+            self.combo_tren.clear()
+            self.combo_tren.addItem("Seleccione un horario primero")
 
     def load_route_image(self, id_ruta):
         """Versión robusta para cargar imágenes desde Oracle"""
@@ -206,7 +172,7 @@ class InterfazAsignacion(QWidget):
 
             # 4. Escalar adecuadamente
             max_width = self.panel_imagen.width() - 20
-            max_height = self.panel_imagen.height() - 50  # Reducir más el eje Y
+            max_height = self.panel_imagen.height() - 50
             
             scaled_pix = pixmap.scaled(
                 max_width, 
@@ -224,63 +190,6 @@ class InterfazAsignacion(QWidget):
             print(f"Error general: {str(e)}")
             self.img_ruta.setText("Error al cargar imagen")
             
-    def on_ruta_selected(self):
-        if self.combo_ruta.currentIndex() > 0:
-            id_ruta = self.combo_ruta.currentData()
-            self.panel_imagen.show()  # Mostrar panel solo cuando se selecciona ruta
-            self.load_route_image(id_ruta)
-        else:
-            self.panel_imagen.hide()
-
-    def cargar_trenes_disponibles(self):
-            """Carga los trenes disponibles, indicando su último horario y filtrando por fecha/hora."""
-            self.combo_tren.clear()
-            self.combo_tren.addItem("Seleccionar")
-
-            fecha = self.calendario.date().toString("yyyy-MM-dd")
-            hora = self.combo_hora.currentText() if self.combo_hora.currentIndex() >= 0 else "00"
-            minutos = self.combo_minutos.currentText() if self.combo_minutos.currentIndex() >= 0 else "00"
-
-            hora_seleccionada = f"{hora}:{minutos}:00"
-
-            query = """
-                SELECT T.ID_TREN, T.NOMBRE
-                FROM TREN T
-                WHERE T.ESTADO = 'ACTIVO'
-                AND NOT EXISTS (
-                    SELECT 1
-                    FROM ASIGNACION_TREN A
-                    JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
-                    WHERE A.ID_TREN = T.ID_TREN
-                    AND TRUNC(H.HORA_SALIDA_PROGRAMADA) = TO_DATE(:fecha, 'YYYY-MM-DD')
-                    AND TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') = :hora
-                )
-                ORDER BY T.ID_TREN
-            """
-
-            trenes = self.db.fetch_all(query, {"fecha": fecha, "hora": hora_seleccionada})
-
-            if trenes:
-                for id_tren, nombre in trenes:
-                    # Obtener último horario asignado para los trenes filtrados
-                    query_ultimo = """
-                        SELECT MAX(H.HORA_LLEGADA_PROGRAMADA)
-                        FROM ASIGNACION_TREN A
-                        JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
-                        WHERE A.ID_TREN = :id_tren
-                    """
-                    ultimo_horario = self.db.fetch_one(query_ultimo, {"id_tren": id_tren})
-
-                    texto = f"{id_tren} - {nombre}"
-                    if ultimo_horario and ultimo_horario[0]:
-                        from datetime import datetime  # Aseguramos que datetime esté importado
-                        if isinstance(ultimo_horario[0], datetime):
-                            texto += f" (Último: {ultimo_horario[0].strftime('%H:%M')})"
-                        else:
-                            texto += f" (Último: {str(ultimo_horario[0])})"
-
-                    self.combo_tren.addItem(texto, id_tren)
-
     def cargar_rutas(self):
         """Carga las rutas disponibles con información básica"""
         self.combo_ruta.clear()
@@ -301,174 +210,177 @@ class InterfazAsignacion(QWidget):
             for id_ruta, estaciones in rutas:
                 self.combo_ruta.addItem(f"Ruta {id_ruta} - {estaciones.split('→')[0].strip()}...", id_ruta)
 
-    def validar_asignacion(self):
-        """Valida la asignación con todas las reglas de negocio"""
-        # Validación básica de campos
-        if self.combo_tren.currentIndex() <= 0:
-            self.mostrar_mensaje("Seleccione un tren válido", False)
-            return False
-            
-        if self.combo_ruta.currentIndex() <= 0:
-            self.mostrar_mensaje("Seleccione una ruta válida", False)
-            return False
-            
-        try:
-            hora = int(self.combo_hora.currentText())
-            minutos = int(self.combo_minutos.currentText())
-            if not (0 <= hora < 24 and 0 <= minutos < 60):
-                raise ValueError
-        except ValueError:
-            self.mostrar_mensaje("La hora seleccionada no es válida", False)
-            return False
-            
-        fecha = self.calendario.date()
-        fecha_hora_seleccionada = QDateTime(fecha, QTime(hora, minutos))
+    def cargar_horarios_disponibles(self, id_ruta):
+        """Carga los horarios disponibles para la ruta seleccionada"""
+        self.combo_horario.clear()
+        self.combo_horario.addItem("Seleccionar")  # Asegura que el primer item esté presente
+        self.label_mensaje.setText("Cargando horarios...")
         
-        if fecha_hora_seleccionada < QDateTime.currentDateTime():
-            self.mostrar_mensaje("No se puede asignar un horario en el pasado", False)
+        try:
+            # Obtener duración estimada de la ruta
+            duracion = self.obtener_duracion_ruta(id_ruta)
+            if not duracion:
+                self.combo_horario.addItem("No hay horarios disponibles")
+                self.label_mensaje.setText("No se pudo obtener duración de la ruta")
+                return
+
+            # Consultar horarios disponibles que no estén asignados
+            query = """
+                SELECT H.ID_HORARIO, 
+                       TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA,
+                       TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA
+                FROM HORARIO H
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ASIGNACION_TREN A 
+                    WHERE A.ID_HORARIO = H.ID_HORARIO
+                )
+                ORDER BY H.HORA_SALIDA_PROGRAMADA
+            """
+            
+            horarios = self.db.fetch_all(query)
+            
+            if horarios:
+                for id_horario, salida, llegada in horarios:
+                    self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
+                    # Calcular duración del horario en minutos
+                    salida_dt = datetime.strptime(salida, '%H:%M:%S')
+                    llegada_dt = datetime.strptime(llegada, '%H:%M:%S')
+                    duracion_horario = (llegada_dt - salida_dt).total_seconds() / 60
+                    self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)
+                    
+                    # Solo mostrar horarios cuya duración sea >= a la duración estimada de la ruta
+                    if duracion_horario >= duracion:
+                        self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
+                
+                if self.combo_horario.count() > 1:  # Si hay más de la opción "Seleccionar"
+                    self.label_mensaje.setText(f"{self.combo_horario.count()-1} horarios disponibles")
+                else:
+                    self.combo_horario.addItem("No hay horarios que cumplan con la duración")
+                    self.label_mensaje.setText("No hay horarios que cumplan con la duración")
+            else:
+                self.combo_horario.addItem("No hay horarios disponibles")
+                self.label_mensaje.setText("No hay horarios sin asignar")
+                
+        except Exception as e:
+            print(f"Error al cargar horarios: {str(e)}")
+            self.combo_horario.addItem("Error al cargar horarios")
+            self.label_mensaje.setText("Error al cargar horarios")
+
+    def cargar_trenes_disponibles(self, id_horario):
+        """Carga todos los trenes activos, la validación se hará al asignar"""
+        self.combo_tren.clear()
+        self.label_mensaje.setText("Cargando todos los trenes activos...")
+        
+        try:
+            # Consulta simple para obtener todos los trenes ACTIVOS
+            query = """
+                SELECT ID_TREN, NOMBRE 
+                FROM TREN 
+                WHERE ESTADO = 'ACTIVO'
+                ORDER BY ID_TREN
+            """
+            trenes = self.db.fetch_all(query)
+            
+            if trenes:
+                self.combo_tren.addItem("Seleccionar")
+                for id_tren, nombre in trenes:
+                    self.combo_tren.addItem(f"{id_tren} - {nombre}", id_tren)
+                
+                self.label_mensaje.setText(f"{len(trenes)} trenes activos cargados")
+            else:
+                self.combo_tren.addItem("No hay trenes activos")
+                self.label_mensaje.setText("No hay trenes en estado ACTIVO")
+                
+        except Exception as e:
+            print(f"Error al cargar trenes: {str(e)}")
+            self.combo_tren.addItem("Error al cargar trenes")
+            self.label_mensaje.setText("Error al cargar lista de trenes")
+            
+
+    def validar_asignacion(self):
+        """Valida la asignación mostrando mensajes claros"""
+        # Validación básica de campos
+        if self.combo_ruta.currentIndex() <= 0:
+            self.mostrar_mensaje("Error: Seleccione una ruta válida", False)
+            return False
+            
+        if self.combo_horario.currentIndex() <= 0:
+            self.mostrar_mensaje("Error: Seleccione un horario válido", False)
+            return False
+            
+        if self.combo_tren.currentIndex() <= 0:
+            self.mostrar_mensaje("Error: Seleccione un tren válido", False)
             return False
             
         id_tren = self.combo_tren.currentData()
-        id_ruta = self.combo_ruta.currentData()
+        id_horario = self.combo_horario.currentData()
         
-        # Obtener duración de la nueva ruta
-        duracion = self.obtener_duracion_ruta(id_ruta)
-        if not duracion:
-            self.mostrar_mensaje("No se pudo obtener la duración de la ruta", False)
-            return False
-
-        nueva_salida = fecha_hora_seleccionada.toPyDateTime()
-        nueva_llegada = nueva_salida + timedelta(minutes=duracion)
-        
-        # 1. Verificar que el tren no tenga viajes solapados en la misma fecha
-        query_viajes = """
-            SELECT H.HORA_SALIDA_PROGRAMADA, H.HORA_LLEGADA_PROGRAMADA,
-                   R.DURACION_ESTIMADA, R.ID_RUTA
-            FROM ASIGNACION_TREN A
-            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
-            JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
-            WHERE A.ID_TREN = :id_tren
-            AND TRUNC(H.HORA_SALIDA_PROGRAMADA) = TO_DATE(:fecha, 'YYYY-MM-DD')
-            ORDER BY H.HORA_SALIDA_PROGRAMADA
+        # Verificar si el tren ya está asignado a este horario
+        query = """
+            SELECT COUNT(*) 
+            FROM ASIGNACION_TREN 
+            WHERE ID_TREN = :id_tren 
+            AND ID_HORARIO = :id_horario
         """
+        resultado = self.db.fetch_one(query, {
+            "id_tren": id_tren,
+            "id_horario": id_horario
+        })
         
-        try:
-            viajes = self.db.fetch_all(query_viajes, {
-                "id_tren": id_tren,
-                "fecha": fecha.toString("yyyy-MM-dd")
-            })
-        except Exception as e:
-            print(f"Error en consulta de viajes: {str(e)}")
-            self.mostrar_mensaje("Error al verificar horarios existentes", False)
+        if resultado and resultado[0] > 0:
+            # Obtener info del tren para el mensaje
+            query_tren = "SELECT NOMBRE FROM TREN WHERE ID_TREN = :id_tren"
+            nombre_tren = self.db.fetch_one(query_tren, {"id_tren": id_tren})
+            nombre = nombre_tren[0] if nombre_tren else f"ID {id_tren}"
+            
+            # Obtener info del horario para el mensaje
+            query_horario = """
+                SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS')
+                FROM HORARIO WHERE ID_HORARIO = :id_horario
+            """
+            horario = self.db.fetch_one(query_horario, {"id_horario": id_horario})
+            hora = horario[0] if horario else "horario desconocido"
+            
+            self.mostrar_mensaje(
+                f"Error: El tren {nombre} ya está asignado a las {hora}",
+                False
+            )
             return False
             
-        if viajes:
-            for viaje in viajes:
-                salida_existente = viaje[0] if isinstance(viaje[0], datetime) else datetime.strptime(str(viaje[0]), '%Y-%m-%d %H:%M:%S')
-                llegada_existente = viaje[1] if isinstance(viaje[1], datetime) else datetime.strptime(str(viaje[1]), '%Y-%m-%d %H:%M:%S')
-                
-                # Verificar solapamiento
-                if (nueva_salida < llegada_existente and nueva_llegada > salida_existente):
-                    self.mostrar_mensaje(
-                        f"El tren ya tiene un viaje asignado de {salida_existente.strftime('%H:%M')} "
-                        f"a {llegada_existente.strftime('%H:%M')}", False)
-                    return False
-                    
-                # Verificar tiempo mínimo entre viajes
-                tiempo_minimo = timedelta(minutes=self.TIEMPO_ABORDAJE)
-                if abs(nueva_salida - llegada_existente) < tiempo_minimo or abs(salida_existente - nueva_llegada) < tiempo_minimo:
-                    self.mostrar_mensaje(
-                        f"Debe haber al menos {self.TIEMPO_ABORDAJE} minutos entre viajes "
-                        f"(Viaje existente: {salida_existente.strftime('%H:%M')}-{llegada_existente.strftime('%H:%M')})", 
-                        False)
-                    return False
-                    
-                # Verificar cambio de ruta (si es diferente a la actual)
-                if viaje[3] != id_ruta:
-                    tiempo_transferencia = timedelta(minutes=self.TIEMPO_TRANSFERENCIA)
-                    if abs(nueva_salida - llegada_existente) < tiempo_transferencia:
-                        # Obtener estaciones de ambas rutas
-                        estaciones_ruta_actual = self.obtener_estaciones_ruta(id_ruta)
-                        estaciones_ruta_existente = self.obtener_estaciones_ruta(viaje[3])
-                        
-                        # Verificar si comparten estaciones
-                        if not set(estaciones_ruta_actual).intersection(set(estaciones_ruta_existente)):
-                            self.mostrar_mensaje(
-                                f"El tren necesita al menos {self.TIEMPO_TRANSFERENCIA} minutos "
-                                f"para cambiar de ruta (no comparten estaciones)", 
-                                False)
-                            return False
-        
         # Si todo está bien
-        self.mostrar_mensaje(
-            f"Asignación válida. Viaje programado de {nueva_salida.strftime('%H:%M')} "
-            f"a {nueva_llegada.strftime('%H:%M')}. Tiempo de abordaje: {self.TIEMPO_ABORDAJE} minutos.", 
-            True)
+        self.mostrar_mensaje("✓ Validación correcta. Puede confirmar la asignación", True)
         return True
-
-    def obtener_estaciones_ruta(self, id_ruta):
-        """Obtiene las estaciones de una ruta específica"""
-        query = """
-            SELECT E.ID_ESTACION 
-            FROM RUTA_DETALLE RD
-            JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-            WHERE RD.ID_RUTA = :id_ruta
-            ORDER BY RD.ORDEN
-        """
-        resultados = self.db.fetch_all(query, {"id_ruta": id_ruta})
-        return [r[0] for r in resultados] if resultados else []
 
     def confirmar_asignacion(self):
         try:
-            # 1. Obtener parámetros del formulario
-            hora = int(self.combo_hora.currentText())
-            minutos = int(self.combo_minutos.currentText())
-            fecha = self.calendario.date()
+            # Obtener parámetros del formulario
             id_tren = self.combo_tren.currentData()
             id_ruta = self.combo_ruta.currentData()
-
-            # 2. Convertir fecha y hora a objetos datetime
-            salida = QDateTime(fecha, QTime(hora, minutos)).toPyDateTime()
-            duracion = self.obtener_duracion_ruta(id_ruta)
-            llegada = salida + timedelta(minutes=duracion)
-
-            # 3. Formatear como strings para Oracle
-            salida_str = salida.strftime('%Y-%m-%d %H:%M:%S')
-            llegada_str = llegada.strftime('%Y-%m-%d %H:%M:%S')
+            id_horario = self.combo_horario.currentData()
 
             # Mensajes de depuración
             print(f"\n[DEBUG] Parámetros para asignación:")
-            print(f"Tren ID: {id_tren}, Ruta ID: {id_ruta}")
-            print(f"Salida: {salida_str}, Llegada: {llegada_str}")
-            print(f"Duración: {duracion} minutos")
+            print(f"Tren ID: {id_tren}, Ruta ID: {id_ruta}, Horario ID: {id_horario}")
 
-            # 4. Iniciar transacción
+            # Iniciar transacción
             cursor = self.db.connection.cursor()
 
-            # ========== PRIMERA INSERCIÓN: HORARIO ==========
-
-            id_horario_var = cursor.var(oracledb.NUMBER)
-            cursor.execute("""
-                BEGIN
-                    INSERT INTO HORARIO (ID_HORARIO, HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA)
-                    VALUES ((SELECT NVL(MAX(ID_HORARIO), 0) + 1 FROM HORARIO),
-                            TO_DATE(:salida, 'YYYY-MM-DD HH24:MI:SS'),
-                            TO_DATE(:llegada, 'YYYY-MM-DD HH24:MI:SS'))
-                    RETURNING ID_HORARIO INTO :id_horario;
-                END;
-            """, {"salida": salida_str, "llegada": llegada_str, "id_horario": id_horario_var})
-            
-            id_horario = id_horario_var.getvalue()
-            print(f"[DEBUG] Horario insertado. ID: {id_horario}")
-
-            # ========== SEGUNDA INSERCIÓN: ASIGNACION_TREN ==========
-
+            # Insertar en ASIGNACION_TREN (versión corregida)
             id_asignacion_var = cursor.var(oracledb.NUMBER)
             cursor.execute("""
                 BEGIN
-                    INSERT INTO ASIGNACION_TREN (ID_ASIGNACION, ID_TREN, ID_RUTA, ID_HORARIO)
-                    VALUES ((SELECT NVL(MAX(ID_ASIGNACION), 0) + 1 FROM ASIGNACION_TREN),
-                            :id_tren, :id_ruta, :id_horario)
+                    INSERT INTO ASIGNACION_TREN (
+                        ID_ASIGNACION, 
+                        ID_TREN, 
+                        ID_RUTA, 
+                        ID_HORARIO
+                    )
+                    VALUES (
+                        (SELECT NVL(MAX(ID_ASIGNACION), 0) + 1 FROM ASIGNACION_TREN),
+                        :id_tren, 
+                        :id_ruta, 
+                        :id_horario
+                    )
                     RETURNING ID_ASIGNACION INTO :id_asignacion;
                 END;
             """, {
@@ -481,33 +393,22 @@ class InterfazAsignacion(QWidget):
             id_asignacion = id_asignacion_var.getvalue()
             print(f"[DEBUG] Asignación insertada. ID: {id_asignacion}")
 
-            # ========== TERCERA INSERCIÓN: HISTORIAL ==========
-
-            # Asumimos que el usuario con ID 1 está realizando la acción
-            cursor.execute("""
-                INSERT INTO HISTORIAL (ID_HISTORIAL, FECHA_REGISTRO, ID_HORARIO, ID_USUARIO)
-                VALUES ((SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL),
-                        SYSDATE, :id_horario, 1)
-            """, {"id_horario": id_horario})
-
-            # Confirmar TODAS las inserciones
+            # Confirmar la inserción
             self.db.connection.commit()
-            print("[DEBUG] ¡Todas las inserciones fueron exitosas!")
+            print("[DEBUG] ¡Inserción exitosa!")
 
-            # Emitir señal para actualizar las interfaces
-            self.db.event_manager.update_triggered.emit()
+            # Emitir señal para actualizar la interfaz de home
+            self.asignacion_exitosa.emit()
 
-            # Mostrar mensaje de realizado al usuario
+            # Mostrar mensaje de éxito al usuario
             QMessageBox.information(
                 self, 
                 "Asignación Exitosa",
-                f"Se asignó el tren {id_tren} a la ruta {id_ruta}\n"
-                f"Horario: {salida.time().strftime('%H:%M')} - {llegada.time().strftime('%H:%M')}"
+                f"Se asignó el tren {id_tren} a la ruta {id_ruta}"
             )
 
             # Actualizar interfaz
-            self.cargar_trenes_disponibles()
-            self.regresar_home()
+            self.actualizar_datos()
 
         except oracledb.DatabaseError as e:
             error_obj = e.args[0]
@@ -519,11 +420,6 @@ class InterfazAsignacion(QWidget):
                 f"Error al guardar:\n{error_obj.message}"
             )
 
-        except ValueError as e:
-            print(f"[ERROR] Datos inválidos: {str(e)}")
-            self.db.rollback()
-            QMessageBox.warning(self, "Datos Inválidos", f"Error: {str(e)}")
-
         except Exception as e:
             print(f"[ERROR INESPERADO] {str(e)}")
             self.db.rollback()
@@ -532,14 +428,13 @@ class InterfazAsignacion(QWidget):
                 "Error Inesperado",
                 f"Ocurrió un error inesperado:\n{str(e)}"
             )
-        
-    
+
     def mostrar_mensaje(self, texto, es_exito):
         """Muestra mensajes de estado"""
         self.label_mensaje.setText(texto)
         self.label_mensaje.setStyleSheet(
-            "color: green; font-weight: bold;" if es_exito else 
-            "color: red; font-weight: bold;")
+            "font-size: 12px; color: green;" if es_exito else 
+            "font-size: 12px; color: red;")
 
     def obtener_duracion_ruta(self, id_ruta):
         """Obtiene la duración estimada de una ruta específica"""
@@ -550,7 +445,3 @@ class InterfazAsignacion(QWidget):
             raise ValueError(f"No se encontró la duración para la ruta ID {id_ruta}")
         
         return int(resultado[0])  # Asegurarnos que devuelve un entero
-
-    #def regresar_home(self):
-    #    """Regresa a la pantalla principal"""
-    #    self.main_window.cambiar_interfaz(0)
