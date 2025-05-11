@@ -16,7 +16,7 @@ class InterfazAsignacion(QWidget):
         self.init_ui()
 
     def init_ui(self):
-        self.setFixedSize(500, 600)  # Tamaño fijo inicial
+        self.setFixedSize(350, 280)  # Tamaño fijo inicial
 
         main_layout = QHBoxLayout(self)
         main_layout.setContentsMargins(15, 15, 15, 15)  # Márgenes uniformes
@@ -265,37 +265,50 @@ class InterfazAsignacion(QWidget):
             print(f"Error al cargar horarios: {str(e)}")
             self.combo_horario.addItem("Error al cargar horarios")
             self.label_mensaje.setText("Error al cargar horarios")
-
+  
     def cargar_trenes_disponibles(self, id_horario):
-        """Carga todos los trenes activos, la validación se hará al asignar"""
+        """Carga los trenes disponibles para el horario seleccionado"""
         self.combo_tren.clear()
-        self.label_mensaje.setText("Cargando todos los trenes activos...")
+        self.label_mensaje.setText("Cargando trenes...")
         
         try:
-            # Consulta simple para obtener todos los trenes ACTIVOS
+            # Consulta simplificada para obtener trenes disponibles
             query = """
-                SELECT ID_TREN, NOMBRE 
-                FROM TREN 
-                WHERE ESTADO = 'ACTIVO'
-                ORDER BY ID_TREN
+                SELECT T.ID_TREN, T.NOMBRE
+                FROM TREN T
+                WHERE T.ESTADO = 'ACTIVO'
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM ASIGNACION_TREN A
+                    WHERE A.ID_TREN = T.ID_TREN
+                    AND A.ID_HORARIO = :1
+                )
+                ORDER BY T.ID_TREN
             """
-            trenes = self.db.fetch_all(query)
+            
+            # Ejecutar consulta con parámetro posicional
+            trenes = self.db.fetch_all(query, (id_horario,))
             
             if trenes:
                 self.combo_tren.addItem("Seleccionar")
                 for id_tren, nombre in trenes:
                     self.combo_tren.addItem(f"{id_tren} - {nombre}", id_tren)
                 
-                self.label_mensaje.setText(f"{len(trenes)} trenes activos cargados")
+                if self.combo_tren.count() > 1:
+                    self.label_mensaje.setText(f"{len(trenes)} trenes disponibles")
+                else:
+                    self.combo_tren.clear()
+                    self.combo_tren.addItem("No hay trenes disponibles")
+                    self.label_mensaje.setText("No hay trenes para este horario")
             else:
-                self.combo_tren.addItem("No hay trenes activos")
-                self.label_mensaje.setText("No hay trenes en estado ACTIVO")
+                self.combo_tren.addItem("No hay trenes disponibles")
+                self.label_mensaje.setText("No hay trenes disponibles")
                 
         except Exception as e:
             print(f"Error al cargar trenes: {str(e)}")
             self.combo_tren.addItem("Error al cargar trenes")
-            self.label_mensaje.setText("Error al cargar lista de trenes")
-            
+            self.label_mensaje.setText("Error al cargar datos")
+        
 
     def validar_asignacion(self):
         """Valida la asignación mostrando mensajes claros"""

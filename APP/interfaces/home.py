@@ -21,18 +21,24 @@ class InterfazHome(QWidget):
         self.panel_asignacion.asignacion_exitosa.connect(self.actualizar_datos)
 
     def init_ui(self):
-        # Layout principal con scroll
-        self.main_scroll = QScrollArea()
-        self.main_scroll.setWidgetResizable(True)
-        self.main_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+    # Layout principal con scroll (nuevo)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         
-        # Widget contenedor para el layout principal
-        self.container = QWidget()
-        self.container.setStyleSheet("background-color: #f5f5f5;")
-        self.layout = QVBoxLayout(self.container)
-        self.layout.setContentsMargins(20, 20, 20, 20)
-        self.layout.setSpacing(15)
+        # Widget contenedor principal
+        self.main_container = QWidget()
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(15)
         
+        # Configurar el scroll area
+        self.scroll_area.setWidget(self.main_container)
+        self.setLayout(QVBoxLayout(self))
+        self.layout().addWidget(self.scroll_area)
+        self.layout().setContentsMargins(0, 0, 0, 0)
+
         # Encabezado con botón de menú, mensaje de bienvenida, reloj y boton incidencias
         top_layout = QHBoxLayout()
         top_layout.setContentsMargins(0, 0, 0, 0)
@@ -58,10 +64,11 @@ class InterfazHome(QWidget):
         top_layout.addWidget(self.label_reloj)
 
         top_layout.addStretch()
-        self.layout.addLayout(top_layout)
+        self.main_layout.addLayout(top_layout)
 
         # Contenedor para tablas y panel de asignación
         self.content_container = QWidget()
+        self.content_container.setFixedWidth(900)  # Ancho fijo
         self.content_layout = QVBoxLayout(self.content_container)
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(15)
@@ -76,9 +83,14 @@ class InterfazHome(QWidget):
             border-bottom: 2px solid #3498db;
         """)
         self.content_layout.addWidget(label_curso)
-        
+                
         self.tabla_viajes = QTableWidget()
+        self.tabla_viajes.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.tabla_viajes.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tabla_viajes.setColumnCount(5)
+       # self.tabla_viajes.setFixedWidth(1050)
+        #self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.tabla_viajes.setHorizontalHeaderLabels([
             "Num.Horario", "Origen-Destino", "Horario", "Rastreo", "Tren"
         ])
@@ -104,22 +116,22 @@ class InterfazHome(QWidget):
             }
         """)
         
-        # Ajustar tamaño de columnas con proporciones específicas
+        # Configurar scrollbars
+        self.tabla_viajes.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_viajes.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Ajustar tamaño de columnas
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
-        self.tabla_viajes.setColumnWidth(0, 100)  # Num.Horario
-        self.tabla_viajes.setColumnWidth(2, 120)  # Horario
-        self.tabla_viajes.setColumnWidth(3, 120)  # Rastreo
-        self.tabla_viajes.setColumnWidth(4, 150)  # Tren
+        self.tabla_viajes.setColumnWidth(0, 100)
+        self.tabla_viajes.setColumnWidth(2, 120)
+        self.tabla_viajes.setColumnWidth(3, 120)
+        self.tabla_viajes.setColumnWidth(4, 150)
         
-        scroll_viajes = QScrollArea()
-        scroll_viajes.setWidgetResizable(True)
-        scroll_viajes.setWidget(self.tabla_viajes)
-        scroll_viajes.setFrameShape(QFrame.Shape.NoFrame)
-        self.content_layout.addWidget(scroll_viajes)
+        self.content_layout.addWidget(self.tabla_viajes)
 
         # Sección "Próximamente"
         label_proximos = QLabel("Próximamente")
@@ -131,9 +143,14 @@ class InterfazHome(QWidget):
             border-bottom: 2px solid #3498db;
         """)
         self.content_layout.addWidget(label_proximos)
-        
+                
         self.tabla_proximos = QTableWidget()
+        self.tabla_proximos.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
+        self.tabla_proximos.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_proximos.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tabla_proximos.setColumnCount(4)
+        #self.tabla_viajes.setFixedWidth(850)
+        #self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.tabla_proximos.setHorizontalHeaderLabels([
             "Num.Horario", "Origen-Destino", "Horario", "Tren"
         ])
@@ -159,20 +176,20 @@ class InterfazHome(QWidget):
             }
         """)
         
-        # Ajustar tamaño de columnas con proporciones específicas
+        # Configurar scrollbars
+        self.tabla_proximos.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_proximos.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        
+        # Ajustar tamaño de columnas
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Interactive)
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
-        self.tabla_proximos.setColumnWidth(0, 100)  # Num.Horario
-        self.tabla_proximos.setColumnWidth(2, 120)  # Horario
-        self.tabla_proximos.setColumnWidth(3, 150)  # Tren
+        self.tabla_proximos.setColumnWidth(0, 100)
+        self.tabla_proximos.setColumnWidth(2, 120)
+        self.tabla_proximos.setColumnWidth(3, 150)
         
-        scroll_proximos = QScrollArea()
-        scroll_proximos.setWidgetResizable(True)
-        scroll_proximos.setWidget(self.tabla_proximos)
-        scroll_proximos.setFrameShape(QFrame.Shape.NoFrame)
-        self.content_layout.addWidget(scroll_proximos)
+        self.content_layout.addWidget(self.tabla_proximos)
 
         # Panel de asignación (oculto por defecto)
         self.panel_asignacion = InterfazAsignacion(self.main_window, self.db)
@@ -182,11 +199,10 @@ class InterfazHome(QWidget):
         self.content_layout.addWidget(self.panel_asignacion)
 
         # Añadir contenedor de contenido al layout principal
-        self.layout.addWidget(self.content_container, 1)  # Factor de estiramiento 1
+        self.main_layout.addWidget(self.content_container, 1)  # Factor de estiramiento 1
 
         # Botones de acción
-        botones_layout = QHBoxLayout()
-        botones_layout.addStretch()
+        
         self.btn_modificar = QPushButton("Modificar")
         self.btn_modificar.setStyleSheet("""
             QPushButton {
@@ -234,56 +250,115 @@ class InterfazHome(QWidget):
             }
         """)
         self.btn_cancelar.clicked.connect(self.accion_cancelar)
-        
+
+        # Reemplaza la parte de botones_layout con esto:
+        self.botones_container = QWidget()  # Convertir en atributo de clase
+        self.botones_container.setFixedWidth(1200)  # Mismo ancho que las tablas
+        botones_layout = QHBoxLayout(self.botones_container)
+        botones_layout.setContentsMargins(0, 0, 850, 0)
+
+        # Añade los botones normalmente...
+        botones_layout.addStretch()
         botones_layout.addWidget(self.btn_modificar)
         botones_layout.addWidget(self.btn_asignar)
         botones_layout.addWidget(self.btn_cancelar)
-        self.layout.addLayout(botones_layout)
+        botones_layout.addStretch()
 
-        # Configurar el scroll principal
-        self.main_scroll.setWidget(self.container)
-        self.main_layout = QVBoxLayout(self)
-        self.main_layout.addWidget(self.main_scroll)
-        self.main_layout.setContentsMargins(0, 0, 0, 0)
-        self.setLayout(self.main_layout)
+        # Luego añade el contenedor al layout principal:
+        botones_main_container = QWidget()
+        botones_main_layout = QHBoxLayout(botones_main_container)
+        botones_main_layout.addWidget(self.botones_container)
+        self.main_layout.addWidget(botones_main_container)
 
-        # Guardar alturas originales para restaurarlas después
-        self.original_table_heights = {
-            'viajes': self.tabla_viajes.sizeHint().height(),
-            'proximos': self.tabla_proximos.sizeHint().height()
-        }
+        # Ajustes adicionales para el scroll:
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def resizeEvent(self, event):
+        # Ajustar el ancho del contenido cuando cambia el tamaño de la ventana
+        new_width = min(1250, self.width() - 100)  # 100px de margen
+        self.content_container.setFixedWidth(new_width)
+        self.botones_container.setFixedWidth(new_width)
+        super().resizeEvent(event)
 
     def mostrar_panel_asignacion(self):
         """Muestra el panel de asignación y ajusta el tamaño de las tablas"""
-        # Reducir altura de las tablas pero no demasiado
-        reduced_height = 250  # Nueva altura para las tablas cuando el panel está visible
-        self.tabla_viajes.setMaximumHeight(reduced_height)
-        self.tabla_proximos.setMaximumHeight(reduced_height)
-        
-        # Ajustar el tamaño del panel de asignación para que ocupe el espacio restante
-        available_height = self.height() - (reduced_height * 2 + 200)  # 200 es espacio para otros elementos
-        self.panel_asignacion.setMinimumHeight(max(300, available_height))
-        
-        # Mostrar panel de asignación
+        self.tabla_viajes.setMaximumHeight(250)
+        self.tabla_proximos.setMaximumHeight(250)
         self.panel_asignacion.show()
-        
-        # Ajustar scroll
-        self.main_scroll.verticalScrollBar().setValue(0)
-        self.main_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+         # Asegurar que el scroll se mueva al panel
+        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
+            self.scroll_area.verticalScrollBar().maximum()
+        ))
     
     def ocultar_panel_asignacion(self):
-            """Oculta el panel de asignación y restaura el tamaño de las tablas"""
-            # Restaurar altura original de las tablas
-            self.tabla_viajes.setMaximumHeight(16777215)  # Valor Qt por defecto para "sin límite"
-            self.tabla_proximos.setMaximumHeight(16777215)
-            self.tabla_viajes.setMinimumHeight(self.original_table_heights['viajes'])
-            self.tabla_proximos.setMinimumHeight(self.original_table_heights['proximos'])
-            
-            # Ocultar panel de asignación
-            self.panel_asignacion.hide()
-            
-            # Ajustar scroll
-            self.main_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        """Oculta el panel de asignación y restaura el tamaño de las tablas"""
+        self.tabla_viajes.setMaximumHeight(16777215)
+        self.tabla_proximos.setMaximumHeight(16777215)
+        self.panel_asignacion.hide()
+        self.panel_asignacion.hide()
+        # Restaurar posición del scroll
+        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
+
+
+    def accion_cancelar(self):
+        fila = self.tabla_proximos.currentRow()
+        if fila == -1:
+            QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para cancelar.")
+            return
+
+        id_horario = self.tabla_proximos.item(fila, 0).text()
+
+        try:
+            # Confirmar cancelación
+            confirmar = QMessageBox.question(
+                self, "Confirmar",
+                f"¿Estás seguro de cancelar la asignación del horario {id_horario}?",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+            )
+
+            if confirmar == QMessageBox.StandardButton.No:
+                return
+
+            # Obtener ID de asignación
+            asignacion = self.db.fetch_one("""
+                SELECT ID_ASIGNACION 
+                FROM ASIGNACION_TREN 
+                WHERE ID_HORARIO = :1
+            """, [id_horario])
+
+            if not asignacion:
+                QMessageBox.information(self, "Información", "Este horario no tiene una asignación de tren.")
+                return
+
+            id_asignacion = asignacion[0]
+
+            # Eliminar asignación
+            self.db.execute_query("DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1", [id_asignacion])
+
+            # Registrar en historial
+            id_historial = self.db.fetch_one("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")[0]
+            informacion = f"Se canceló la asignación del horario {id_horario}."
+            self.db.execute_query("""
+                INSERT INTO HISTORIAL (
+                    ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO
+                ) VALUES (
+                    :1, :2, :3, :4, SYSDATE
+                )
+            """, [id_historial, informacion, self.username, id_horario])
+            # Realiza commit
+            self.db.connection.commit()
+            self.db.event_manager.update_triggered.emit()
+            QMessageBox.information(self, "Éxito", f"Asignación del horario {id_horario} cancelada correctamente.")
+            self.cargar_datos()
+
+        except oracledb.DatabaseError as e:
+            error_msg = f"Error de base de datos: {e.args[0].message}"
+            QMessageBox.critical(self, "Error", error_msg)
+        except Exception as e:
+            QMessageBox.critical(self, "Error", str(e))
 
 
     def actualizar_datos(self):
@@ -330,11 +405,10 @@ class InterfazHome(QWidget):
 
         if not viajes:
             print("[DEBUG] No se encontraron registros en la consulta de viajes.")
-            return  # Salir si no hay datos
+            return
 
         self.tabla_viajes.setRowCount(len(viajes))
         for i, v in enumerate(viajes):
-            # Manejar valores nulos en las columnas
             id_horario = str(v[0]) if v[0] is not None else "N/A"
             origen_destino = f"{v[1]} - {v[2]}" if v[1] and v[2] else "N/A"
             horario = f"{v[3]}-{v[4]}" if v[3] and v[4] else "N/A"
@@ -375,93 +449,13 @@ class InterfazHome(QWidget):
         if proximos:
             self.tabla_proximos.setRowCount(len(proximos))
             for i, p in enumerate(proximos):
-                # Num.Horario
                 self.tabla_proximos.setItem(i, 0, QTableWidgetItem(str(p[0])))
-                
-                # Origen-Destino
                 self.tabla_proximos.setItem(i, 1, QTableWidgetItem(f"{p[1]} - {p[2]}"))
-                
-                # Horario (Salida-Llegada programada)
                 self.tabla_proximos.setItem(i, 2, QTableWidgetItem(f"{p[3]}-{p[4]}"))
-                
-                # Tren (ID - Nombre)
                 self.tabla_proximos.setItem(i, 3, QTableWidgetItem(f"{p[5]} - {p[6]}"))
 
     def accion_modificar(self):
         print("Modificar registro...")
-
-    def accion_asignar(self):
-        print("Asignar tren...")
-
-    def accion_cancelar(self):
-        fila = self.tabla_proximos.currentRow()
-        if fila == -1:
-            QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para cancelar.")
-            return
-
-        id_horario = self.tabla_proximos.item(fila, 0).text()
-        print(f"[DEBUG] Intentando eliminar ID_HORARIO: {id_horario}")
-
-        # Verificar primero si el horario existe
-        horario_existe = self.db.fetch_one("SELECT 1 FROM HORARIO WHERE ID_HORARIO = :1", [id_horario])
-        if not horario_existe:
-            QMessageBox.warning(self, "Error", f"No se encontró el horario {id_horario} en la base de datos.")
-            return
-
-        confirmar = QMessageBox.question(
-            self, "Confirmar", 
-            f"¿Estás seguro de eliminar el horario {id_horario} y todos sus registros relacionados?",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
-        )
-
-        if confirmar == QMessageBox.StandardButton.No:
-            return
-
-        try:
-            # Desactivar autocommit para manejar transacción manualmente
-            self.db.connection.autocommit = False
-
-            # 1. Eliminar incidencias primero
-            #self.db.execute_query("DELETE FROM INCIDENCIA WHERE ID_HORARIO = :1", [id_horario])
-            
-            # 2. Eliminar del historial
-            #self.db.execute_query("DELETE FROM HISTORIAL WHERE ID_HORARIO = :1", [id_horario])
-            
-            # 3. Eliminar asignación de tren
-            #self.db.execute_query("DELETE FROM ASIGNACION_TREN WHERE ID_HORARIO = :1", [id_horario])
-            
-            # 4. Finalmente eliminar el horario
-            resultado = self.db.execute_query("DELETE FROM HORARIO WHERE ID_HORARIO = :1", [id_horario])
-            
-            if resultado == 0:
-                raise Exception("No se eliminó ningún registro de HORARIO")
-
-            # Confirmar todos los cambios
-            self.db.connection.commit()
-
-            QMessageBox.information(self, "Éxito", f"Horario {id_horario} eliminado correctamente.")
-
-            # Actualizar las tablas
-            self.cargar_datos()  # Esto actualiza ambas tablas (viajes y próximos)
-
-             # Emitir señal para actualizar las interfaces
-            self.db.event_manager.update_triggered.emit()
-
-        except oracledb.DatabaseError as e:
-            # Revertir en caso de error
-            self.db.connection.rollback()
-            error_msg = f"Error de base de datos: {e.args[0].message}"
-            print(f"[ERROR] {error_msg}")
-            QMessageBox.critical(self, "Error", error_msg)
-
-        except Exception as e:
-            self.db.connection.rollback()
-            print(f"[ERROR] {str(e)}")
-            QMessageBox.critical(self, "Error", str(e))
-
-        finally:
-            # Restaurar autocommit
-            self.db.connection.autocommit = True
 
     def load_user_name(self):
         print(self.username)
