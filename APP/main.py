@@ -52,7 +52,7 @@ class MainWindow(QMainWindow):
         # Crear interfaces y pasar la conexión a la base de datos
         self.interfaces = [
             InterfazHome(self, self.db, id_usuario),
-            GestionHorariosRutas(self, self.db),
+            GestionHorariosRutas(self, self.db, id_usuario),
             MonitoreoInterface(self, self.db),
             GestionIncidencias(self, self.db),
             GestionInfraestructura(self, self.db),
