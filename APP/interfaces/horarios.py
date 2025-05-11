@@ -1,8 +1,9 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget)
+                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget, QSizePolicy)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QMessageBox
+import oracledb
 from interfaces.asignacion import InterfazAsignacion
 from interfaces.paneles.panel_horarios import InterfazAgregarHorario, InterfazEditarHorario
 from interfaces.paneles.panel_rutas import InterfazAgregarRuta, InterfazEditarRuta
@@ -116,6 +117,7 @@ class GestionHorariosRutas(QWidget):
         self.btn_asignar_tren.clicked.connect(lambda: self.mostrar_panel(2))
         self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
         self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
+        self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion)
         asignacion_buttons.addWidget(self.btn_asignar_tren)
         asignacion_buttons.addWidget(self.btn_modificar_asignacion)
         asignacion_buttons.addWidget(self.btn_quitar_asignacion)
@@ -410,3 +412,73 @@ class GestionHorariosRutas(QWidget):
             self.actualizar_datos()
         except Exception as e:
             QMessageBox.critical(self, "Error al eliminar", str(e))
+
+
+    def eliminar_asignacion(self):
+        """Elimina la asignación de tren de un horario seleccionado."""
+        fila = self.tabla_horarios.currentRow()
+        if fila == -1:
+            QMessageBox.warning(self, "Advertencia", "Selecciona un horario para eliminar la asignación.")
+            return
+
+        id_horario = self.tabla_horarios.item(fila, 0).text()
+
+        try:
+            cursor = self.db.connection.cursor()
+
+            # Obtener el id_asignacion correspondiente al id_horario
+            query_asignacion = """
+                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_HORARIO = :id_horario
+            """
+            cursor.execute(query_asignacion, {"id_horario": id_horario})
+            result = cursor.fetchone()
+
+            if not result:
+                QMessageBox.warning(self, "Advertencia", "No se encontró una asignación para este horario.")
+                return
+
+            id_asignacion = result[0]
+
+            # Insertar en el historial antes de eliminar
+            query_historial = """
+                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
+                VALUES ((SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL), :info, :id_usuario, :id_asignacion, SYSDATE)
+            """
+            info = f"Se eliminó la asignación del horario {id_horario}"
+            cursor.execute(query_historial, {
+                "info": info,
+                "id_usuario": self.username,
+                "id_asignacion": id_asignacion
+            })
+
+            # Eliminar la asignación
+            query_delete = """
+                DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :id_asignacion
+            """
+            cursor.execute(query_delete, {"id_asignacion": id_asignacion})
+
+            # Confirmar los cambios
+            self.db.connection.commit()
+
+            # Actualizar la tabla
+            self.actualizar_datos()
+
+            QMessageBox.information(self, "Éxito", "La asignación se eliminó correctamente.")
+
+        except Exception as e:
+            self.db.connection.rollback()
+            QMessageBox.critical(self, "Error", f"Ocurrió un error al eliminar la asignación: {str(e)}")
+
+    def mostrar_panel_asignacion(self):
+        """Muestra el panel de asignación y asegura que sea visible y ajustado."""
+        self.panel_asignacion.show()
+        self.panel_asignacion.setMinimumHeight(600)  # Ajustar altura mínima adecuada
+        self.panel_asignacion.setMaximumHeight(600)  # Ajustar altura máxima adecuada
+        self.panel_asignacion.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+
+        # Asegurar que el widget sea visible
+        self.ensureWidgetVisible(self.panel_asignacion)
+
+    def ocultar_panel_asignacion(self):
+        """Oculta el panel de asignación."""
+        self.panel_asignacion.hide()
