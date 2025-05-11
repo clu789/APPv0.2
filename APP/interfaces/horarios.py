@@ -370,6 +370,7 @@ class GestionHorariosRutas(QWidget):
             # Realiza commit
             self.db.connection.commit()
             # Se notifica que el horario se elimino
+            self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Resultado", "El horario se ha eliminado correctamente.")
             self.actualizar_datos()
         except Exception as e:
@@ -404,6 +405,7 @@ class GestionHorariosRutas(QWidget):
             # Realiza commit
             self.db.connection.commit()
             # Se notifica que el horario se elimino
+            self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Resultado", "La ruta se ha eliminado correctamente.")
             self.actualizar_datos()
         except Exception as e:

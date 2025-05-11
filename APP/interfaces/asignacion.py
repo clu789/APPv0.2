@@ -409,6 +409,8 @@ class InterfazAsignacion(QWidget):
 
             # Actualizar interfaz
             self.actualizar_datos()
+            self.db.event_manager.update_triggered.emit()
+            print('se manda la señar acutalizar') 
 
         except oracledb.DatabaseError as e:
             error_obj = e.args[0]

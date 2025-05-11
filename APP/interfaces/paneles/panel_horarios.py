@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QMessageBox
 )
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 
 class InterfazAgregarHorario(QWidget):
     def __init__(self, main_window, db):
@@ -126,7 +126,9 @@ class InterfazAgregarHorario(QWidget):
             # Se agregan segundos ':00' para cumplir con HH24:MI:SS
             cursor.execute(insert, (nuevo_id, salida + ":00", llegada + ":00"))
             self.db.connection.commit()
-    
+
+            # Emitir la señal update_triggered
+            self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Éxito", f"Horario agregado con ID {nuevo_id}.")
             self.cancelar()
         except Exception as e:
@@ -134,6 +136,7 @@ class InterfazAgregarHorario(QWidget):
             QMessageBox.critical(self, "Error al insertar", str(e))
             
 class InterfazEditarHorario(QWidget):
+    asignacion_exitosa = pyqtSignal() 
     def __init__(self, main_window, db, username):
         super().__init__()
         self.username = username
@@ -277,7 +280,10 @@ class InterfazEditarHorario(QWidget):
             # Se agregan segundos ':00' para cumplir con HH24:MI:SS
             cursor.execute(update, (salida + ":00", llegada + ":00", self.id_horario_a_editar))
             self.db.connection.commit()
-    
+
+             # Emitir señal para actualizar la interfaz
+            self.asignacion_exitosa.emit()
+            self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Éxito", f"Horario actualizado correctamente..")
             self.cancelar()
         except Exception as e:

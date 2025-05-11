@@ -280,6 +280,7 @@ class InterfazAgregarRuta(QWidget):
                 """, (id_detalle, nuevo_id_ruta, id_estacion))
 
             self.db.connection.commit()
+            self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Éxito", f"Ruta agregada con ID {nuevo_id_ruta}.")
             self.cancelar()
         except Exception as e:
@@ -602,6 +603,7 @@ class InterfazEditarRuta(QWidget):
                 """, (id_detalle, self.id_ruta_a_editar, id_estacion))
 
             self.db.connection.commit()
+            self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Éxito", f"Ruta actualizada correctamente.")
             self.cancelar()
 
