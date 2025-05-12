@@ -54,7 +54,7 @@ class MainWindow(QMainWindow):
             InterfazHome(self, self.db, id_usuario),
             GestionHorariosRutas(self, self.db, id_usuario),
             MonitoreoInterface(self, self.db),
-            GestionIncidencias(self, self.db),
+            GestionIncidencias(self, self.db, id_usuario),
             GestionInfraestructura(self, self.db),
             OptimizacionDinamica(self, self.db),
             InterfazAsignacion(self, self.db)
