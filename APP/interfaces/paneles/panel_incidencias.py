@@ -33,7 +33,7 @@ class InterfazAgregarIncidencia(QWidget):
         # Tipo de incidencia
         layout.addWidget(QLabel("Tipo de incidencia:"))
         self.tipo_combo = QComboBox()
-        self.tipo_combo.addItems(["Retraso", "Avería", "Emergencia"])
+        self.tipo_combo.addItems(["Retraso", "Averia", "Emergencia"])
         layout.addWidget(self.tipo_combo)
 
         # Descripción
