@@ -1,6 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QTableWidget, 
                              QTableWidgetItem, QPushButton, QHBoxLayout, 
-                             QSizePolicy, QHeaderView, QStackedWidget, QScrollArea)
+                             QSizePolicy, QHeaderView, QStackedWidget, QScrollArea,
+                             QMessageBox)
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 from interfaces.paneles.panel_incidencias import InterfazAgregarIncidencia
@@ -67,9 +68,10 @@ class GestionIncidencias(QWidget):
         botones_layout = QHBoxLayout()
         self.btn_agregar_incidencia = QPushButton("Agregar Incidencia")
         self.btn_agregar_incidencia.clicked.connect(lambda: self.mostrar_panel(0))
-        self.btn_editar_incidencia = QPushButton("Editar Incidencia")
+        self.btn_resolver_incidencia = QPushButton("Resolver Incidencia")
+        self.btn_resolver_incidencia.clicked.connect(self.resolver_incidencia)
         botones_layout.addWidget(self.btn_agregar_incidencia)
-        botones_layout.addWidget(self.btn_editar_incidencia)
+        botones_layout.addWidget(self.btn_resolver_incidencia)
 
         layout.addLayout(botones_layout)
         
@@ -170,20 +172,20 @@ class GestionIncidencias(QWidget):
     def mostrar_afectaciones_resuelta(self, row, col):
         id_incidencia = self.tabla_resueltas.item(row, 0).text()
         cursor = self.db.connection.cursor()
-    
+
         # Obtener campo INFORMACION del historial
         cursor.execute("SELECT INFORMACION FROM HISTORIAL WHERE ID_INCIDENCIA = :1", (id_incidencia,))
         resultado = cursor.fetchone()
         if resultado:
             lob = resultado[0]
             info = lob.read() if hasattr(lob, 'read') else str(lob)  # manejar CLOB
-    
+
             # Extraer datos
             estaciones_objetivo = self._extraer_valor(info, "Orden").strip()
             tren_inicial = self._extraer_valor(info, "Tren").strip()
             horario = self._extraer_valor(info, "Horario")
             hora_inicio = horario.split(" - ")[0]
-    
+
             # Obtener asignaciones posteriores
             cursor.execute("""
                 SELECT A.ID_ASIGNACION,
@@ -197,11 +199,11 @@ class GestionIncidencias(QWidget):
                 ORDER BY H.HORA_SALIDA_PROGRAMADA
             """, (hora_inicio + ":00",))
             filas = cursor.fetchall()
-    
+
             afectadas = []
             for fila in filas:
                 id_asignacion, salida, llegada, id_ruta, id_tren = fila
-    
+
                 # Obtener orden de estaciones de esta ruta
                 cursor.execute("""
                     SELECT LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN)
@@ -210,14 +212,14 @@ class GestionIncidencias(QWidget):
                     WHERE RD.ID_RUTA = :1
                 """, (id_ruta,))
                 orden_ruta = cursor.fetchone()[0]
-    
+
                 # Comparar orden
                 if orden_ruta.strip() == estaciones_objetivo:
                     # Obtener nombre del tren real de esta asignación
                     cursor.execute("SELECT NOMBRE FROM TREN WHERE ID_TREN = :1", (id_tren,))
                     nombre_tren = cursor.fetchone()[0]
                     afectadas.append((id_asignacion, salida, llegada, orden_ruta, nombre_tren))
-    
+
             self._cargar_tabla(self.tabla_horarios_afectados, afectadas)
 
 
@@ -251,3 +253,27 @@ class GestionIncidencias(QWidget):
             for j, valor in enumerate(fila):
                 tabla.setItem(i, j, QTableWidgetItem(str(valor)))
         tabla.resizeRowsToContents()
+
+    def resolver_incidencia(self):
+        fila = self.tabla_no_resueltas.currentRow()
+        id_incidencia = self.tabla_no_resueltas.item(fila, 0).text()
+        # Si no hay horario seleccionado manda una advertencia
+        if fila == -1:
+            QMessageBox.warning(self, "Advertencia", "Selecciona un horario para eliminar.")
+            return
+        cursor = self.db.connection.cursor()
+
+        try:
+            cursor.execute("""
+                UPDATE INCIDENCIA
+                SET ESTADO = 'RESUELTO'
+                WHERE ID_INCIDENCIA = :1
+            """, (id_incidencia,))
+            self.db.connection.commit()
+            self.db.event_manager.update_triggered.emit()
+            QMessageBox.information(self, "Éxito", f"Incidencia {id_incidencia} marcada como resuelta.")
+        except Exception as e:
+            self.db.connection.rollback()
+            QMessageBox.critical(self, "Error", f"No se pudo resolver la incidencia: {str(e)}")
+        finally:
+            cursor.close()
