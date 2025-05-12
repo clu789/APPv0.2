@@ -2,7 +2,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
                             QScrollArea, QPushButton, QFrame, QMessageBox, QHeaderView, QAbstractItemView,
                             QSizePolicy)
 from PyQt6.QtCore import Qt, QTimer, QTime
-from interfaces.asignacion import InterfazAsignacion  
+from interfaces.asignacion import InterfazAsignacion, InterfazModificarAsignacion
 from PyQt6.QtGui import QIcon, QFont
 from base_de_datos.db import DatabaseConnection
 import oracledb
@@ -198,6 +198,14 @@ class InterfazHome(QWidget):
         self.panel_asignacion.hide()
         self.content_layout.addWidget(self.panel_asignacion)
 
+            # Panel de modificación 
+        print(self.username)
+        
+        self.panel_modificar = InterfazModificarAsignacion(self.main_window, self.db, self.username)
+        self.panel_modificar.modificacion_exitosa.connect(self.actualizar_datos)
+        self.panel_modificar.hide()
+        self.content_layout.addWidget(self.panel_modificar)
+
         # Añadir contenedor de contenido al layout principal
         self.main_layout.addWidget(self.content_container, 1)  # Factor de estiramiento 1
 
@@ -251,7 +259,7 @@ class InterfazHome(QWidget):
         """)
         self.btn_cancelar.clicked.connect(self.accion_cancelar)
 
-        # Reemplaza la parte de botones_layout con esto:
+
         self.botones_container = QWidget()  # Convertir en atributo de clase
         self.botones_container.setFixedWidth(1200)  # Mismo ancho que las tablas
         botones_layout = QHBoxLayout(self.botones_container)
@@ -292,6 +300,7 @@ class InterfazHome(QWidget):
         QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
             self.scroll_area.verticalScrollBar().maximum()
         ))
+        
     
     def ocultar_panel_asignacion(self):
         """Oculta el panel de asignación y restaura el tamaño de las tablas"""
@@ -302,7 +311,28 @@ class InterfazHome(QWidget):
         # Restaurar posición del scroll
         QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
 
+    def mostrar_panel_modificar(self, id_horario):
+        """Muestra el panel de modificación con el horario seleccionado"""
+        # Reducir altura de las tablas
+        self.tabla_viajes.setMaximumHeight(250)
+        self.tabla_proximos.setMaximumHeight(250)
+        
+        # Configurar panel de modificación
+        self.panel_modificar.set_horario(int(id_horario))
+        self.panel_modificar.show()
+        
+        # Ajustar scroll
+        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
+            self.scroll_area.verticalScrollBar().maximum()
+        ))
 
+    def ocultar_panel_modificar(self):
+        """Oculta el panel de modificación"""
+        self.tabla_viajes.setMaximumHeight(16777215)
+        self.tabla_proximos.setMaximumHeight(16777215)
+        self.panel_modificar.hide()
+        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
+    
     def accion_cancelar(self):
         fila = self.tabla_proximos.currentRow()
         if fila == -1:
@@ -454,8 +484,15 @@ class InterfazHome(QWidget):
                 self.tabla_proximos.setItem(i, 2, QTableWidgetItem(f"{p[3]}-{p[4]}"))
                 self.tabla_proximos.setItem(i, 3, QTableWidgetItem(f"{p[5]} - {p[6]}"))
 
+
     def accion_modificar(self):
-        print("Modificar registro...")
+        fila = self.tabla_proximos.currentRow()
+        if fila == -1:
+            QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para modificar.")
+            return
+
+        id_horario = self.tabla_proximos.item(fila, 0).text()
+        self.mostrar_panel_modificar(id_horario)
 
     def load_user_name(self):
         print(self.username)

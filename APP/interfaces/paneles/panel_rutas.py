@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (
     QMessageBox, QFileDialog, QListWidget, QComboBox, QAbstractItemView
 )
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt ,pyqtSignal
 import os
 from PyQt6.QtCore import Qt, QEvent, QMimeData, QItemSelectionModel, QAbstractItemModel
 from PyQt6.QtCore import Qt
@@ -12,6 +12,7 @@ from PyQt6.QtCore import Qt, QEvent, QMimeData, QItemSelectionModel, QAbstractIt
 
 
 class InterfazAgregarRuta(QWidget):
+    asignacion_exitosa = pyqtSignal()  # Recargar rutas
     def __init__(self, main_window, db):
         super().__init__()
         self.main_window = main_window
@@ -288,6 +289,7 @@ class InterfazAgregarRuta(QWidget):
             QMessageBox.critical(self, "Error", str(e))
 
 class InterfazEditarRuta(QWidget):
+    asignacion_exitosa = pyqtSignal()  # Recargar rutas
     def __init__(self, main_window, db, username):
         super().__init__()
         self.username = username
