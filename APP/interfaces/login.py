@@ -34,8 +34,7 @@ class LoginInterface(QWidget):
 
         self.logo = QLabel()
         self.logo.setFixedSize(400, 200)
-        # Aquí se cargará el logo más adelante
-        self.logo.setPixmap(QPixmap("imagenes/TRACKSYNC.png").scaled(400, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setPixmap(QPixmap("APP/icons/TRACKSYNC.png").scaled(400, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.titulo = QLabel("TRACKSYNC")

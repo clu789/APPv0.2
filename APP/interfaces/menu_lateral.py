@@ -41,12 +41,12 @@ class MenuLateral(QWidget):
         self.main_layout.setSpacing(0)
 
         # 1. Contenedor fijo para el botón ☰ (siempre visible)
-        self.btn_container = QFrame()
-        self.btn_container.setFixedHeight(40)
-        self.btn_container.setStyleSheet("background-color: transparent;")
+        #self.btn_container = QFrame()
+        #self.btn_container.setFixedHeight(40)
+        #self.btn_container.setStyleSheet("background-color: transparent;")
         
-        btn_layout = QHBoxLayout(self.btn_container)
-        btn_layout.setContentsMargins(0, 0, 0, 0)
+        #btn_layout = QHBoxLayout(self.btn_container)
+        #btn_layout.setContentsMargins(0, 0, 0, 0)
         
     # Botón ☰ centrado y fijo
         self.btn_toggle = QPushButton("☰")
@@ -65,8 +65,8 @@ class MenuLateral(QWidget):
         """)
         self.btn_toggle.clicked.connect(self.toggle_menu)
         
-        btn_layout.addWidget(self.btn_toggle, alignment=Qt.AlignmentFlag.AlignCenter)
-        self.main_layout.addWidget(self.btn_container)
+        #btn_layout.addWidget(self.btn_toggle, alignment=Qt.AlignmentFlag.AlignCenter)
+        #self.main_layout.addWidget(self.btn_toggle)
         
         # 2. Encabezado con usuario (oculto por defecto)
 
@@ -138,7 +138,7 @@ class MenuLateral(QWidget):
             ("Incidencias", QIcon("APP/icons/alert.png"), 3),
             ("Infraestructura", QIcon("APP/icons/infra.png"), 4),
             ("Optimización", QIcon("APP/icons/optimize.png"), 5),
-            ("Mejora", QIcon("APP/icons/optimize.png"), 6)
+            ("Mejora", QIcon("APP/icons/mejora.png"), 6)
         ]
         
         self.button_widgets = []
@@ -185,11 +185,50 @@ class MenuLateral(QWidget):
         self.credits_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.credits_label.setStyleSheet(f"""
             color: {self.text_color.name()};
-            font-size: 10px;
+            font-size: 15px;
             font-style: italic;
         """)
         
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap("APP/icons/TRACKSYNC.png").scaled(160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet(f"""
+            color: {self.text_color.name()};
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.nombre1 = QLabel("Emiliano\nArista\nRodriguez")
+        self.nombre1.setStyleSheet(f"""
+            color: {self.text_color.name()};
+            font-size: 15px;
+            font-style: italic;
+        """)
+        self.nombre1.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.nombre2 = QLabel("Milton\nFlorencio\nArzate")
+        self.nombre2.setStyleSheet(f"""
+            color: {self.text_color.name()};
+            font-size: 15px;
+            font-style: italic;
+        """)
+        self.nombre2.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.nombre3 = QLabel("Nery\nYael\nHernandez\nVillavicencio")
+        self.nombre3.setStyleSheet(f"""
+            color: {self.text_color.name()};
+            font-size: 15px;
+            font-style: italic;
+        """)
+        self.nombre3.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
         credits_layout.addWidget(self.credits_label)
+        credits_layout.addWidget(self.logo)
+        credits_layout.addWidget(self.titulo)
+        credits_layout.addWidget(self.nombre1)
+        credits_layout.addWidget(self.nombre2)
+        credits_layout.addWidget(self.nombre3)
         
         # Ensamblar el layout principal
         self.main_layout.addWidget(self.btn_toggle)
