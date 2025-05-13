@@ -1,5 +1,5 @@
 import random
-from PyQt6.QtCore import QTimer, QDateTime, QObject, pyqtSignal
+from PyQt6.QtCore import QTimer, QDateTime, QObject, pyqtSignal,QTime
 
 class EventManager(QObject):
     update_triggered = pyqtSignal()
@@ -27,28 +27,41 @@ class EventManager(QObject):
         event = self.find_next_pending_event()
 
         if event:
-            print("Evento encontrado:", event)
-            event_id, event_type, event_time = event
-            now = QDateTime.currentDateTime()
-            ms_to_event = now.msecsTo(event_time)
+            print(f"Evento encontrado: {event}")
+            asignacion_id, event_id, event_type, event_time_str = event  # Ahora 4 variables
+            
+            # Convertir el string de hora a QTime
+            try:
+                event_time = QTime.fromString(event_time_str, "HH:mm:ss")
+                if not event_time.isValid():
+                    print(f"Error: Hora de evento inválida: {event_time_str}")
+                    QTimer.singleShot(60000, self.schedule_next_event)
+                    return
+                    
+                now = QTime.currentTime()
+                ms_to_event = now.msecsTo(event_time)
 
-            if ms_to_event > 0:
-                print(f"Programando evento: {event_type} (ID: {event_id}) para las {event_time.toString('yyyy-MM-dd HH:mm:ss')}")
-                self.next_event_time = event_time
-                self.next_event_id = event_id
-                self.next_event_type = event_type
+                if ms_to_event > 0:
+                    print(f"Programando evento: {event_type} (ID: {event_id}) para las {event_time.toString('HH:mm:ss')}")
+                    self.next_event_time = event_time
+                    self.next_event_id = event_id
+                    self.next_event_type = event_type
+                    self.next_asignacion_id = asignacion_id
 
-                if self.current_timer:
-                    self.current_timer.stop()
-                    self.current_timer = None
+                    if self.current_timer:
+                        self.current_timer.stop()
+                        self.current_timer = None
 
-                self.current_timer = QTimer.singleShot(
-                    ms_to_event,
-                    lambda: self.handle_event(event_id, event_type)
-                )
-            else:
-                print(f"El evento {event_type} ya está en el pasado. Procesando ahora...")
-                self.handle_event(event_id, event_type)
+                    self.current_timer = QTimer.singleShot(
+                        ms_to_event,
+                        lambda: self.handle_event(asignacion_id, event_id, event_type)
+                    )
+                else:
+                    print(f"El evento {event_type} ya está en el pasado. Procesando ahora...")
+                    self.handle_event(asignacion_id, event_id, event_type)
+            except Exception as e:
+                print(f"Error al programar evento: {e}")
+                QTimer.singleShot(60000, self.schedule_next_event)
         else:
             print("No hay eventos próximos. Revisando en 1 minuto...")
             QTimer.singleShot(60000, self.schedule_next_event)
@@ -69,130 +82,196 @@ class EventManager(QObject):
             self.handle_event(self.next_event_id, self.next_event_type)
 
     def find_next_pending_event(self):
-        """Encuentra el próximo evento pendiente más cercano"""
+        """Encuentra el próximo evento pendiente más cercano (sólo por hora)"""
+        print("\n[DEBUG] Iniciando búsqueda de próximo evento...")
+        
         query = """
         WITH eventos AS (
-        SELECT 
-            ID_HORARIO,
-            'SALIDA' AS TIPO,
-            HORA_SALIDA_PROGRAMADA AS HORA_EVENTO,
-            HORA_SALIDA_REAL
-        FROM HORARIO
-        WHERE HORA_SALIDA_REAL IS NULL
-        AND HORA_SALIDA_PROGRAMADA > SYSDATE
+            -- Eventos de SALIDA (sin hora_salida_real)
+            SELECT 
+                a.ID_ASIGNACION,
+                a.ID_HORARIO,
+                'SALIDA' AS TIPO,
+                TO_CHAR(h.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS HORA_EVENTO
+            FROM ASIGNACION_TREN a
+            JOIN HORARIO h ON a.ID_HORARIO = h.ID_HORARIO
+            WHERE a.HORA_SALIDA_REAL IS NULL
+            AND TO_CHAR(h.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') > TO_CHAR(SYSDATE, 'HH24:MI:SS')
 
-        UNION ALL
+            UNION ALL
 
-        SELECT 
-            ID_HORARIO,
-            'LLEGADA' AS TIPO,
-            HORA_LLEGADA_PROGRAMADA AS HORA_EVENTO,
-            HORA_LLEGADA_REAL
-        FROM HORARIO
-        WHERE HORA_LLEGADA_REAL IS NULL
-        AND HORA_LLEGADA_PROGRAMADA > SYSDATE
-        -- Asegurar que ya exista una salida real
-        AND HORA_SALIDA_REAL IS NOT NULL
+            -- Eventos de LLEGADA (con salida real pero sin llegada_real)
+            SELECT 
+                a.ID_ASIGNACION,
+                a.ID_HORARIO,
+                'LLEGADA' AS TIPO,
+                TO_CHAR(h.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS HORA_EVENTO
+            FROM ASIGNACION_TREN a
+            JOIN HORARIO h ON a.ID_HORARIO = h.ID_HORARIO
+            WHERE a.HORA_LLEGADA_REAL IS NULL
+            AND TO_CHAR(h.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') > TO_CHAR(SYSDATE, 'HH24:MI:SS')
+            AND a.HORA_SALIDA_REAL IS NOT NULL
         )
         SELECT 
+            ID_ASIGNACION,
             ID_HORARIO,
             TIPO,
-            TO_CHAR(HORA_EVENTO, 'YYYY-MM-DD HH24:MI:SS') AS HORA_EVENTO
+            HORA_EVENTO
         FROM eventos
-        WHERE HORA_EVENTO > SYSDATE
         ORDER BY HORA_EVENTO ASC
         FETCH FIRST 1 ROWS ONLY
         """
-
+        
+        print("[DEBUG] Consulta SQL preparada:")
+        print(query)
+        
+        # Verificar conexión a la base de datos
         if not self.db.connection:
-            print("Error: No hay conexión a la base de datos.")
+            print("[ERROR] No hay conexión a la base de datos")
+            return None
+        
+        try:
+            print("[DEBUG] Ejecutando consulta en la base de datos...")
+            result = self.db.fetch_one(query)
+            
+            if result:
+                asignacion_id = result[0]
+                event_id = result[1]
+                event_type = result[2]
+                hora_evento = result[3]
+                
+                print(f"[DEBUG] Evento encontrado - ID_ASIGNACION: {asignacion_id}")
+                print(f"[DEBUG] ID_HORARIO: {event_id}")
+                print(f"[DEBUG] TIPO: {event_type}")
+                print(f"[DEBUG] HORA_EVENTO: {hora_evento}")
+                
+                # Validar formato de hora
+                if not isinstance(hora_evento, str) or len(hora_evento) != 8 or hora_evento.count(':') != 2:
+                    print(f"[ERROR] Formato de hora inválido: {hora_evento}")
+                    return None
+                    
+                try:
+                    # Convertir a QTime para validación
+                    hora_qt = QTime.fromString(hora_evento, "HH:mm:ss")
+                    if not hora_qt.isValid():
+                        print(f"[ERROR] Hora no válida: {hora_evento}")
+                        return None
+                        
+                    print("[DEBUG] Hora validada correctamente")
+                    return (asignacion_id, event_id, event_type, hora_evento)
+                    
+                except Exception as e:
+                    print(f"[ERROR] Error al convertir hora: {str(e)}")
+                    return None
+                    
+            else:
+                print("[DEBUG] No se encontraron eventos pendientes")
+                return None
+                
+        except Exception as e:
+            print(f"[ERROR] Excepción al ejecutar consulta: {str(e)}")
             return None
 
-        result = self.db.fetch_one(query)
-        if result:
-            event_id = result[0]
-            event_type = result[1]
-            event_time_str = result[2]
-            event_time = QDateTime.fromString(event_time_str, "yyyy-MM-dd HH:mm:ss")
-            if not event_time.isValid():
-                print(f"Error: Tiempo de evento inválido recibido: {event_time_str}")
-                return None
-            return (event_id, event_type, event_time)
-        return None
-
-    def handle_event(self, event_id, event_type):
-        """Actualiza la base de datos cuando ocurre un evento"""
-        print(f"Procesando evento: {event_type} para horario {event_id}")
-        
+    def handle_event(self, asignacion_id, event_id, event_type):
+        """Maneja eventos usando sólo horas (sin fechas)"""
         now = QDateTime.currentDateTime()
+        hora_actual = now.toString("HH:mm:ss")
         
-        if event_type == "SALIDA":
-            # Asegurar que el tiempo real no sea anterior al programado
-            scheduled_time = self.next_event_time
-            if now < scheduled_time:
-                print("¡Error! Intento de registrar salida antes de la hora programada")
-                # Reprogramar para el momento correcto
-                delay = scheduled_time.msecsTo(now)
-                QTimer.singleShot(abs(delay), lambda: self.handle_event(event_id, event_type))
-                return
-                
-            departure_real = self._get_varied_time(now)
-            query = """
-            UPDATE HORARIO
-            SET HORA_SALIDA_REAL = TO_DATE(:time, 'YYYY-MM-DD HH24:MI:SS')
-            WHERE ID_HORARIO = :id
-            """
-            params = {'id': event_id, 'time': departure_real.toString("yyyy-MM-dd HH:mm:ss")}
-        
-        else:  # LLEGADA
-            # Obtener datos necesarios
-            query_data = """
-            SELECT 
-                TO_CHAR(HORA_SALIDA_PROGRAMADA, 'YYYY-MM-DD HH24:MI:SS'),
-                TO_CHAR(HORA_SALIDA_REAL, 'YYYY-MM-DD HH24:MI:SS'),
-                TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'YYYY-MM-DD HH24:MI:SS')
-            FROM HORARIO
-            WHERE ID_HORARIO = :id
-            """
-            result = self.db.fetch_one(query_data, {'id': event_id})
-            
-            if not result:
-                print("Error: No se encontró el horario")
-                return
-                
-            scheduled_departure = QDateTime.fromString(result[0], "yyyy-MM-dd HH:mm:ss")
-            actual_departure = QDateTime.fromString(result[1], "yyyy-MM-dd HH:mm:ss") if result[1] else None
-            scheduled_arrival = QDateTime.fromString(result[2], "yyyy-MM-dd HH:mm:ss")
-            
-            # Validaciones
-            if not actual_departure:
-                print("Error: No hay hora de salida real registrada")
-                return
-                
-            if now < scheduled_arrival.addSecs(-60):  # Máximo 1 minuto antes
-                print("¡Advertencia! Llegada real registrada demasiado temprano")
-                
-            arrival_real = self._get_arrival_time(actual_departure, scheduled_arrival)
-            
-            query = """
-            UPDATE HORARIO
-            SET HORA_LLEGADA_REAL = TO_DATE(:time, 'YYYY-MM-DD HH24:MI:SS')
-            WHERE ID_HORARIO = :id
-            """
-            params = {'id': event_id, 'time': arrival_real.toString("yyyy-MM-dd HH:mm:ss")}
-        
-        # Ejecutar la actualización
         try:
-            self.db.execute_query(query, params)
-            print(f"✓ Evento {event_type} registrado para horario {event_id}")
-
-            # Emitir señal para actualizar las interfaces
-            self.update_triggered.emit()
-             # Programar el siguiente evento
+            if event_type == "SALIDA":
+                # Obtener hora programada
+                query_programada = """
+                SELECT TO_CHAR(h.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS')
+                FROM HORARIO h
+                JOIN ASIGNACION_TREN a ON h.ID_HORARIO = a.ID_HORARIO
+                WHERE a.ID_ASIGNACION = :asignacion_id
+                """
+                result = self.db.fetch_one(query_programada, {'asignacion_id': asignacion_id})
+                
+                if not result:
+                    print("Error: No se encontró la asignación")
+                    return
+                    
+                hora_programada = result[0]
+                
+                # Validar que no se registre antes de tiempo (comparando sólo horas)
+                if hora_actual < hora_programada:
+                    print("¡Error! Intento de registrar salida antes de la hora programada")
+                    # Calcular diferencia en milisegundos
+                    hora_prog_qt = QTime.fromString(hora_programada, "HH:mm:ss")
+                    hora_actual_qt = QTime.fromString(hora_actual, "HH:mm:ss")
+                    delay = hora_actual_qt.msecsTo(hora_prog_qt)
+                    QTimer.singleShot(abs(delay), lambda: self.handle_event(asignacion_id, event_id, event_type))
+                    return
+                    
+                # Generar hora real con posible retraso (sólo hora)
+                departure_real = self._get_varied_time(now).toString("HH:mm:ss")
+                
+                # Actualizar BD (sólo hora)
+                query = """
+                UPDATE ASIGNACION_TREN
+                SET HORA_SALIDA_REAL = TO_DATE(:time, 'HH24:MI:SS')
+                WHERE ID_ASIGNACION = :asignacion_id
+                """
+                params = {
+                    'asignacion_id': asignacion_id,
+                    'time': departure_real
+                }
+                
+            else:  # LLEGADA
+                # Obtener datos necesarios (sólo horas)
+                query_data = """
+                SELECT 
+                    TO_CHAR(a.HORA_SALIDA_REAL, 'HH24:MI:SS'),
+                    TO_CHAR(h.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'),
+                    r.DURACION_ESTIMADA
+                FROM ASIGNACION_TREN a
+                JOIN HORARIO h ON a.ID_HORARIO = h.ID_HORARIO
+                JOIN RUTA r ON a.ID_RUTA = r.ID_RUTA
+                WHERE a.ID_ASIGNACION = :asignacion_id
+                """
+                result = self.db.fetch_one(query_data, {'asignacion_id': asignacion_id})
+                
+                if not result or not result[0]:
+                    print("Error: No hay hora de salida real registrada")
+                    return
+                    
+                # Calcular llegada real basada sólo en horas
+                hora_salida_real = result[0]
+                hora_llegada_programada = result[1]
+                duracion_estimada = result[2]  # en minutos
+                
+                # Convertir a QTime para cálculos
+                salida_qt = QTime.fromString(hora_salida_real, "HH:mm:ss")
+                llegada_real_qt = salida_qt.addSecs(int(duracion_estimada * 60 * random.uniform(0.95, 1.10)))
+                llegada_real = llegada_real_qt.toString("HH:mm:ss")
+                
+                # Actualizar BD (sólo hora)
+                query = """
+                UPDATE ASIGNACION_TREN
+                SET HORA_LLEGADA_REAL = TO_DATE(:time, 'HH24:MI:SS')
+                WHERE ID_ASIGNACION = :asignacion_id
+                """
+                params = {
+                    'asignacion_id': asignacion_id,
+                    'time': llegada_real
+                }
+            
+            # Ejecutar la actualización
+            success = self.db.execute_query(query, params)
+            if success:
+                self.db.connection.commit()
+                print(f"✓ Evento {event_type} registrado: {params['time']}")
+                self.update_triggered.emit()
+            else:
+                print("Error al ejecutar la consulta")
+                
             self.schedule_next_event()
+            
         except Exception as e:
-            print(f"Error al registrar evento: {e}")
-            QTimer.singleShot(60000, lambda: self.handle_event(event_id, event_type))
+            print(f"Error al manejar evento: {e}")
+            if self.db.connection:
+                self.db.connection.rollback()
 
 
     def verify_events(self):
@@ -201,38 +280,69 @@ class EventManager(QObject):
         new_event = self.find_next_pending_event()
 
         if new_event:
-            new_event_id, new_event_type, new_event_time = new_event
-            # Verifica si el nuevo evento es más próximo que el actual
-            if (self.next_event_time is None) or (new_event_time.msecsTo(self.next_event_time) > 0):
-                print("Se encontró un evento más próximo. Reprogramando...")
+            # Desempaquetar los 4 valores correctamente
+            new_asignacion_id, new_event_id, new_event_type, new_event_time_str = new_event
+            
+            print(f"[DEBUG] Nuevo evento encontrado: ID_ASIGNACION={new_asignacion_id}, "
+                f"ID_HORARIO={new_event_id}, TIPO={new_event_type}, HORA={new_event_time_str}")
 
-                # Detiene el temporizador actual si existe
-                if self.current_timer:
-                    self.current_timer.stop()
-                    self.current_timer = None
+            # Convertir el string de hora a QTime
+            try:
+                new_event_time = QTime.fromString(new_event_time_str, "HH:mm:ss")
+                if not new_event_time.isValid():
+                    print(f"[ERROR] Hora de evento inválida: {new_event_time_str}")
+                    return
+                    
+                # Verificar si el nuevo evento es más próximo que el actual
+                if self.next_event_time is None:
+                    print("[DEBUG] No hay evento actual, usando nuevo evento")
+                    self._update_scheduled_event(new_asignacion_id, new_event_id, 
+                                            new_event_type, new_event_time)
+                    return
 
-                # Actualiza el próximo evento
-                self.next_event_time = new_event_time
-                self.next_event_id = new_event_id
-                self.next_event_type = new_event_type
+                # Comparar horas (solo la parte de tiempo)
+                now = QTime.currentTime()
+                ms_to_new = now.msecsTo(new_event_time)
+                ms_to_current = now.msecsTo(self.next_event_time)
 
-                # Reprograma el siguiente evento
-                self.schedule_next_event()
-            else:
-                print("No se encontraron nuevos eventos más próximos. Manteniendo el estado actual.")
+                if ms_to_new < ms_to_current:
+                    print("[DEBUG] Se encontró un evento más próximo. Reprogramando...")
+                    self._update_scheduled_event(new_asignacion_id, new_event_id, 
+                                            new_event_type, new_event_time)
+                else:
+                    print("[DEBUG] El evento actual sigue siendo el más próximo")
+                    
+            except Exception as e:
+                print(f"[ERROR] Error al procesar hora del evento: {e}")
+                
         else:
-            print("No hay eventos próximos en la base de datos.")
-        
+            print("[DEBUG] No hay eventos próximos en la base de datos.")
+
+    def _update_scheduled_event(self, asignacion_id, event_id, event_type, event_time):
+        """Actualiza el evento programado internamente"""
+        # Detener el temporizador actual si existe
+        if self.current_timer:
+            self.current_timer.stop()
+            self.current_timer = None
+
+        # Actualizar el próximo evento
+        self.next_asignacion_id = asignacion_id
+        self.next_event_id = event_id
+        self.next_event_type = event_type
+        self.next_event_time = event_time
+
+        # Reprogramar el siguiente evento
+        self.schedule_next_event()
+
     def _get_varied_time(self, base_time, max_delay_minutes=6):
-        """Genera un tiempo con variabilidad aleatoria (solo retrasos)"""
-        # 40% de probabilidad de ser exactamente a tiempo
-        if random.random() < 0.4:
+        """Genera una hora con variabilidad (sólo hora, sin fecha)"""
+        if random.random() < 0.4:  # 40% puntual
             return base_time
             
-        # 60% de probabilidad de retraso (1-6 minutos)
+        # 60% con retraso (1-6 minutos)
         delay_minutes = random.randint(1, max_delay_minutes)
         return base_time.addSecs(delay_minutes * 60)
-    
+
     def _get_arrival_time(self, departure_real, scheduled_arrival):
         """Calcula tiempo de llegada real basado en salida real y llegada programada"""
         scheduled_departure = self.next_event_time  # Hora de salida programada

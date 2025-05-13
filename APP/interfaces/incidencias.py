@@ -222,7 +222,6 @@ class GestionIncidencias(QWidget):
 
             self._cargar_tabla(self.tabla_horarios_afectados, afectadas)
 
-
     def _extraer_valor(self, texto, clave):
         partes = texto.split(";")
         for parte in partes:
