@@ -276,10 +276,13 @@ class GestionHorariosRutas(QWidget):
     def load_schedules(self):
         """Carga los horarios con los trenes asignados"""
         query = """
-            SELECT ID_HORARIO,
-                    TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
-                    TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-            FROM HORARIO
+            SELECT H.ID_HORARIO,
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'),
+                    T.NOMBRE
+            FROM HORARIO H
+            LEFT JOIN ASIGNACION_TREN A ON H.ID_HORARIO = A.ID_HORARIO
+            LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
             ORDER BY 1 ASC
         """
         schedules = self.db.fetch_all(query)
@@ -289,6 +292,7 @@ class GestionHorariosRutas(QWidget):
             self.tabla_horarios.setItem(i, 0, QTableWidgetItem(str(schedule[0])))
             self.tabla_horarios.setItem(i, 1, QTableWidgetItem(schedule[1]))
             self.tabla_horarios.setItem(i, 2, QTableWidgetItem(schedule[2]))
+            self.tabla_horarios.setItem(i, 3, QTableWidgetItem(schedule[3] if schedule[3] else "No asignado"))
 
         self.tabla_horarios.resizeColumnsToContents()
         self.tabla_horarios.resizeRowsToContents()
@@ -361,59 +365,6 @@ class GestionHorariosRutas(QWidget):
                 VALUES (:1, :2, :3, :4, SYSDATE)
             """, (nuevo_id, self.tabla_horarios.item(fila, 1).text() + " - " + self.tabla_horarios.item(fila, 2).text(),
                   self.username, self.tabla_horarios.item(fila, 0).text(),))
-            # Se busca todas las asignaciones que tengan ese horario para insertarlas en el historial
-            cursor.execute("""
-                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_HORARIO = :1
-            """, (self.tabla_horarios.item(fila, 0).text(),))
-            asignaciones = cursor.fetchall()
-            for asignacion in asignaciones:
-                id_asignacion = asignacion[0]
-                # Obtener ID_RUTA e ID_TREN de la asignacion
-                cursor.execute("""
-                    SELECT ID_RUTA, ID_TREN FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
-                """, (id_asignacion,))
-                id_ruta, id_tren = cursor.fetchone()
-                #Obtener duracion estimada y orden de las estaciones
-                cursor.execute("""
-                    SELECT DURACION_ESTIMADA,
-                           LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-                    FROM RUTA R
-                    JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-                    JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-                    WHERE R.ID_RUTA = :1
-                    GROUP BY R.DURACION_ESTIMADA
-                """, (id_ruta,))
-                resultado_ruta = cursor.fetchone()
-                duracion = resultado_ruta[0]
-                estaciones = resultado_ruta[1]
-            
-                # Obtener hora inicio y fin del horario
-                #cursor.execute("""
-                #    SELECT TO_CHAR(HORA_INICIO, 'HH24:MI:SS'), TO_CHAR(HORA_FIN, 'HH24:MI:SS')
-                #    FROM HORARIO WHERE ID_HORARIO = :1
-                #""", (id_horario,))
-                #hora_inicio, hora_fin = cursor.fetchone()
-                horario = self.tabla_horarios.item(fila, 1).text() + " - " + self.tabla_horarios.item(fila, 2).text()
-                
-                # Obtener nombre del tren
-                cursor.execute("""
-                    SELECT NOMBRE FROM TREN WHERE ID_TREN = :1
-                """, (id_tren,))
-                nombre_tren = cursor.fetchone()
-            
-                # Construir el string de información
-                info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {horario}; Tren: {nombre_tren}"
-                
-                # Se genera el id del nuevo registro del historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-                
-                # Se inserta el registro de la asignacion que se va a eliminar
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, info, self.username, id_asignacion,))
-            
             # Se elimina el horario
             cursor.execute("""
                 DELETE FROM HORARIO WHERE ID_HORARIO = :1
@@ -449,62 +400,7 @@ class GestionHorariosRutas(QWidget):
             """, (nuevo_id, "Duracion: " + self.tabla_rutas.item(fila, 1).text() + "; Orden: "
                   + self.tabla_rutas.item(fila, 2).text(),
                   self.username, self.tabla_rutas.item(fila, 0).text(),))
-            # Se busca todas las asignaciones que tengan esa ruta para insertarlas en el historial
-            cursor.execute("""
-                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_RUTA = :1
-            """, (self.tabla_rutas.item(fila, 0).text(),))
-            asignaciones = cursor.fetchall()
-            for asignacion in asignaciones:
-                id_asignacion = asignacion[0]
-                # Obtener ID_RUTA e ID_TREN de la asignacion
-                cursor.execute("""
-                    SELECT ID_HORARIO, ID_TREN FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
-                """, (id_asignacion,))
-                id_horario, id_tren = cursor.fetchone()
-                #Obtener duracion estimada y orden de las estaciones
-                #cursor.execute("""
-                #    SELECT DURACION_ESTIMADA,
-                #           LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-                #    FROM RUTA R
-                #    JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-                #    JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-                #    WHERE R.ID_RUTA = :1
-                #    GROUP BY R.DURACION_ESTIMADA
-                #""", (id_ruta,))
-                #resultado_ruta = cursor.fetchone()
-                #duracion = resultado_ruta[0]
-                #estaciones = resultado_ruta[1]
-                duracion = self.tabla_rutas.item(fila, 1).text()
-                estaciones = self.tabla_rutas.item(fila, 2).text()
-
-                # Obtener hora inicio y fin del horario
-                cursor.execute("""
-                    SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
-                    TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-                    FROM HORARIO WHERE ID_HORARIO = :1
-                """, (id_horario,))
-                hora_inicio, hora_fin = cursor.fetchone()
-
-                # Obtener nombre del tren
-                cursor.execute("""
-                    SELECT NOMBRE FROM TREN WHERE ID_TREN = :1
-                """, (id_tren,))
-                nombre_tren = cursor.fetchone()
-
-                # Construir el string de información
-                info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren: {nombre_tren}"
-
-                # Se genera el id del nuevo registro del historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-
-                # Se inserta el registro de la asignacion que se va a eliminar
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, info, self.username, id_asignacion,))
-            
-            # Se elimina la ruta
+            # Se elimina el horario
             cursor.execute("""
                 DELETE FROM RUTA WHERE ID_RUTA = :1
             """, (self.tabla_rutas.item(fila, 0).text(),))
