@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame, QGridLayout
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 from datetime import datetime
@@ -6,17 +6,16 @@ from base_de_datos.db import DatabaseConnection
 from base_de_datos.event_manager import EventManager
 
 class MonitoreoInterface(QWidget):
-    def __init__(self, main_window,db):
+    def __init__(self, main_window, db):
         super().__init__()
         self.main_window = main_window  # Referencia a la ventana principal
         
         self.setWindowTitle("Monitoreo en Tiempo Real")
-        self.setGeometry(200, 200, 800, 500)
+        self.setGeometry(200, 200, 1000, 600)
         
         # Conexión a la base de datos
         self.db = db
 
-        
         self.initUI()
         self.load_real_time_data()
     
@@ -24,56 +23,49 @@ class MonitoreoInterface(QWidget):
         # Layout principal
         layout = QVBoxLayout()
         
-        # Crear encabezado con botón del menú lateral y título
+        # Crear encabezado con título
         header_layout = QHBoxLayout()
-
         label = QLabel("Monitoreo en Tiempo Real")
+        label.setFont(QFont('Arial', 14, QFont.Weight.Bold))
         
         # Alineación de los widgets
         header_layout.addWidget(label)
-
-        # Ajuste de márgenes para el encabezado
-        header_layout.setContentsMargins(0, 0, 0, 0)  # Eliminar márgenes alrededor
-        header_layout.setSpacing(20)  # Eliminar espacio entre los widgets
+        header_layout.setContentsMargins(0, 0, 0, 10)
+        header_layout.setSpacing(20)
 
         # Agregar el encabezado al layout
         layout.addLayout(header_layout)
 
-        # Crear tabla de trenes
-        label_estado = QLabel("Estado Actual de los Trenes")
+        # Crear tabla de asignaciones de trenes
+        label_estado = QLabel("Asignaciones de Trenes")
+        label_estado.setFont(QFont('Arial', 12))
         layout.addWidget(label_estado)
         
         self.tabla_trenes = QTableWidget()
-        self.tabla_trenes.setColumnCount(5)
-        self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado", "Ruta", "Horario"])
+        self.tabla_trenes.setColumnCount(8)
+        self.tabla_trenes.setHorizontalHeaderLabels([
+            "ID Asignación", 
+            "ID Tren", 
+            "Nombre Tren", 
+            "ID Ruta", 
+            "ID Horario", 
+            "Salida Programada", 
+            "Llegada Programada", 
+            "Estado"
+        ])
         self.tabla_trenes.setWordWrap(True)
         layout.addWidget(self.tabla_trenes)
         
-        # Sección de botones
-        button_layout = QHBoxLayout()
-        self.btn_refrescar = QPushButton("Actualizar")
-        self.btn_detalles = QPushButton("Ver Detalles")
-        self.btn_emergencia = QPushButton("Reporte de Emergencia")
+        # Panel de detalles (inicialmente vacío)
+        self.detalle_panel = QFrame()
+        self.detalle_panel.setFrameShape(QFrame.Shape.StyledPanel)
+        self.detalle_layout = QVBoxLayout(self.detalle_panel)
+        layout.addWidget(self.detalle_panel)
         
-        button_layout.addWidget(self.btn_refrescar)
-        button_layout.addWidget(self.btn_detalles)
-        button_layout.addWidget(self.btn_emergencia)
-        
-        layout.addLayout(button_layout)
-
-        # Botón para volver al menú
-        btn_volver = QPushButton("Volver al Menú")
-        layout.addWidget(btn_volver)
-        #self.btn_volver.clicked.connect(lambda: self.main_window.change_interface("0"))  # Cambiar a la interfaz del menú principal
+        # Ocultar panel inicialmente
+        self.detalle_panel.setVisible(False)
 
         self.setLayout(layout)
-
-        # Conectar botón de actualización
-        self.btn_refrescar.clicked.connect(self.load_real_time_data)
-
-        # Nuevo: Contenedor de barra de progreso y detalles
-        self.detalle_layout = QVBoxLayout()
-        layout.addLayout(self.detalle_layout)
 
         # Conectar selección de tabla
         self.tabla_trenes.cellClicked.connect(self.on_row_selected)
@@ -87,72 +79,98 @@ class MonitoreoInterface(QWidget):
         print("Actualizando datos de MonitoreoInterface")
         self.load_real_time_data()
 
+    def determinar_estado_horario(self, hora_salida_str, hora_llegada_str):
+        """Determina si un horario está en curso, próximo o finalizado"""
+        try:
+            fmt = "%H:%M:%S"
+            ahora = datetime.now().time()
+            salida = datetime.strptime(hora_salida_str, fmt).time()
+            llegada = datetime.strptime(hora_llegada_str, fmt).time()
+            
+            if ahora < salida:
+                return "Próximamente"
+            elif salida <= ahora <= llegada:
+                return "En curso"
+            else:
+                return "Finalizado"
+        except:
+            return "Desconocido"
+
     def load_real_time_data(self):
         """Carga el estado actual de los trenes en servicio"""
-        query_trains = """
-            SELECT T.ID_TREN, T.NOMBRE, T.ESTADO, 
-                   R.ID_RUTA, 
-                   TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS')
-            FROM TREN T
-            LEFT JOIN ASIGNACION_TREN A ON T.ID_TREN = A.ID_TREN
-            LEFT JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
-            LEFT JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+        query = """
+            SELECT 
+                A.ID_ASIGNACION,
+                T.ID_TREN, 
+                T.NOMBRE, 
+                R.ID_RUTA, 
+                H.ID_HORARIO,
+                TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS HORA_SALIDA,
+                TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS HORA_LLEGADA,
+                TO_CHAR(A.HORA_SALIDA_REAL, 'HH24:MI:SS') AS HORA_SALIDA_REAL,
+                TO_CHAR(A.HORA_LLEGADA_REAL, 'HH24:MI:SS') AS HORA_LLEGADA_REAL
+            FROM ASIGNACION_TREN A
+            JOIN TREN T ON A.ID_TREN = T.ID_TREN
+            JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+            ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
         """
-        trains = self.db.fetch_all(query_trains)
-        
-        self.tabla_trenes.setRowCount(len(trains))
-        for i, train in enumerate(trains):
-            self.tabla_trenes.setItem(i, 0, QTableWidgetItem(str(train[0])))  # ID Tren
-            self.tabla_trenes.setItem(i, 1, QTableWidgetItem(train[1]))  # Nombre
-            self.tabla_trenes.setItem(i, 2, QTableWidgetItem(train[2]))  # Estado
-            self.tabla_trenes.setItem(i, 3, QTableWidgetItem(str(train[3]) if train[3] else "Sin Ruta"))  # ID Ruta
-            self.tabla_trenes.setItem(i, 4, QTableWidgetItem(train[4] if train[4] else "Sin Horario"))  # Hora de salida
+        asignaciones = self.db.fetch_all(query)
+
+        if not asignaciones:
+            print("[DEBUG] No se encontraron datos para cargar en la tabla.")
+            self.tabla_trenes.setRowCount(0)
+            return
+
+        self.tabla_trenes.setRowCount(len(asignaciones))
+        for i, asignacion in enumerate(asignaciones):
+            estado = self.determinar_estado_horario(asignacion[5], asignacion[6])
+            
+            self.tabla_trenes.setItem(i, 0, QTableWidgetItem(str(asignacion[0])))  # ID Asignación
+            self.tabla_trenes.setItem(i, 1, QTableWidgetItem(str(asignacion[1])))  # ID Tren
+            self.tabla_trenes.setItem(i, 2, QTableWidgetItem(asignacion[2]))      # Nombre Tren
+            self.tabla_trenes.setItem(i, 3, QTableWidgetItem(str(asignacion[3]))) # ID Ruta
+            self.tabla_trenes.setItem(i, 4, QTableWidgetItem(str(asignacion[4]))) # ID Horario
+            self.tabla_trenes.setItem(i, 5, QTableWidgetItem(asignacion[5]))      # Hora Salida
+            self.tabla_trenes.setItem(i, 6, QTableWidgetItem(asignacion[6]))      # Hora Llegada
+            self.tabla_trenes.setItem(i, 7, QTableWidgetItem(estado))             # Estado
 
         # Ajustar tamaño de columnas y filas
         self.tabla_trenes.resizeColumnsToContents()
         self.tabla_trenes.resizeRowsToContents()
 
     def on_row_selected(self, row, column):
-        id_tren = self.tabla_trenes.item(row, 0).text()
-        id_ruta = self.tabla_trenes.item(row, 3).text()
-        hora_programada = self.tabla_trenes.item(row, 4).text()
-
-        if id_ruta == "Sin Ruta" or hora_programada == "Sin Horario":
-            return
-
-        self.id_tren_seleccionado = id_tren
-        self.id_ruta_seleccionada = id_ruta
-
-        self.refrescar_detalles_tren(id_tren, id_ruta)
+        id_asignacion = self.tabla_trenes.item(row, 0).text()
+        self.refrescar_detalles_asignacion(id_asignacion)
         self.timer_progreso.start(1000)
 
-    def refrescar_detalles_tren(self, id_tren, id_ruta):
-        # Limpiar anterior
+    def refrescar_detalles_asignacion(self, id_asignacion):
+        # Limpiar completamente el layout de detalles
         while self.detalle_layout.count():
-            item = self.detalle_layout.takeAt(0)
-            widget = item.widget()
-            if widget:
-                widget.deleteLater()
-            elif item.layout():
-                inner_layout = item.layout()
-                while inner_layout.count():
-                    inner_item = inner_layout.takeAt(0)
-                    if inner_item.widget():
-                        inner_item.widget().deleteLater()
-                self.detalle_layout.removeItem(inner_layout)
+            child = self.detalle_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
-        # Obtener datos del tren
-        tren = self.db.fetch_one(
-            "SELECT NOMBRE, CAPACIDAD, ESTADO FROM TREN WHERE ID_TREN = :id",
-            {'id': id_tren}
-        )
+        # Mostrar el panel de detalles
+        self.detalle_panel.setVisible(True)
 
-        ruta = self.db.fetch_one("""
+        # Obtener datos completos de la asignación
+        query = """
             SELECT 
+                A.ID_ASIGNACION,
+                T.ID_TREN, T.NOMBRE, T.CAPACIDAD, T.ESTADO,
+                R.ID_RUTA, R.DURACION_ESTIMADA,
+                H.ID_HORARIO,
+                TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS HORA_SALIDA_PROG,
+                TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS HORA_LLEGADA_PROG,
+                TO_CHAR(A.HORA_SALIDA_REAL, 'HH24:MI:SS') AS HORA_SALIDA_REAL,
+                TO_CHAR(A.HORA_LLEGADA_REAL, 'HH24:MI:SS') AS HORA_LLEGADA_REAL,
                 E1.NOMBRE AS ESTACION_ORIGEN,
-                E2.NOMBRE AS ESTACION_DESTINO,
-                R.DURACION_ESTIMADA
-            FROM RUTA R
+                E2.NOMBRE AS ESTACION_DESTINO
+            FROM ASIGNACION_TREN A
+            JOIN TREN T ON A.ID_TREN = T.ID_TREN
+            JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             JOIN RUTA_DETALLE RD1 ON R.ID_RUTA = RD1.ID_RUTA AND RD1.ORDEN = (
                 SELECT MIN(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = R.ID_RUTA
             )
@@ -161,21 +179,32 @@ class MonitoreoInterface(QWidget):
                 SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = R.ID_RUTA
             )
             JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
-            WHERE R.ID_RUTA = :r
-        """, {'r': id_ruta})
+            WHERE A.ID_ASIGNACION = :id
+        """
+        datos = self.db.fetch_one(query, {'id': id_asignacion})
 
-        if not tren or not ruta:
+        if not datos:
+            print(f"[ERROR] No se encontraron datos para la asignación {id_asignacion}.")
+            self.detalle_panel.setVisible(True)  # Mostrar el panel vacío
             return
 
-        self.duracion_estimada = ruta[2]
+        if len(datos) < 15:
+            print(f"[ADVERTENCIA] Datos incompletos para la asignación {id_asignacion}: {datos}")
+
+        # Guardar datos importantes para la barra de progreso
+        self.hora_salida = datos[8] if len(datos) > 8 else "N/A"
+        self.hora_llegada = datos[9] if len(datos) > 9 else "N/A"
+        self.id_asignacion = id_asignacion
 
         # Barra de progreso visual
         barra_layout = QVBoxLayout()
         barra_superior = QHBoxLayout()
 
-        label_inicio = QLabel(ruta[0])
+        label_inicio = QLabel(datos[13] if len(datos) > 13 else "Desconocido")  # Estación origen
+        label_inicio.setFont(QFont('Arial', 10, QFont.Weight.Bold))
         label_inicio.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        label_fin = QLabel(ruta[1])
+        label_fin = QLabel(datos[14] if len(datos) > 14 else "Desconocido")    # Estación destino
+        label_fin.setFont(QFont('Arial', 10, QFont.Weight.Bold))
         label_fin.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         barra_superior.addWidget(label_inicio)
@@ -187,44 +216,62 @@ class MonitoreoInterface(QWidget):
         self.progress_bar.setMaximum(100)
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p% completado")
-        self.progress_bar.setValue(0)  # Reinicia la barra al seleccionar un nuevo tren
+        self.progress_bar.setValue(0)
 
         barra_layout.addLayout(barra_superior)
         barra_layout.addWidget(self.progress_bar)
         self.detalle_layout.addLayout(barra_layout)
 
-        # Detalles divididos en dos columnas
-        columnas_layout = QHBoxLayout()
+        # Detalles en un grid layout
+        grid_layout = QGridLayout()
+        grid_layout.setHorizontalSpacing(20)
+        grid_layout.setVerticalSpacing(10)
 
-        # Columna izquierda
-        col_izq = QVBoxLayout()
-        col_izq.addWidget(QLabel(f"ID Tren: {self.id_tren_seleccionado}"))
-        col_izq.addWidget(QLabel(f"Nombre: {tren[0]}"))
-        col_izq.addWidget(QLabel(f"Capacidad: {tren[1]} pax"))
-        col_izq.addWidget(QLabel(f"Estado: {tren[2]}"))
-        col_izq.addWidget(QLabel(f"Duración Estimada: {ruta[2]} min"))
+        # Información del tren
+        grid_layout.addWidget(QLabel("ID Tren:"), 0, 0)
+        grid_layout.addWidget(QLabel(str(datos[1])), 0, 1)
+        
+        grid_layout.addWidget(QLabel("Nombre Tren:"), 1, 0)
+        grid_layout.addWidget(QLabel(datos[2]), 1, 1)
+        
+        grid_layout.addWidget(QLabel("Capacidad:"), 2, 0)
+        grid_layout.addWidget(QLabel(f"{datos[3]} pax"), 2, 1)
+        
+        grid_layout.addWidget(QLabel("Estado:"), 3, 0)
+        grid_layout.addWidget(QLabel(datos[4]), 3, 1)
 
-        # Columna derecha
-        col_der = QVBoxLayout()
-        col_der.addWidget(QLabel("Ruta: Desconocida"))
+        # Información de la ruta
+        grid_layout.addWidget(QLabel("ID Ruta:"), 0, 2)
+        grid_layout.addWidget(QLabel(str(datos[5])), 0, 3)
+        
+        grid_layout.addWidget(QLabel("Duración Estimada:"), 1, 2)
+        grid_layout.addWidget(QLabel(f"{datos[6]} min"), 1, 3)
+        
+        grid_layout.addWidget(QLabel("ID Horario:"), 2, 2)
+        grid_layout.addWidget(QLabel(str(datos[7])), 2, 3)
 
-        datos_horario = self.db.fetch_one("""
-            SELECT A.ID_HORARIO, TO_CHAR(H.HORA_SALIDA_PROGRAMADA,'HH24:MI:SS'),
-                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA,'HH24:MI:SS')
-            FROM ASIGNACION_TREN A
-            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
-            WHERE A.ID_TREN = :id_tren AND A.ID_RUTA = :id_ruta
-        """, {'id_tren': self.id_tren_seleccionado, 'id_ruta': self.id_ruta_seleccionada})
+        # Horarios programados
+        grid_layout.addWidget(QLabel("Salida Programada:"), 4, 0)
+        grid_layout.addWidget(QLabel(datos[8]), 4, 1)
+        
+        grid_layout.addWidget(QLabel("Llegada Programada:"), 5, 0)
+        grid_layout.addWidget(QLabel(datos[9]), 5, 1)
 
-        if datos_horario:
-            col_der.addWidget(QLabel(f"ID Horario: {datos_horario[0]}"))
-            col_der.addWidget(QLabel(f"Salida - Llegada: {datos_horario[1]} - {datos_horario[2]}"))
-            self.hora_salida = datos_horario[1]
-            self.hora_llegada = datos_horario[2]
+        # Horarios reales (si existen)
+        if datos[10]:
+            grid_layout.addWidget(QLabel("Salida Real:"), 4, 2)
+            grid_layout.addWidget(QLabel(datos[10]), 4, 3)
+        
+        if datos[11]:
+            grid_layout.addWidget(QLabel("Llegada Real:"), 5, 2)
+            grid_layout.addWidget(QLabel(datos[11]), 5, 3)
 
-        columnas_layout.addLayout(col_izq)
-        columnas_layout.addLayout(col_der)
-        self.detalle_layout.addLayout(columnas_layout)
+        # Estado del viaje
+        estado = self.determinar_estado_horario(datos[8], datos[9])
+        grid_layout.addWidget(QLabel("Estado del Viaje:"), 6, 0)
+        grid_layout.addWidget(QLabel(estado), 6, 1)
+
+        self.detalle_layout.addLayout(grid_layout)
 
     def actualizar_barra_tiempo_real(self):
         if not hasattr(self, 'hora_salida') or not hasattr(self, 'hora_llegada'):
