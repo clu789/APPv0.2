@@ -134,22 +134,46 @@ class OptimizacionDinamica(QWidget):
             id_inc, id_asig, tipo, fecha_incidencia, descripcion = inc
             if id_asig not in mapa_asignaciones:
                 continue
-
-            id_horario, id_tren, id_ruta = mapa_asignaciones[id_asig][1:]
-
-            query_afectadas = """
-                SELECT A.ID_HORARIO, A.ID_TREN, T.NOMBRE
-                FROM ASIGNACION_TREN A
-                LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
-                WHERE A.ID_HORARIO > :1 AND A.ID_RUTA = :2
-            """
-            afectadas = self.db.fetch_all(query_afectadas, [id_horario, id_ruta])
             
+            id_horario, id_tren, id_ruta = mapa_asignaciones[id_asig][1:]
+        
+            if tipo == 'RETRASO':
+                # Buscar asignaciones futuras con la misma ruta
+                query_afectadas = """
+                    SELECT A.ID_HORARIO, A.ID_TREN, T.NOMBRE
+                    FROM ASIGNACION_TREN A
+                    LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
+                    WHERE A.ID_HORARIO > :1 AND A.ID_RUTA = :2
+                """
+                afectadas = self.db.fetch_all(query_afectadas, [id_horario, id_ruta])
+        
+            elif tipo == 'AVERIA':
+                # Buscar otras asignaciones del mismo tren
+                query_afectadas = """
+                    SELECT A.ID_HORARIO, A.ID_TREN, T.NOMBRE
+                    FROM ASIGNACION_TREN A
+                    LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
+                    WHERE A.ID_TREN = :1 AND A.ID_HORARIO > :2
+                """
+                afectadas = self.db.fetch_all(query_afectadas, [id_tren, id_horario])
+        
+            elif tipo == 'EMERGENCIA':
+                # Misma lógica que AVERIA
+                query_afectadas = """
+                    SELECT A.ID_HORARIO, A.ID_TREN, T.NOMBRE
+                    FROM ASIGNACION_TREN A
+                    LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
+                    WHERE A.ID_TREN = :1 AND A.ID_HORARIO > :2
+                """
+                afectadas = self.db.fetch_all(query_afectadas, [id_tren, id_horario])
+            
+            else:
+                afectadas = []
+        
             for af in afectadas:
                 id_hor, id_tren_af, nombre_tren = af
-
                 horario_original = self.obtener_horario_original(id_hor)
-
+        
                 # Acción sugerida según tipo
                 if tipo == 'RETRASO':
                     accion = 'REPROGRAMAR'
@@ -160,14 +184,18 @@ class OptimizacionDinamica(QWidget):
                     nuevo_horario = ""
                     tren_sugerido = self.buscar_tren_disponible(id_hor)
                 elif tipo == 'EMERGENCIA':
-                    accion = 'CANCELAR VIAJE'
-                    nuevo_horario = 'N/A'
-                    tren_sugerido = ""
+                    tren_sugerido = self.buscar_tren_disponible(id_hor)
+                    if tren_sugerido != "Ninguno disponible":
+                        accion = 'REASIGNAR TREN'
+                        nuevo_horario = ""
+                    else:
+                        accion = 'CANCELAR VIAJE'
+                        nuevo_horario = 'N/A'
                 else:
                     accion = 'SIN ACCIÓN'
                     nuevo_horario = 'N/A'
                     tren_sugerido = ""
-
+        
                 filas_resultantes.append((
                     id_hor,
                     id_tren_af,
@@ -181,12 +209,13 @@ class OptimizacionDinamica(QWidget):
                     tren_sugerido
                 ))
 
-
         self.tabla.setRowCount(len(filas_resultantes))
         for fila_idx, fila_datos in enumerate(filas_resultantes):
             for col_idx, dato in enumerate(fila_datos):
                 self.tabla.setItem(fila_idx, col_idx, QTableWidgetItem(str(dato)))
-
+        
+        self.tabla.resizeColumnsToContents()
+        self.tabla.resizeRowsToContents()
 
     def actualizar_datos(self):
         self.cargar_datos()
