@@ -21,15 +21,15 @@ class DatabaseConnection:
         self.sid = sid
         self.connection = None
         self.cursor = None
-        self.event_manager = None  # Inicializar el gestor de eventos
+        self.event_manager = None
         self._initialized = True
 
     def connect(self):
         """Establecer la conexión a la base de datos si no está activa"""
-        if self.connection and self.connection.ping() is None:
-            return True  # Ya hay conexión activa
-            
         try:
+            if self.connection and self._test_connection():
+                return True
+
             dsn = oracledb.makedsn(self.host, self.port, self.sid)
             self.connection = oracledb.connect(
                 user=self.username,
@@ -37,14 +37,21 @@ class DatabaseConnection:
                 dsn=dsn
             )
             self.cursor = self.connection.cursor()
-            
-            # Iniciar el gestor de eventos
+
             self.event_manager = EventManager(self)
-            
+
             print("Conexión exitosa a la base de datos Oracle")
             return True
         except oracledb.DatabaseError as e:
             print(f"Error de conexión: {e}")
+            return False
+
+    def _test_connection(self):
+        """Método alternativo para verificar conexión sin usar ping()"""
+        try:
+            self.cursor.execute("SELECT 1 FROM DUAL")
+            return True
+        except:
             return False
 
     def close(self):
@@ -144,3 +151,12 @@ class DatabaseConnection:
                 except oracledb.DatabaseError as e:
                     print(f"Error al hacer rollback: {e}")
                     return False
+
+    def init_event_manager(self, usuario_id):
+        """Inicializa el EventManager con el usuario_id proporcionado"""
+        try:
+            self.event_manager = EventManager(self, usuario_id)
+            return True
+        except Exception as e:
+            print(f"Error al inicializar EventManager: {e}")
+            return False

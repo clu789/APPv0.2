@@ -12,6 +12,7 @@ from interfaces.asignacion import InterfazAsignacion
 from PyQt6.QtWidgets import QStackedWidget
 import sys
 from PyQt6.QtCore import pyqtSignal
+from base_de_datos.event_manager import EventManager
 
 class MainWindow(QMainWindow):
     cerrar_sesion_signal = pyqtSignal()
@@ -111,10 +112,16 @@ def main():
     # Función que se ejecuta al iniciar sesión correctamente
     def iniciar_sesion_exitoso(id_usuario):
         login.close()
+        # Pasar el id_usuario al EventManager
+        try:
+            db.event_manager = EventManager(db, id_usuario)
+        except Exception as e:
+                QMessageBox.critical(None, "Error", f"No se pudo iniciar el gestor de eventos: {str(e)}")
+                return
+         #db.event_manager = EventManager(db, id_usuario)
         ventana_principal = MainWindow(db, id_usuario)
         ventana_principal.showMaximized()
-        
-        # Al cerrar sesión, reabrimos el login
+
         def volver_a_login():
             ventana_principal.close()
             login.show()

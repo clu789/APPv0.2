@@ -1,6 +1,9 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout
-from PyQt6.QtCore import Qt
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame
+from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtGui import QFont
+from datetime import datetime
 from base_de_datos.db import DatabaseConnection  
+from base_de_datos.event_manager import EventManager
 
 class MonitoreoInterface(QWidget):
     def __init__(self, main_window,db):
@@ -68,8 +71,17 @@ class MonitoreoInterface(QWidget):
         # Conectar botón de actualización
         self.btn_refrescar.clicked.connect(self.load_real_time_data)
 
-        #Recargar los datos de la interfaz
-        
+        # Nuevo: Contenedor de barra de progreso y detalles
+        self.detalle_layout = QVBoxLayout()
+        layout.addLayout(self.detalle_layout)
+
+        # Conectar selección de tabla
+        self.tabla_trenes.cellClicked.connect(self.on_row_selected)
+
+        # Timer de actualización en tiempo real
+        self.timer_progreso = QTimer()
+        self.timer_progreso.timeout.connect(self.actualizar_barra_tiempo_real)
+
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
         print("Actualizando datos de MonitoreoInterface")
@@ -99,3 +111,142 @@ class MonitoreoInterface(QWidget):
         # Ajustar tamaño de columnas y filas
         self.tabla_trenes.resizeColumnsToContents()
         self.tabla_trenes.resizeRowsToContents()
+
+    def on_row_selected(self, row, column):
+        id_tren = self.tabla_trenes.item(row, 0).text()
+        id_ruta = self.tabla_trenes.item(row, 3).text()
+        hora_programada = self.tabla_trenes.item(row, 4).text()
+
+        if id_ruta == "Sin Ruta" or hora_programada == "Sin Horario":
+            return
+
+        self.id_tren_seleccionado = id_tren
+        self.id_ruta_seleccionada = id_ruta
+
+        self.refrescar_detalles_tren(id_tren, id_ruta)
+        self.timer_progreso.start(1000)
+
+    def refrescar_detalles_tren(self, id_tren, id_ruta):
+        # Limpiar anterior
+        while self.detalle_layout.count():
+            item = self.detalle_layout.takeAt(0)
+            widget = item.widget()
+            if widget:
+                widget.deleteLater()
+            elif item.layout():
+                inner_layout = item.layout()
+                while inner_layout.count():
+                    inner_item = inner_layout.takeAt(0)
+                    if inner_item.widget():
+                        inner_item.widget().deleteLater()
+                self.detalle_layout.removeItem(inner_layout)
+
+        # Obtener datos del tren
+        tren = self.db.fetch_one(
+            "SELECT NOMBRE, CAPACIDAD, ESTADO FROM TREN WHERE ID_TREN = :id",
+            {'id': id_tren}
+        )
+
+        ruta = self.db.fetch_one("""
+            SELECT 
+                E1.NOMBRE AS ESTACION_ORIGEN,
+                E2.NOMBRE AS ESTACION_DESTINO,
+                R.DURACION_ESTIMADA
+            FROM RUTA R
+            JOIN RUTA_DETALLE RD1 ON R.ID_RUTA = RD1.ID_RUTA AND RD1.ORDEN = (
+                SELECT MIN(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = R.ID_RUTA
+            )
+            JOIN ESTACION E1 ON RD1.ID_ESTACION = E1.ID_ESTACION
+            JOIN RUTA_DETALLE RD2 ON R.ID_RUTA = RD2.ID_RUTA AND RD2.ORDEN = (
+                SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = R.ID_RUTA
+            )
+            JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
+            WHERE R.ID_RUTA = :r
+        """, {'r': id_ruta})
+
+        if not tren or not ruta:
+            return
+
+        self.duracion_estimada = ruta[2]
+
+        # Barra de progreso visual
+        barra_layout = QVBoxLayout()
+        barra_superior = QHBoxLayout()
+
+        label_inicio = QLabel(ruta[0])
+        label_inicio.setAlignment(Qt.AlignmentFlag.AlignLeft)
+        label_fin = QLabel(ruta[1])
+        label_fin.setAlignment(Qt.AlignmentFlag.AlignRight)
+
+        barra_superior.addWidget(label_inicio)
+        barra_superior.addStretch()
+        barra_superior.addWidget(label_fin)
+
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimum(0)
+        self.progress_bar.setMaximum(100)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.setFormat("%p% completado")
+        self.progress_bar.setValue(0)  # Reinicia la barra al seleccionar un nuevo tren
+
+        barra_layout.addLayout(barra_superior)
+        barra_layout.addWidget(self.progress_bar)
+        self.detalle_layout.addLayout(barra_layout)
+
+        # Detalles divididos en dos columnas
+        columnas_layout = QHBoxLayout()
+
+        # Columna izquierda
+        col_izq = QVBoxLayout()
+        col_izq.addWidget(QLabel(f"ID Tren: {self.id_tren_seleccionado}"))
+        col_izq.addWidget(QLabel(f"Nombre: {tren[0]}"))
+        col_izq.addWidget(QLabel(f"Capacidad: {tren[1]} pax"))
+        col_izq.addWidget(QLabel(f"Estado: {tren[2]}"))
+        col_izq.addWidget(QLabel(f"Duración Estimada: {ruta[2]} min"))
+
+        # Columna derecha
+        col_der = QVBoxLayout()
+        col_der.addWidget(QLabel("Ruta: Desconocida"))
+
+        datos_horario = self.db.fetch_one("""
+            SELECT A.ID_HORARIO, TO_CHAR(H.HORA_SALIDA_PROGRAMADA,'HH24:MI:SS'),
+                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA,'HH24:MI:SS')
+            FROM ASIGNACION_TREN A
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+            WHERE A.ID_TREN = :id_tren AND A.ID_RUTA = :id_ruta
+        """, {'id_tren': self.id_tren_seleccionado, 'id_ruta': self.id_ruta_seleccionada})
+
+        if datos_horario:
+            col_der.addWidget(QLabel(f"ID Horario: {datos_horario[0]}"))
+            col_der.addWidget(QLabel(f"Salida - Llegada: {datos_horario[1]} - {datos_horario[2]}"))
+            self.hora_salida = datos_horario[1]
+            self.hora_llegada = datos_horario[2]
+
+        columnas_layout.addLayout(col_izq)
+        columnas_layout.addLayout(col_der)
+        self.detalle_layout.addLayout(columnas_layout)
+
+    def actualizar_barra_tiempo_real(self):
+        if not hasattr(self, 'hora_salida') or not hasattr(self, 'hora_llegada'):
+            return
+
+        try:
+            fmt = "%H:%M:%S"
+            ahora = datetime.now().time()
+            salida = datetime.strptime(self.hora_salida, fmt).time()
+            llegada = datetime.strptime(self.hora_llegada, fmt).time()
+
+            total = (datetime.combine(datetime.today(), llegada) - datetime.combine(datetime.today(), salida)).total_seconds()
+            transcurrido = (datetime.combine(datetime.today(), ahora) - datetime.combine(datetime.today(), salida)).total_seconds()
+
+            if transcurrido < 0:
+                progreso = 0
+            elif transcurrido > total:
+                progreso = 100
+            else:
+                progreso = (transcurrido / total) * 100
+
+            self.progress_bar.setValue(int(progreso))
+        except Exception as e:
+            print("Error actualizando barra:", e)
+            self.progress_bar.setValue(0)
