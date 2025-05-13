@@ -13,6 +13,7 @@ from PyQt6.QtWidgets import QStackedWidget
 import sys
 from PyQt6.QtCore import pyqtSignal
 from base_de_datos.event_manager import EventManager
+from interfaces.mejora import MejoraContinua
 
 class MainWindow(QMainWindow):
     cerrar_sesion_signal = pyqtSignal()
@@ -58,7 +59,8 @@ class MainWindow(QMainWindow):
             GestionIncidencias(self, self.db, id_usuario),
             GestionInfraestructura(self, self.db, id_usuario),
             OptimizacionDinamica(self, self.db),
-            InterfazAsignacion(self, self.db)
+            #InterfazAsignacion(self, self.db),
+            MejoraContinua(self, self.db)
         ]
 
         # Conectar la señal de actualización a cada interfaz

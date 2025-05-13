@@ -137,7 +137,8 @@ class MenuLateral(QWidget):
             ("Monitoreo", QIcon("APP/icons/monitor.png"), 2),
             ("Incidencias", QIcon("APP/icons/alert.png"), 3),
             ("Infraestructura", QIcon("APP/icons/infra.png"), 4),
-            ("Optimización", QIcon("APP/icons/optimize.png"), 5)
+            ("Optimización", QIcon("APP/icons/optimize.png"), 5),
+            ("Mejora", QIcon("APP/icons/optimize.png"), 6)
         ]
         
         self.button_widgets = []
