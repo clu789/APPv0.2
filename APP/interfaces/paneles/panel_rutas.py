@@ -545,70 +545,74 @@ class InterfazEditarRuta(QWidget):
         if validacion is None:
             return
         
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar cambios")
+        confirmacion.setText(f"¿Estás seguro de que deseas modificar la ruta #{self.id_ruta_a_editar}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+
         duracion = self.input_duracion.text().strip()
         try:
-            cursor = self.db.connection.cursor()
-            # Verifica si ya existe la misma ruta mediante cantidad de estaciones
-            # y orden de estaciones
-            query = """
-                SELECT ID_RUTA FROM RUTA
-                WHERE ID_RUTA IN (
-                    SELECT ID_RUTA
-                    FROM RUTA_DETALLE
-                    GROUP BY ID_RUTA
-                    HAVING COUNT(*) = :1
-                )
-            """
-            cursor.execute(query, (len(self.estaciones_agregadas),))
-            posibles = cursor.fetchall()
-            for (id_ruta,) in posibles:
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                # Verifica si ya existe la misma ruta mediante cantidad de estaciones
+                # y orden de estaciones
+                query = """
+                    SELECT ID_RUTA FROM RUTA
+                    WHERE ID_RUTA IN (
+                        SELECT ID_RUTA
+                        FROM RUTA_DETALLE
+                        GROUP BY ID_RUTA
+                        HAVING COUNT(*) = :1
+                    )
+                """
+                cursor.execute(query, (len(self.estaciones_agregadas),))
+                posibles = cursor.fetchall()
+                for (id_ruta,) in posibles:
+                    cursor.execute("""
+                        SELECT ID_ESTACION
+                        FROM RUTA_DETALLE
+                        WHERE ID_RUTA = :1
+                        ORDER BY ORDEN
+                    """, (id_ruta,))
+                    ids = [row[0] for row in cursor.fetchall()]
+                    if ids == [e[0] for e in self.estaciones_agregadas]:
+                        QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
+                        return
+                #Insertar en HISTORIAL
+                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+                nuevo_id = cursor.fetchone()[0]
                 cursor.execute("""
-                    SELECT ID_ESTACION
-                    FROM RUTA_DETALLE
-                    WHERE ID_RUTA = :1
-                    ORDER BY ORDEN
-                """, (id_ruta,))
-                ids = [row[0] for row in cursor.fetchall()]
-                if ids == [e[0] for e in self.estaciones_agregadas]:
-                    QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
-                    return
-            #Insertar en HISTORIAL
-            cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-            nuevo_id = cursor.fetchone()[0]
-            cursor.execute("""
-                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
-                VALUES (:1, :2, :3, :4, SYSDATE)
-            """, (nuevo_id, self.ruta_anterior, self.username, self.id_ruta_a_editar,))
-            
-            # Actualizar la duración
-            if self.ruta_imagen:
-                with open(self.ruta_imagen, "rb") as f:
-                    imagen_data = f.read()
-                cursor.execute("""
-                    UPDATE RUTA SET DURACION_ESTIMADA = :1, IMAGEN = :2 WHERE ID_RUTA = :3
-                """, (int(duracion), imagen_data, self.id_ruta_a_editar))
-            else:
-                cursor.execute("""
-                    UPDATE RUTA SET DURACION_ESTIMADA = :1 WHERE ID_RUTA = :2
-                """, (int(duracion), self.id_ruta_a_editar))
-
-            # Eliminar detalles existentes de la ruta
-            cursor.execute("DELETE FROM RUTA_DETALLE WHERE ID_RUTA = :1", (self.id_ruta_a_editar,))
-
-            # Insertar nuevos detalles con orden
-            for orden, (id_estacion, _) in enumerate(self.estaciones_agregadas, start=1):
-                cursor.execute("SELECT NVL(MAX(ID_RUTA_DETALLE), 0) + 1 FROM RUTA_DETALLE")
-                id_detalle = cursor.fetchone()[0]
-                cursor.execute("""
-                    INSERT INTO RUTA_DETALLE (ID_RUTA_DETALLE, ID_RUTA, ID_ESTACION)
-                    VALUES (:1, :2, :3)
-                """, (id_detalle, self.id_ruta_a_editar, id_estacion))
-
-            self.db.connection.commit()
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Éxito", f"Ruta actualizada correctamente.")
-            self.cancelar()
-
+                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
+                    VALUES (:1, :2, :3, :4, SYSDATE)
+                """, (nuevo_id, self.ruta_anterior, self.username, self.id_ruta_a_editar,))
+                            
+                # Actualizar la duración
+                if self.ruta_imagen:
+                    with open(self.ruta_imagen, "rb") as f:
+                        imagen_data = f.read()
+                    cursor.execute("""
+                        UPDATE RUTA SET DURACION_ESTIMADA = :1, IMAGEN = :2 WHERE ID_RUTA = :3
+                    """, (int(duracion), imagen_data, self.id_ruta_a_editar))
+                else:
+                    cursor.execute("""
+                        UPDATE RUTA SET DURACION_ESTIMADA = :1 WHERE ID_RUTA = :2
+                    """, (int(duracion), self.id_ruta_a_editar))
+                # Eliminar detalles existentes de la ruta
+                cursor.execute("DELETE FROM RUTA_DETALLE WHERE ID_RUTA = :1", (self.id_ruta_a_editar,))
+                # Insertar nuevos detalles con orden
+                for orden, (id_estacion, _) in enumerate(self.estaciones_agregadas, start=1):
+                    cursor.execute("SELECT NVL(MAX(ID_RUTA_DETALLE), 0) + 1 FROM RUTA_DETALLE")
+                    id_detalle = cursor.fetchone()[0]
+                    cursor.execute("""
+                        INSERT INTO RUTA_DETALLE (ID_RUTA_DETALLE, ID_RUTA, ID_ESTACION)
+                        VALUES (:1, :2, :3)
+                    """, (id_detalle, self.id_ruta_a_editar, id_estacion))
+                self.db.connection.commit()
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Éxito", f"Ruta actualizada correctamente.")
+                self.cancelar()
         except Exception as e:
             self.db.connection.rollback()
             QMessageBox.critical(self, "Error", str(e))

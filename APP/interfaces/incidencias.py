@@ -35,6 +35,7 @@ class GestionIncidencias(QWidget):
         self.tabla_no_resueltas.setColumnCount(5)
         self.tabla_no_resueltas.setHorizontalHeaderLabels(["ID", "ID Asignacion", "Tipo", "Descripción", "Fecha y Hora"])
         self.tabla_no_resueltas.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tabla_no_resueltas.itemSelectionChanged.connect(self._controlar_boton_resolver)
         seccion1_layout.addWidget(self._con_titulo("Incidencias por Resolver", self.tabla_no_resueltas))
 
         # Tabla todas las incidencias
@@ -69,6 +70,7 @@ class GestionIncidencias(QWidget):
         self.btn_agregar_incidencia = QPushButton("Agregar Incidencia")
         self.btn_agregar_incidencia.clicked.connect(lambda: self.mostrar_panel(0))
         self.btn_resolver_incidencia = QPushButton("Resolver Incidencia")
+        self.btn_resolver_incidencia.setEnabled(False)
         self.btn_resolver_incidencia.clicked.connect(self.resolver_incidencia)
         botones_layout.addWidget(self.btn_agregar_incidencia)
         botones_layout.addWidget(self.btn_resolver_incidencia)
@@ -104,6 +106,12 @@ class GestionIncidencias(QWidget):
         layout.addWidget(self.stacked)
         
         self.setLayout(layout)
+
+    def _controlar_boton_resolver(self):
+        if self.tabla_no_resueltas.currentRow() == -1:
+            self.btn_resolver_incidencia.setEnabled(False)
+        else:
+            self.btn_resolver_incidencia.setEnabled(True)
 
     def mostrar_panel(self, index):
         """Muestra el panel de asignación y el scroll"""
@@ -255,22 +263,37 @@ class GestionIncidencias(QWidget):
 
     def resolver_incidencia(self):
         fila = self.tabla_no_resueltas.currentRow()
-        id_incidencia = self.tabla_no_resueltas.item(fila, 0).text()
         # Si no hay horario seleccionado manda una advertencia
         if fila == -1:
-            QMessageBox.warning(self, "Advertencia", "Selecciona un horario para eliminar.")
+            QMessageBox.warning(self, "Advertencia", "Selecciona una incidencia a resolver.")
             return
+        id_incidencia = self.tabla_no_resueltas.item(fila, 0).text()
         cursor = self.db.connection.cursor()
+        
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar resolución")
+        confirmacion.setText(f"¿Estás seguro de que deseas marcar como resuelta la incidencia #{id_incidencia}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
 
         try:
-            cursor.execute("""
-                UPDATE INCIDENCIA
-                SET ESTADO = 'RESUELTO'
-                WHERE ID_INCIDENCIA = :1
-            """, (id_incidencia,))
-            self.db.connection.commit()
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Éxito", f"Incidencia {id_incidencia} marcada como resuelta.")
+            if confirmacion.exec() == 2:
+                cursor.execute("""
+                    UPDATE INCIDENCIA
+                    SET ESTADO = 'RESUELTO'
+                    WHERE ID_INCIDENCIA = :1
+                """, (id_incidencia,))
+                self.db.connection.commit()
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Éxito", f"Incidencia {id_incidencia} marcada como resuelta.")
+                self.tabla_no_resueltas.clearSelection()
+                self.tabla_no_resueltas.clearFocus()
+                self.btn_resolver_incidencia.setEnabled(False)
+            else:
+                self.tabla_no_resueltas.clearSelection()
+                self.tabla_no_resueltas.clearFocus()
+                self.btn_resolver_incidencia.setEnabled(False)
         except Exception as e:
             self.db.connection.rollback()
             QMessageBox.critical(self, "Error", f"No se pudo resolver la incidencia: {str(e)}")

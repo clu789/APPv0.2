@@ -177,16 +177,24 @@ class InterfazEditarTren(QWidget):
             QMessageBox.warning(self, "Error", "El nombre no puede estar vacío.")
             return
         
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar cambios")
+        confirmacion.setText(f"¿Estás seguro de que deseas modificar el tren #{self.id_tren}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+        
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute(
-                "UPDATE TREN SET NOMBRE = :1, CAPACIDAD = :2, ESTADO = UPPER(:3) WHERE ID_TREN = :4",
-                [nombre, capacidad, estado, self.id_tren]
-            )
-            self.db.connection.commit()
-            QMessageBox.information(self, "Éxito", "Tren actualizado correctamente.")
-            # Emitir la señal update_triggered
-            self.db.event_manager.update_triggered.emit()
-            self.cancelar()
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                cursor.execute(
+                    "UPDATE TREN SET NOMBRE = :1, CAPACIDAD = :2, ESTADO = UPPER(:3) WHERE ID_TREN = :4",
+                    [nombre, capacidad, estado, self.id_tren]
+                )
+                self.db.connection.commit()
+                QMessageBox.information(self, "Éxito", "Tren actualizado correctamente.")
+                # Emitir la señal update_triggered
+                self.db.event_manager.update_triggered.emit()
+                self.cancelar()
         except Exception as e:
             QMessageBox.critical(self, "Error", "Ya existe un tren con ese nombre.")

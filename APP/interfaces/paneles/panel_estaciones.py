@@ -129,16 +129,24 @@ class InterfazEditarEstacion(QWidget):
             QMessageBox.warning(self, "Error", "El nombre no puede estar vacío.")
             return
         
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar cambios")
+        confirmacion.setText(f"¿Estás seguro de que deseas modificar la estación #{self.id_estacion}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+        
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute(
-                "UPDATE ESTACION SET NOMBRE = :1 WHERE ID_ESTACION = :2",
-                [nombre, self.id_estacion]
-            )
-            self.db.connection.commit()
-            QMessageBox.information(self, "Éxito", "Estación actualizada correctamente.")
-            # Emitir la señal update_triggered
-            self.db.event_manager.update_triggered.emit()
-            self.cancelar()
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                cursor.execute(
+                    "UPDATE ESTACION SET NOMBRE = :1 WHERE ID_ESTACION = :2",
+                    [nombre, self.id_estacion]
+                )
+                self.db.connection.commit()
+                QMessageBox.information(self, "Éxito", "Estación actualizada correctamente.")
+                # Emitir la señal update_triggered
+                self.db.event_manager.update_triggered.emit()
+                self.cancelar()
         except Exception as e:
             QMessageBox.critical(self, "Error", "Ya existe una estación con ese nombre.")

@@ -204,24 +204,32 @@ class MenuLateral(QWidget):
         self.nombre1 = QLabel("Emiliano\nArista\nRodriguez")
         self.nombre1.setStyleSheet(f"""
             color: {self.text_color.name()};
-            font-size: 15px;
+            font-size: 10px;
             font-style: italic;
         """)
         self.nombre1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.nombre2 = QLabel("Milton\nFlorencio\nArzate")
         self.nombre2.setStyleSheet(f"""
             color: {self.text_color.name()};
-            font-size: 15px;
+            font-size: 10px;
             font-style: italic;
         """)
         self.nombre2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.nombre3 = QLabel("Nery\nYael\nHernandez\nVillavicencio")
         self.nombre3.setStyleSheet(f"""
             color: {self.text_color.name()};
-            font-size: 15px;
+            font-size: 10px;
             font-style: italic;
         """)
         self.nombre3.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        
+        self.nombre4 = QLabel("Jesus\nFidel\nVaca\nVilchiz")
+        self.nombre4.setStyleSheet(f"""
+            color: {self.text_color.name()};
+            font-size: 10px;
+            font-style: italic;
+        """)
+        self.nombre4.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         credits_layout.addWidget(self.credits_label)
         credits_layout.addWidget(self.logo)
@@ -229,6 +237,7 @@ class MenuLateral(QWidget):
         credits_layout.addWidget(self.nombre1)
         credits_layout.addWidget(self.nombre2)
         credits_layout.addWidget(self.nombre3)
+        credits_layout.addWidget(self.nombre4)
         
         # Ensamblar el layout principal
         self.main_layout.addWidget(self.btn_toggle)

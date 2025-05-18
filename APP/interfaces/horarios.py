@@ -50,12 +50,14 @@ class GestionHorariosRutas(QWidget):
         self.tabla_rutas = QTableWidget()
         self.tabla_rutas.setColumnCount(3)
         self.tabla_rutas.setHorizontalHeaderLabels(["ID Ruta", "Duración", "Estaciones"])
+        self.tabla_rutas.itemSelectionChanged.connect(self._controlar_boton_ruta)
         left_section.addWidget(self.tabla_rutas)
 
         # Tabla de horarios
         self.tabla_horarios = QTableWidget()
         self.tabla_horarios.setColumnCount(3)
         self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
+        self.tabla_horarios.itemSelectionChanged.connect(self._controlar_boton_horario)
         left_section.addWidget(self.tabla_horarios)
 
         # Contenedor izquierdo
@@ -90,8 +92,10 @@ class GestionHorariosRutas(QWidget):
         self.btn_agregar_horario = QPushButton("Agregar Horario")
         self.btn_agregar_horario.clicked.connect(lambda: self.mostrar_panel(0))
         self.btn_editar_horario = QPushButton("Editar Horario")
+        self.btn_editar_horario.setEnabled(False)
         self.btn_editar_horario.clicked.connect(self.abrir_edicion_horario)
         self.btn_eliminar_horario = QPushButton("Eliminar Horario")
+        self.btn_eliminar_horario.setEnabled(False)
         self.btn_eliminar_horario.clicked.connect(self.eliminar_horario)
         horario_buttons.addWidget(self.btn_agregar_horario)
         horario_buttons.addWidget(self.btn_editar_horario)
@@ -103,8 +107,10 @@ class GestionHorariosRutas(QWidget):
         self.btn_agregar_ruta = QPushButton("Agregar Ruta")
         self.btn_agregar_ruta.clicked.connect(lambda: self.mostrar_panel(1))
         self.btn_editar_ruta = QPushButton("Editar Ruta")
+        self.btn_editar_ruta.setEnabled(False)
         self.btn_editar_ruta.clicked.connect(self.abrir_edicion_ruta)
         self.btn_eliminar_ruta = QPushButton("Eliminar Ruta")
+        self.btn_eliminar_ruta.setEnabled(False)
         self.btn_eliminar_ruta.clicked.connect(self.eliminar_ruta)
         ruta_buttons.addWidget(self.btn_agregar_ruta)
         ruta_buttons.addWidget(self.btn_editar_ruta)
@@ -162,7 +168,9 @@ class GestionHorariosRutas(QWidget):
         self.scroll_horarios2.hide()
         self.panel_horarios2 = InterfazEditarHorario(self.main_window, self.db, self.username)
         self.panel_horarios2.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_horarios2.btn_cancelar.clicked.connect(self.bloquear_botones_horario)
         self.panel_horarios2.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_horarios2.btn_confirmar.clicked.connect(self.bloquear_botones_horario)
         self.panel_horarios2.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_horarios2.setWidget(self.panel_horarios2)
         
@@ -172,7 +180,9 @@ class GestionHorariosRutas(QWidget):
         self.scroll_rutas2.hide()
         self.panel_rutas2 = InterfazEditarRuta(self.main_window, self.db, self.username)
         self.panel_rutas2.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_rutas2.btn_cancelar.clicked.connect(self.bloquear_botones_ruta)
         self.panel_rutas2.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_rutas2.btn_confirmar.clicked.connect(self.bloquear_botones_ruta)
         self.panel_rutas2.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_rutas2.setWidget(self.panel_rutas2)
         
@@ -184,6 +194,34 @@ class GestionHorariosRutas(QWidget):
         layout.addWidget(self.stacked)
 
         self.setLayout(layout)
+
+    def bloquear_botones_horario(self):
+        self.tabla_horarios.clearSelection()
+        self.tabla_horarios.clearFocus()
+        self.btn_eliminar_horario.setEnabled(False)
+        self.btn_editar_horario.setEnabled(False)
+        
+    def bloquear_botones_ruta(self):
+        self.tabla_rutas.clearSelection()
+        self.tabla_rutas.clearFocus()
+        self.btn_eliminar_ruta.setEnabled(False)
+        self.btn_editar_ruta.setEnabled(False)
+
+    def _controlar_boton_ruta(self):
+        if self.tabla_rutas.currentRow() == -1:
+            self.btn_eliminar_ruta.setEnabled(False)
+            self.btn_editar_ruta.setEnabled(False)
+        else:
+            self.btn_eliminar_ruta.setEnabled(True)
+            self.btn_editar_ruta.setEnabled(True)
+
+    def _controlar_boton_horario(self):
+        if self.tabla_horarios.currentRow() == -1:
+            self.btn_eliminar_horario.setEnabled(False)
+            self.btn_editar_horario.setEnabled(False)
+        else:
+            self.btn_eliminar_horario.setEnabled(True)
+            self.btn_editar_horario.setEnabled(True)
 
     def mostrar_panel(self, index):
         """Muestra el panel de asignación y el scroll"""
@@ -347,40 +385,53 @@ class GestionHorariosRutas(QWidget):
     def eliminar_horario(self):
         """Elimina un horario seleccionado
             guarda en el historial el horario antes de borrarlo y agrega una nota de que se elimino"""
+        self.ocultar_panel()
         # Obtiene horario seleccionado
         fila = self.tabla_horarios.currentRow()
         # Si no hay horario seleccionado manda una advertencia
         if fila == -1:
             QMessageBox.warning(self, "Advertencia", "Selecciona un horario para eliminar.")
             return
+
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar eliminación")
+        confirmacion.setText(f"¿Estás seguro de que deseas eliminar el horario #{self.tabla_horarios.item(fila, 0).text()}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
         
         try:
-            cursor = self.db.connection.cursor()
-            # Se genera el id del nuevo registro del historial
-            cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-            nuevo_id = cursor.fetchone()[0]
-            # Se inserta en historial
-            cursor.execute("""
-                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
-                VALUES (:1, :2, :3, :4, SYSDATE)
-            """, (nuevo_id, self.tabla_horarios.item(fila, 1).text() + " - " + self.tabla_horarios.item(fila, 2).text(),
-                  self.username, self.tabla_horarios.item(fila, 0).text(),))
-            # Se elimina el horario
-            cursor.execute("""
-                DELETE FROM HORARIO WHERE ID_HORARIO = :1
-            """, (self.tabla_horarios.item(fila, 0).text(),))
-            # Realiza commit
-            self.db.connection.commit()
-            # Se notifica que el horario se elimino
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Resultado", "El horario se ha eliminado correctamente.")
-            self.actualizar_datos()
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                # Se genera el id del nuevo registro del historial
+                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+                nuevo_id = cursor.fetchone()[0]
+                # Se inserta en historial
+                cursor.execute("""
+                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
+                    VALUES (:1, :2, :3, :4, SYSDATE)
+                """, (nuevo_id, self.tabla_horarios.item(fila, 1).text() + " - " + self.tabla_horarios.item(fila, 2).text(),
+                      self.username, self.tabla_horarios.item(fila, 0).text(),))
+                # Se elimina el horario
+                cursor.execute("""
+                    DELETE FROM HORARIO WHERE ID_HORARIO = :1
+                """, (self.tabla_horarios.item(fila, 0).text(),))
+                # Realiza commit
+                self.db.connection.commit()
+                # Se notifica que el horario se elimino
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Resultado", "El horario se ha eliminado correctamente.")
+                self.actualizar_datos()
+                self.bloquear_botones_horario()
+            else:
+                self.bloquear_botones_horario()
         except Exception as e:
             QMessageBox.critical(self, "Error al eliminar", str(e))
 
     def eliminar_ruta(self):
         """Elimina un horario seleccionado
             guarda en el historial el horario antes de borrarlo y agrega una nota de que se elimino"""
+        self.ocultar_panel()
         # Obtiene horario seleccionado
         fila = self.tabla_rutas.currentRow()
         # Si no hay horario seleccionado manda una advertencia
@@ -388,28 +439,39 @@ class GestionHorariosRutas(QWidget):
             QMessageBox.warning(self, "Advertencia", "Selecciona un horario para eliminar.")
             return
 
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar eliminación")
+        confirmacion.setText(f"¿Estás seguro de que deseas eliminar la ruta #{self.tabla_rutas.item(fila, 0).text()}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+
         try:
-            cursor = self.db.connection.cursor()
-            # Se genera el id del nuevo registro del historial
-            cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-            nuevo_id = cursor.fetchone()[0]
-            # Se inserta en historial
-            cursor.execute("""
-                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
-                VALUES (:1, :2, :3, :4, SYSDATE)
-            """, (nuevo_id, "Duracion: " + self.tabla_rutas.item(fila, 1).text() + "; Orden: "
-                  + self.tabla_rutas.item(fila, 2).text(),
-                  self.username, self.tabla_rutas.item(fila, 0).text(),))
-            # Se elimina el horario
-            cursor.execute("""
-                DELETE FROM RUTA WHERE ID_RUTA = :1
-            """, (self.tabla_rutas.item(fila, 0).text(),))
-            # Realiza commit
-            self.db.connection.commit()
-            # Se notifica que el horario se elimino
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Resultado", "La ruta se ha eliminado correctamente.")
-            self.actualizar_datos()
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                # Se genera el id del nuevo registro del historial
+                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+                nuevo_id = cursor.fetchone()[0]
+                # Se inserta en historial
+                cursor.execute("""
+                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
+                    VALUES (:1, :2, :3, :4, SYSDATE)
+                """, (nuevo_id, "Duracion: " + self.tabla_rutas.item(fila, 1).text() + "; Orden: "
+                      + self.tabla_rutas.item(fila, 2).text(),
+                      self.username, self.tabla_rutas.item(fila, 0).text(),))
+                # Se elimina el horario
+                cursor.execute("""
+                    DELETE FROM RUTA WHERE ID_RUTA = :1
+                """, (self.tabla_rutas.item(fila, 0).text(),))
+                # Realiza commit
+                self.db.connection.commit()
+                # Se notifica que el horario se elimino
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Resultado", "La ruta se ha eliminado correctamente.")
+                self.actualizar_datos()
+                self.bloquear_botones_ruta()
+            else:
+                self.bloquear_botones_ruta()
         except Exception as e:
             QMessageBox.critical(self, "Error al eliminar", str(e))
 

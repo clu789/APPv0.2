@@ -34,12 +34,14 @@ class GestionInfraestructura(QWidget):
         self.trenes_table.setColumnCount(4)
         self.trenes_table.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Capacidad", "Estado"])
         self.trenes_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.trenes_table.itemSelectionChanged.connect(self._controlar_boton_tren)
         tablas_layout.addWidget(self._con_titulo("Trenes", self.trenes_table))
 
         self.estaciones_table = QTableWidget()
         self.estaciones_table.setColumnCount(2)
         self.estaciones_table.setHorizontalHeaderLabels(["ID Estación", "Nombre"])
         self.estaciones_table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.estaciones_table.itemSelectionChanged.connect(self._controlar_boton_estacion)
         tablas_layout.addWidget(self._con_titulo("Estaciones", self.estaciones_table))
 
         layout.addLayout(tablas_layout)
@@ -51,19 +53,23 @@ class GestionInfraestructura(QWidget):
         self.btn_agregar_tren.clicked.connect(lambda: self.mostrar_panel(0))
 
         self.btn_editar_tren = QPushButton("Editar Tren")
+        self.btn_editar_tren.setEnabled(False)
         self.btn_editar_tren.clicked.connect(self.abrir_edicion_tren)
 
         self.btn_eliminar_tren = QPushButton("Eliminar Tren")
         self.btn_eliminar_tren.clicked.connect(self.eliminar_tren)
+        self.btn_eliminar_tren.setEnabled(False)
 
         self.btn_agregar_estacion = QPushButton("Agregar Estación")
         self.btn_agregar_estacion.clicked.connect(lambda: self.mostrar_panel(2))
 
         self.btn_editar_estacion = QPushButton("Editar Estación")
+        self.btn_editar_estacion.setEnabled(False)
         self.btn_editar_estacion.clicked.connect(self.abrir_edicion_estacion)
 
         self.btn_eliminar_estacion = QPushButton("Eliminar Estación")
         self.btn_eliminar_estacion.clicked.connect(self.eliminar_estacion)
+        self.btn_eliminar_estacion.setEnabled(False)
 
         botones = [
             self.btn_agregar_tren, self.btn_editar_tren, self.btn_eliminar_tren,
@@ -88,17 +94,19 @@ class GestionInfraestructura(QWidget):
         self.panel_trenes.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_trenes.setWidget(self.panel_trenes)
         
-        # Panel para agregar trenes
+        # Panel para editar trenes
         self.scroll_trenes2 = QScrollArea()
         self.scroll_trenes2.setWidgetResizable(True)
         self.scroll_trenes2.hide()
         self.panel_trenes2 = InterfazEditarTren(self.main_window, self.db)
         self.panel_trenes2.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_trenes2.btn_cancelar.clicked.connect(self.bloquear_botones_tren)
         self.panel_trenes2.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_trenes2.btn_confirmar.clicked.connect(self.bloquear_botones_tren)
         self.panel_trenes2.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_trenes2.setWidget(self.panel_trenes2)
 
-        # Panel para agregar trenes
+        # Panel para agregar estaciones
         self.scroll_estaciones = QScrollArea()
         self.scroll_estaciones.setWidgetResizable(True)
         self.scroll_estaciones.hide()
@@ -108,13 +116,15 @@ class GestionInfraestructura(QWidget):
         self.panel_estaciones.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_estaciones.setWidget(self.panel_estaciones)
         
-        # Panel para agregar trenes
+        # Panel para editar estaciones
         self.scroll_estaciones2 = QScrollArea()
         self.scroll_estaciones2.setWidgetResizable(True)
         self.scroll_estaciones2.hide()
         self.panel_estaciones2 = InterfazEditarEstacion(self.main_window, self.db)
         self.panel_estaciones2.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_estaciones2.btn_cancelar.clicked.connect(self.bloquear_botones_estacion)
         self.panel_estaciones2.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_estaciones2.btn_confirmar.clicked.connect(self.bloquear_botones_estacion)
         self.panel_estaciones2.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_estaciones2.setWidget(self.panel_estaciones2)
         
@@ -126,6 +136,34 @@ class GestionInfraestructura(QWidget):
         layout.addWidget(self.stacked)
 
         self.setLayout(layout)
+
+    def bloquear_botones_tren(self):
+        self.trenes_table.clearSelection()
+        self.trenes_table.clearFocus()
+        self.btn_eliminar_tren.setEnabled(False)
+        self.btn_editar_tren.setEnabled(False)
+
+    def bloquear_botones_estacion(self):
+        self.estaciones_table.clearSelection()
+        self.estaciones_table.clearFocus()
+        self.btn_eliminar_estacion.setEnabled(False)
+        self.btn_editar_estacion.setEnabled(False)
+
+    def _controlar_boton_tren(self):
+        if self.trenes_table.currentRow() == -1:
+            self.btn_eliminar_tren.setEnabled(False)
+            self.btn_editar_tren.setEnabled(False)
+        else:
+            self.btn_eliminar_tren.setEnabled(True)
+            self.btn_editar_tren.setEnabled(True)
+            
+    def _controlar_boton_estacion(self):
+        if self.estaciones_table.currentRow() == -1:
+            self.btn_eliminar_estacion.setEnabled(False)
+            self.btn_editar_estacion.setEnabled(False)
+        else:
+            self.btn_eliminar_estacion.setEnabled(True)
+            self.btn_editar_estacion.setEnabled(True)
 
     def mostrar_panel(self, index):
         """Muestra el panel de asignación y el scroll"""
@@ -193,6 +231,7 @@ class GestionInfraestructura(QWidget):
     def eliminar_tren(self):
         """Elimina un tren seleccionado
             guarda en historial todas las asignaciones que tenia ese tren antes de eliminarlo"""
+        self.ocultar_panel()
         fila = self.trenes_table.currentRow()
         if fila == -1:
             QMessageBox.warning(self, "Advertencia", "Selecciona un tren para eliminar.")
@@ -200,86 +239,109 @@ class GestionInfraestructura(QWidget):
         id_tren = self.trenes_table.item(fila, 0).text()
         nombre = self.trenes_table.item(fila, 1).text()
         
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar eliminación")
+        confirmacion.setText(f"¿Estás seguro de que deseas eliminar el tren #{id_tren}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+        
         try:
-            cursor = self.db.connection.cursor()
-            # Se busca todas las asignaciones que tengan ese horario para insertarlas en el historial
-            cursor.execute("""
-                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_TREN = :1
-            """, (id_tren,))
-            asignaciones = cursor.fetchall()
-            for asignacion in asignaciones:
-                id_asignacion = asignacion[0]
-                # Obtener ID_RUTA e ID_TREN de la asignacion
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                # Se busca todas las asignaciones que tengan ese horario para insertarlas en el historial
                 cursor.execute("""
-                    SELECT ID_RUTA, ID_HORARIO FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
-                """, (id_asignacion,))
-                id_ruta, id_horario = cursor.fetchone()
-                #Obtener duracion estimada y orden de las estaciones
+                    SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_TREN = :1
+                """, (id_tren,))
+                asignaciones = cursor.fetchall()
+                for asignacion in asignaciones:
+                    id_asignacion = asignacion[0]
+                    # Obtener ID_RUTA e ID_TREN de la asignacion
+                    cursor.execute("""
+                        SELECT ID_RUTA, ID_HORARIO FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
+                    """, (id_asignacion,))
+                    id_ruta, id_horario = cursor.fetchone()
+                    #Obtener duracion estimada y orden de las estaciones
+                    cursor.execute("""
+                        SELECT DURACION_ESTIMADA,
+                               LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
+                        FROM RUTA R
+                        JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
+                        JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
+                        WHERE R.ID_RUTA = :1
+                        GROUP BY R.DURACION_ESTIMADA
+                    """, (id_ruta,))
+                    resultado_ruta = cursor.fetchone()
+                    duracion = resultado_ruta[0]
+                    estaciones = resultado_ruta[1]
+
+                    # Obtener hora inicio y fin del horario
+                    cursor.execute("""
+                        SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
+                        FROM HORARIO WHERE ID_HORARIO = :1
+                    """, (id_horario,))
+                    hora_inicio, hora_fin = cursor.fetchone()
+
+
+                    # Construir el string de información
+                    info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren: {nombre}"
+
+                    # Se genera el id del nuevo registro del historial
+                    cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+                    nuevo_id = cursor.fetchone()[0]
+
+                    # Se inserta el registro de la asignacion que se va a eliminar
+                    cursor.execute("""
+                        INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
+                        VALUES (:1, :2, :3, :4, SYSDATE)
+                    """, (nuevo_id, info, self.username, id_asignacion,))
+
+                # Se elimina el tren
                 cursor.execute("""
-                    SELECT DURACION_ESTIMADA,
-                           LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-                    FROM RUTA R
-                    JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-                    JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-                    WHERE R.ID_RUTA = :1
-                    GROUP BY R.DURACION_ESTIMADA
-                """, (id_ruta,))
-                resultado_ruta = cursor.fetchone()
-                duracion = resultado_ruta[0]
-                estaciones = resultado_ruta[1]
-
-                # Obtener hora inicio y fin del horario
-                cursor.execute("""
-                    SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-                    FROM HORARIO WHERE ID_HORARIO = :1
-                """, (id_horario,))
-                hora_inicio, hora_fin = cursor.fetchone()
-
-
-                # Construir el string de información
-                info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren: {nombre}"
-
-                # Se genera el id del nuevo registro del historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-
-                # Se inserta el registro de la asignacion que se va a eliminar
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, info, self.username, id_asignacion,))
-
-            # Se elimina el tren
-            cursor.execute("""
-                DELETE FROM TREN WHERE ID_TREN = :1
-            """, (id_tren,))
-            # Realiza commit
-            self.db.connection.commit()
-            # Se notifica que el tren se elimino
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Resultado", "El tren se ha eliminado correctamente.")
-            self.actualizar_datos()
+                    DELETE FROM TREN WHERE ID_TREN = :1
+                """, (id_tren,))
+                # Realiza commit
+                self.db.connection.commit()
+                # Se notifica que el tren se elimino
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Resultado", "El tren se ha eliminado correctamente.")
+                self.actualizar_datos()
+                self.bloquear_botones_tren()
+            else:
+                self.bloquear_botones_tren()
         except Exception as e:
             QMessageBox.critical(self, "Error al eliminar", str(e))
 
     def eliminar_estacion(self):
+        self.ocultar_panel()
         fila = self.estaciones_table.currentRow()
         if fila == -1:
             QMessageBox.warning(self, "Advertencia", "Selecciona una estación para editar.")
             return
         id_estacion = self.estaciones_table.item(fila, 0).text()
         
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar eliminación")
+        confirmacion.setText(f"¿Estás seguro de que deseas eliminar la estación #{id_estacion}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+        
         try:
-            cursor = self.db.connection.cursor()
-            # Se elimina el tren
-            cursor.execute("""
-                DELETE FROM ESTACION WHERE ID_ESTACION = :1
-            """, (id_estacion,))
-            # Realiza commit
-            self.db.connection.commit()
-            # Se notifica que el tren se elimino
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Resultado", "La estacion se ha eliminado correctamente.")
-            self.actualizar_datos()
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                # Se elimina el tren
+                cursor.execute("""
+                    DELETE FROM ESTACION WHERE ID_ESTACION = :1
+                """, (id_estacion,))
+                # Realiza commit
+                self.db.connection.commit()
+                # Se notifica que el tren se elimino
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Resultado", "La estacion se ha eliminado correctamente.")
+                self.actualizar_datos()
+                self.bloquear_botones_estacion()
+            else:
+                self.bloquear_botones_estacion()
         except Exception as e:
             QMessageBox.critical(self, "Error al eliminar", str(e))

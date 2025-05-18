@@ -249,43 +249,51 @@ class InterfazEditarHorario(QWidget):
         if self.id_horario_a_editar is None:
             QMessageBox.warning(self, "Error", "No se ha cargado ningún horario para editar.")
             return
-    
-        try:
-            cursor = self.db.connection.cursor()
-            query = """
-                SELECT COUNT(*) FROM HORARIO
-                WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS')
-                  AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-            """
-            cursor.execute(query, (salida + ":00", llegada + ":00"))
-            count = cursor.fetchone()[0]
-            if count > 0:
-                QMessageBox.information(self, "Resultado", "El horario ya existe en la base de datos.")
-                return
-            
-            cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-            nuevo_id = cursor.fetchone()[0]
-            
-            cursor.execute("""
-                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
-                VALUES (:1, :2, :3, :4, SYSDATE)
-            """, (nuevo_id, self.horario_anterior, self.username, self.id_horario_a_editar,))
-            
-            update = """
-                UPDATE HORARIO
-                SET HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS'),
-                    HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-                WHERE ID_HORARIO = :3
-            """
-            # Se agregan segundos ':00' para cumplir con HH24:MI:SS
-            cursor.execute(update, (salida + ":00", llegada + ":00", self.id_horario_a_editar))
-            self.db.connection.commit()
 
-             # Emitir señal para actualizar la interfaz
-            self.asignacion_exitosa.emit()
-            self.db.event_manager.update_triggered.emit()
-            QMessageBox.information(self, "Éxito", f"Horario actualizado correctamente..")
-            self.cancelar()
+        confirmacion = QMessageBox()
+        confirmacion.setIcon(QMessageBox.Icon.Question)
+        confirmacion.setWindowTitle("Confirmar cambios")
+        confirmacion.setText(f"¿Estás seguro de que deseas modificar el horario #{self.id_horario_a_editar}?")
+        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+        
+        try:
+            if confirmacion.exec() == 2:
+                cursor = self.db.connection.cursor()
+                query = """
+                    SELECT COUNT(*) FROM HORARIO
+                    WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS')
+                      AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
+                """
+                cursor.execute(query, (salida + ":00", llegada + ":00"))
+                count = cursor.fetchone()[0]
+                if count > 0:
+                    QMessageBox.information(self, "Resultado", "El horario ya existe en la base de datos.")
+                    return
+                
+                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+                nuevo_id = cursor.fetchone()[0]
+                
+                cursor.execute("""
+                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
+                    VALUES (:1, :2, :3, :4, SYSDATE)
+                """, (nuevo_id, self.horario_anterior, self.username, self.id_horario_a_editar,))
+                
+                update = """
+                    UPDATE HORARIO
+                    SET HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS'),
+                        HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
+                    WHERE ID_HORARIO = :3
+                """
+                # Se agregan segundos ':00' para cumplir con HH24:MI:SS
+                cursor.execute(update, (salida + ":00", llegada + ":00", self.id_horario_a_editar))
+                self.db.connection.commit()
+    
+                 # Emitir señal para actualizar la interfaz
+                self.asignacion_exitosa.emit()
+                self.db.event_manager.update_triggered.emit()
+                QMessageBox.information(self, "Éxito", f"Horario actualizado correctamente.")
+                self.cancelar()
         except Exception as e:
             self.db.rollback()
             QMessageBox.critical(self, "Error al actualizar", str(e))
