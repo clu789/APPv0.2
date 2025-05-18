@@ -1,10 +1,11 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget, QSizePolicy)
+                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget, QSizePolicy, QFrame)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import QMessageBox
 import oracledb
-from interfaces.asignacion import InterfazAsignacion
+from interfaces.asignacion import InterfazAsignacion,InterfazModificarAsignacion
 from interfaces.paneles.panel_horarios import InterfazAgregarHorario, InterfazEditarHorario
 from interfaces.paneles.panel_rutas import InterfazAgregarRuta, InterfazEditarRuta
 
@@ -22,6 +23,7 @@ class GestionHorariosRutas(QWidget):
         self.load_routes()
         self.load_schedules()
         self.load_train_availability()
+        self.load_asignaciones()  # Nueva función para cargar asignaciones
 
     def initUI(self):
         layout = QVBoxLayout()
@@ -29,63 +31,88 @@ class GestionHorariosRutas(QWidget):
         # Crear el encabezado con el título
         header_layout = QHBoxLayout()
         label = QLabel("Gestión de Horarios y Rutas")
+        label.setFont(QFont('Arial', 14, QFont.Weight.Bold))
 
-        # Alineación del widget a la izquierda
         header_layout.addWidget(label)
-
-        # Ajuste de márgenes para que estén más cerca
-        header_layout.setContentsMargins(0, 0, 0, 0)  # Eliminar márgenes alrededor
-        header_layout.setSpacing(20)  # Eliminar espacio entre los widgets
-
-        # Agregar el layout al layout principal
+        header_layout.setContentsMargins(0, 0, 0, 0)
+        header_layout.setSpacing(20)
         layout.addLayout(header_layout)
 
-        # Separador para organizar tabla e imagen de ruta
-        splitter = QSplitter(Qt.Orientation.Horizontal)
+        # Separador principal para organizar las secciones
+        main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Sección izquierda: Tablas de rutas y horarios
+        # Sección izquierda: Tablas de rutas y horarios/disponibilidad
         left_section = QVBoxLayout()
 
         # Tabla de rutas con secuencia de estaciones
+        routes_label = QLabel("Rutas")
         self.tabla_rutas = QTableWidget()
         self.tabla_rutas.setColumnCount(3)
         self.tabla_rutas.setHorizontalHeaderLabels(["ID Ruta", "Duración", "Estaciones"])
         self.tabla_rutas.itemSelectionChanged.connect(self._controlar_boton_ruta)
+        left_section.addWidget(routes_label)
         left_section.addWidget(self.tabla_rutas)
 
+        # Contenedor para tablas de horarios y disponibilidad
+        schedules_container = QHBoxLayout()
+        
         # Tabla de horarios
+        schedules_label = QLabel("Horarios")
         self.tabla_horarios = QTableWidget()
-        self.tabla_horarios.setColumnCount(3)
-        self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
+        self.tabla_horarios.setColumnCount(4)  # Añadida columna para nombre del tren
+        self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada", "Tren Asignado"])
         self.tabla_horarios.itemSelectionChanged.connect(self._controlar_boton_horario)
-        left_section.addWidget(self.tabla_horarios)
+        
+        # Tabla de disponibilidad de trenes
+        availability_label = QLabel("Disponibilidad de Trenes")
+        self.tabla_trenes = QTableWidget()
+        self.tabla_trenes.setColumnCount(3)
+        self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado"])
+        
+        # Agregar tablas al layout horizontal
+        schedules_left = QVBoxLayout()
+        schedules_left.addWidget(schedules_label)
+        schedules_left.addWidget(self.tabla_horarios)
+        
+        schedules_right = QVBoxLayout()
+        schedules_right.addWidget(availability_label)
+        schedules_right.addWidget(self.tabla_trenes)
+        
+        schedules_container.addLayout(schedules_left)
+        schedules_container.addLayout(schedules_right)
+        
+        left_section.addLayout(schedules_container)
 
         # Contenedor izquierdo
         left_container = QWidget()
         left_container.setLayout(left_section)
-        left_container.setMinimumWidth(645)  # Fijar un ancho mínimo para la sección izquierda
-        splitter.addWidget(left_container)
+        left_container.setMinimumWidth(645)
+        main_splitter.addWidget(left_container)
 
-        # Sección derecha: Imagen de la ruta
+        # Sección derecha: Imagen de la ruta y tabla de asignaciones
         right_section = QVBoxLayout()
+
+        # Imagen de la ruta
         self.img_ruta = QLabel("Imagen de la ruta")
-        self.img_ruta.setMaximumSize(800, 400)
+        self.img_ruta.setFixedSize(800, 450)
         self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         right_section.addWidget(self.img_ruta)
+        
+        # Tabla de asignaciones de trenes
+        asignaciones_label = QLabel("Asignaciones de Trenes")
+        self.tabla_asignaciones = QTableWidget()
+        self.tabla_asignaciones.setColumnCount(5)
+        self.tabla_asignaciones.setHorizontalHeaderLabels(["ID Asignación", "Tren", "Ruta", "Horario", "Estado"])
+        self.tabla_asignaciones.itemSelectionChanged.connect(self._controlar_boton_asignacion)  # ← Nueva conexión
+        right_section.addWidget(asignaciones_label)
+        right_section.addWidget(self.tabla_asignaciones)
 
         # Contenedor derecho
         right_container = QWidget()
         right_container.setLayout(right_section)
-        splitter.addWidget(right_container)
+        main_splitter.addWidget(right_container)
 
-        layout.addWidget(splitter)
-
-        # Tabla de disponibilidad de trenes
-        self.tabla_trenes = QTableWidget()
-        self.tabla_trenes.setColumnCount(3)
-        self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado"])
-        layout.addWidget(QLabel("Disponibilidad de Trenes"))
-        layout.addWidget(self.tabla_trenes)
+        layout.addWidget(main_splitter)
 
         # Botones de acción para horarios
         horario_buttons = QHBoxLayout()
@@ -122,8 +149,11 @@ class GestionHorariosRutas(QWidget):
         self.btn_asignar_tren = QPushButton("Asignar Tren")
         self.btn_asignar_tren.clicked.connect(lambda: self.mostrar_panel(2))
         self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
+        self.btn_modificar_asignacion.setEnabled(False)
+        self.btn_modificar_asignacion.clicked.connect(self.abrir_edicion_asignacion)
         self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
-        self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion)
+        self.btn_quitar_asignacion.setEnabled(False)
+        self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion) 
         asignacion_buttons.addWidget(self.btn_asignar_tren)
         asignacion_buttons.addWidget(self.btn_modificar_asignacion)
         asignacion_buttons.addWidget(self.btn_quitar_asignacion)
@@ -132,7 +162,7 @@ class GestionHorariosRutas(QWidget):
         # Contenedor apilado
         self.stacked = QStackedWidget()
         self.stacked.hide()
-        
+
         #Panel para agregar horarios
         self.scroll_horarios = QScrollArea()
         self.scroll_horarios.setWidgetResizable(True)
@@ -185,15 +215,46 @@ class GestionHorariosRutas(QWidget):
         self.panel_rutas2.btn_confirmar.clicked.connect(self.bloquear_botones_ruta)
         self.panel_rutas2.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_rutas2.setWidget(self.panel_rutas2)
+
+        # Panel de modificación de asignación
+        self.scroll_modificar_asignacion = QScrollArea()
+        self.scroll_modificar_asignacion.setWidgetResizable(True)
+        self.scroll_modificar_asignacion.hide()
+        self.scroll_modificar_asignacion.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_modificar_asignacion.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_modificar_asignacion.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+        # Contenedor con layout para el scroll
+        contenedor_modificar = QWidget()
+        layout_modificar = QVBoxLayout(contenedor_modificar)
+        layout_modificar.setContentsMargins(0, 0, 0, 0)
+        layout_modificar.setSpacing(0)
+
+        self.panel_modificar_asignacion = InterfazModificarAsignacion(self.main_window, self.db, self.username)
+        self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel)
+        self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.bloquear_botones_asignacion)
+        self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel)
+        self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.bloquear_botones_asignacion)
+        self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.actualizar_datos)
+
+        layout_modificar.addWidget(self.panel_modificar_asignacion)
+        self.scroll_modificar_asignacion.setWidget(contenedor_modificar)
         
         self.stacked.addWidget(self.scroll_horarios)
         self.stacked.addWidget(self.scroll_rutas)
         self.stacked.addWidget(self.scroll_asignacion)
         self.stacked.addWidget(self.scroll_horarios2)
         self.stacked.addWidget(self.scroll_rutas2)
+        self.stacked.addWidget(self.scroll_modificar_asignacion)  
         layout.addWidget(self.stacked)
 
         self.setLayout(layout)
+    
+    def _controlar_boton_asignacion(self):
+        """Habilita/deshabilita los botones según la selección"""
+        hay_seleccion = self.tabla_asignaciones.currentRow() >= 0
+        self.btn_modificar_asignacion.setEnabled(hay_seleccion)
+        self.btn_quitar_asignacion.setEnabled(hay_seleccion)
 
     def bloquear_botones_horario(self):
         self.tabla_horarios.clearSelection()
@@ -206,6 +267,12 @@ class GestionHorariosRutas(QWidget):
         self.tabla_rutas.clearFocus()
         self.btn_eliminar_ruta.setEnabled(False)
         self.btn_editar_ruta.setEnabled(False)
+
+    def bloquear_botones_asignacion(self):
+        self.tabla_asignaciones.clearSelection()
+        self.tabla_asignaciones.clearFocus()
+        self.btn_modificar_asignacion.setEnabled(False)
+        self.btn_quitar_asignacion.setEnabled(False)
 
     def _controlar_boton_ruta(self):
         if self.tabla_rutas.currentRow() == -1:
@@ -238,6 +305,7 @@ class GestionHorariosRutas(QWidget):
         self.load_routes()
         self.load_schedules()
         self.load_train_availability()
+        self.load_asignaciones()
 
     def abrir_edicion_horario(self):
         fila = self.tabla_horarios.currentRow()
@@ -475,72 +543,116 @@ class GestionHorariosRutas(QWidget):
         except Exception as e:
             QMessageBox.critical(self, "Error al eliminar", str(e))
 
-
     def eliminar_asignacion(self):
-        """Elimina la asignación de tren de un horario seleccionado."""
-        fila = self.tabla_horarios.currentRow()
+        """Elimina la asignación seleccionada en la tabla"""
+        fila = self.tabla_asignaciones.currentRow()
         if fila == -1:
-            QMessageBox.warning(self, "Advertencia", "Selecciona un horario para eliminar la asignación.")
+            QMessageBox.warning(self, "Advertencia", "Selecciona una asignación para eliminar.")
             return
 
-        id_horario = self.tabla_horarios.item(fila, 0).text()
+        id_asignacion = self.tabla_asignaciones.item(fila, 0).text()  # Columna 0 = ID Asignación
 
-        try:
-            cursor = self.db.connection.cursor()
+        confirmacion = QMessageBox.question(
+            self,
+            "Confirmar",
+            f"¿Eliminar la asignación {id_asignacion}?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No
+        )
 
-            # Obtener el id_asignacion correspondiente al id_horario
-            query_asignacion = """
-                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_HORARIO = :id_horario
-            """
-            cursor.execute(query_asignacion, {"id_horario": id_horario})
-            result = cursor.fetchone()
+        if confirmacion == QMessageBox.StandardButton.Yes:
+            try:
+                cursor = self.db.connection.cursor()
+                # Insertar en historial
+                cursor.execute("""
+                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
+                    VALUES ((SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL), 
+                    'Asignación eliminada', :1, :2, SYSDATE)
+                """, (self.username, id_asignacion))
+                
+                # Eliminar asignación
+                cursor.execute("DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1", (id_asignacion,))
+                self.db.connection.commit()
+                self.db.event_manager.update_triggered.emit()
+                
+                QMessageBox.information(self, "Éxito", "Asignación eliminada correctamente.")
+                self.load_asignaciones()  # Recargar la tabla
+            except Exception as e:
+                self.db.connection.rollback()
+                QMessageBox.critical(self, "Error", f"Error al eliminar: {str(e)}")
 
-            if not result:
-                QMessageBox.warning(self, "Advertencia", "No se encontró una asignación para este horario.")
-                return
+    def abrir_edicion_asignacion(self):
+        print("[DEBUG] Se ejecutó abrir_edicion_asignacion()")
+        """Abre el panel de edición con los datos de la asignación seleccionada"""
+        fila = self.tabla_asignaciones.currentRow()
+        if fila == -1:
+            QMessageBox.warning(self, "Advertencia", "Selecciona una asignación para modificar.")
+            return
 
-            id_asignacion = result[0]
+        # Obtener datos de la fila seleccionada
+        id_asignacion = self.tabla_asignaciones.item(fila, 0).text()
+        id_tren = self.tabla_asignaciones.item(fila, 1).text().split()[0]  # Asume formato "ID - Nombre"
+        id_ruta = self.tabla_asignaciones.item(fila, 2).text()
+        id_horario = self.tabla_asignaciones.item(fila, 3).text()
+        estado = self.tabla_asignaciones.item(fila, 4).text()
+        print(f"[DEBUG] ID Horario seleccionado: {id_horario}")
+        # Crear diccionario con los datos
+        datos_asignacion = {
+            'id_asignacion': id_asignacion,
+            'id_tren': id_tren,
+            'id_ruta': id_ruta,
+            'id_horario': id_horario,
+            'estado': estado
+        }
+        # Cargar datos en el panel y mostrarlo
+        #self.panel_modificar_asignacion.modificacion_exitosa.connect(self.actualizar_datos)
+        #self.mostrar_panel_modificar_asignacion.modificacion_exitosa.connect(self.actualizar_datos)
+        #self.panel_modificar_asignacion.cargar_datos(datos_asignacion)
+        #self.panel_modificar_asignacion.set_horario(id_horario)
+        #self.mostrar_panel_modificar_asignacion()
+        self.panel_modificar_asignacion.modificacion_exitosa.connect(self.actualizar_datos)
+        self.panel_modificar_asignacion.set_horario(id_horario)
+        self.mostrar_panel_modificar_asignacion()
 
-            # Insertar en el historial antes de eliminar
-            query_historial = """
-                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                VALUES ((SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL), :info, :id_usuario, :id_asignacion, SYSDATE)
-            """
-            info = f"Se eliminó la asignación del horario {id_horario}"
-            cursor.execute(query_historial, {
-                "info": info,
-                "id_usuario": self.username,
-                "id_asignacion": id_asignacion
-            })
+    def mostrar_panel_modificar_asignacion(self):
+        """Muestra el panel de modificación de asignación"""
+        self.stacked.setCurrentWidget(self.scroll_modificar_asignacion)
+        #self.stacked.setCurrentIndex(5) 
+        self.scroll_modificar_asignacion.show()
+        self.scroll_modificar_asignacion.setMinimumHeight(400)
+        self.scroll_modificar_asignacion.setMaximumHeight(400)
 
-            # Eliminar la asignación
-            query_delete = """
-                DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :id_asignacion
-            """
-            cursor.execute(query_delete, {"id_asignacion": id_asignacion})
+    def ocultar_panel_modificar_asignacion(self):
+        """Oculta el panel de modificación de asignación"""
+        self.scroll_modificar_asignacion.hide()
+        self.tabla_asignaciones.clearSelection()
+        self.btn_modificar_asignacion.setEnabled(False)
 
-            # Confirmar los cambios
-            self.db.connection.commit()
+    def load_asignaciones(self):
+        """Carga las asignaciones de trenes desde la base de datos"""
+        query = """
+            SELECT A.ID_ASIGNACION, 
+                   T.NOMBRE AS TREN, 
+                   R.ID_RUTA AS RUTA, 
+                   H.ID_HORARIO AS HORARIO,
+                   CASE 
+                       WHEN A.HORA_SALIDA_REAL IS NULL THEN 'Pendiente'
+                       ELSE 'Completado'
+                   END AS ESTADO
+            FROM ASIGNACION_TREN A
+            JOIN TREN T ON A.ID_TREN = T.ID_TREN
+            JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+            ORDER BY A.ID_ASIGNACION
+        """
+        asignaciones = self.db.fetch_all(query)
 
-            # Actualizar la tabla
-            self.actualizar_datos()
+        self.tabla_asignaciones.setRowCount(len(asignaciones))
+        for i, asignacion in enumerate(asignaciones):
+            self.tabla_asignaciones.setItem(i, 0, QTableWidgetItem(str(asignacion[0])))
+            self.tabla_asignaciones.setItem(i, 1, QTableWidgetItem(asignacion[1]))
+            self.tabla_asignaciones.setItem(i, 2, QTableWidgetItem(str(asignacion[2])))
+            self.tabla_asignaciones.setItem(i, 3, QTableWidgetItem(str(asignacion[3])))
+            self.tabla_asignaciones.setItem(i, 4, QTableWidgetItem(asignacion[4]))
 
-            QMessageBox.information(self, "Éxito", "La asignación se eliminó correctamente.")
-
-        except Exception as e:
-            self.db.connection.rollback()
-            QMessageBox.critical(self, "Error", f"Ocurrió un error al eliminar la asignación: {str(e)}")
-
-    def mostrar_panel_asignacion(self):
-        """Muestra el panel de asignación y asegura que sea visible y ajustado."""
-        self.panel_asignacion.show()
-        self.panel_asignacion.setMinimumHeight(600)  # Ajustar altura mínima adecuada
-        self.panel_asignacion.setMaximumHeight(600)  # Ajustar altura máxima adecuada
-        self.panel_asignacion.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
-
-        # Asegurar que el widget sea visible
-        self.ensureWidgetVisible(self.panel_asignacion)
-
-    def ocultar_panel_asignacion(self):
-        """Oculta el panel de asignación."""
-        self.panel_asignacion.hide()
+        self.tabla_asignaciones.resizeColumnsToContents()
+        self.tabla_asignaciones.resizeRowsToContents()
