@@ -237,46 +237,36 @@ class EventManager(QObject):
                 
             id_historial = resultado[0]
             
-            if evento.tipo == 'SALIDA':
-                query = """
-                INSERT INTO HISTORIAL (
-                    ID_HISTORIAL, FECHA_REGISTRO, ID_HORARIO,
-                    ID_USUARIO, INFORMACION
-                ) VALUES (
-                    :id_historial, SYSDATE, :id_horario,
-                    :id_usuario, :informacion
-                )
-                """
-                params = {
-                    'id_historial': id_historial,
-                    'id_horario': evento.horario_id,
-                    'id_usuario': self.usuario_id,
-                    'informacion': f"Salida: {hora_real.toString('HH:mm:ss')}"
-                }
-            else:
-                query = """
-                INSERT INTO HISTORIAL (
-                    ID_HISTORIAL, FECHA_REGISTRO, ID_ASIGNACION,
-                    ID_USUARIO, INFORMACION
-                ) VALUES (
-                    :id_historial, SYSDATE, :id_asignacion,
-                    :id_usuario, :informacion
-                )
-                """
-                params = {
-                    'id_historial': id_historial,
-                    'id_asignacion': evento.asignacion_id,
-                    'id_usuario': self.usuario_id,
-                    'informacion': f"Llegada: {hora_real.toString('HH:mm:ss')}"
-                }
+            # Obtener hora de salida y llegada real
+            hora_salida_real = self.db.fetch_one("""
+                SELECT TO_CHAR(HORA_SALIDA_REAL, 'HH24:MI:SS') 
+                FROM ASIGNACION_TREN 
+                WHERE ID_ASIGNACION = :asignacion_id
+            """, {'asignacion_id': evento.asignacion_id})[0]
+            
+            hora_llegada_real = hora_real.toString("HH:mm:ss")
+            hora_real_str = f"{hora_salida_real}-{hora_llegada_real}"
+            
+            query = """
+            INSERT INTO HISTORIAL (
+                ID_HISTORIAL, FECHA_REGISTRO, ID_ASIGNACION,
+                ID_USUARIO, INFORMACION, HORA_REAL
+            ) VALUES (
+                :id_historial, SYSDATE, :id_asignacion,
+                :id_usuario, :informacion, :hora_real
+            )
+            """
+            params = {
+                'id_historial': id_historial,
+                'id_asignacion': evento.asignacion_id,
+                'id_usuario': self.usuario_id,
+                'informacion': f"Llegada: {hora_llegada_real}",
+                'hora_real': hora_real_str
+            }
 
             # Verificación adicional de parámetros
-            required_params = ['id_historial', 'id_usuario', 'informacion']
-            if evento.tipo == 'SALIDA':
-                required_params.append('id_horario')
-            else:
-                required_params.append('id_asignacion')
-                
+            required_params = ['id_historial', 'id_usuario', 'informacion', 'id_asignacion', 'hora_real']
+            
             for param in required_params:
                 if param not in params:
                     print(f"[Error] Falta parámetro requerido: {param}")
@@ -336,3 +326,4 @@ class EventManager(QObject):
         
         return round(porcentaje, 1)
     
+

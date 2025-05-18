@@ -140,12 +140,14 @@ class MonitoreoInterface(QWidget):
         self.tabla_trenes.resizeRowsToContents()
 
     def on_row_selected(self, row, column):
+        self.limpiar_panel_detalles()
+        
         id_asignacion = self.tabla_trenes.item(row, 0).text()
         self.refrescar_detalles_asignacion(id_asignacion)
         self.timer_progreso.start(1000)
 
     def refrescar_detalles_asignacion(self, id_asignacion):
-        # Limpiar completamente el layout de detalles
+        self.limpiar_panel_detalles()
         while self.detalle_layout.count():
             child = self.detalle_layout.takeAt(0)
             if child.widget():
@@ -196,14 +198,18 @@ class MonitoreoInterface(QWidget):
         self.hora_llegada = datos[9] if len(datos) > 9 else "N/A"
         self.id_asignacion = id_asignacion
 
+        estacion_origen = datos[12] if len(datos) > 12 and datos[12] else "Desconocido"
+        estacion_destino = datos[13] if len(datos) > 13 and datos[13] else "Desconocido"
+
         # Barra de progreso visual
         barra_layout = QVBoxLayout()
         barra_superior = QHBoxLayout()
 
-        label_inicio = QLabel(datos[13] if len(datos) > 13 else "Desconocido")  # Estación origen
+        label_inicio = QLabel(estacion_origen) 
         label_inicio.setFont(QFont('Arial', 10, QFont.Weight.Bold))
         label_inicio.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        label_fin = QLabel(datos[14] if len(datos) > 14 else "Desconocido")    # Estación destino
+        
+        label_fin = QLabel(estacion_destino)   
         label_fin.setFont(QFont('Arial', 10, QFont.Weight.Bold))
         label_fin.setAlignment(Qt.AlignmentFlag.AlignRight)
 
@@ -297,3 +303,35 @@ class MonitoreoInterface(QWidget):
         except Exception as e:
             print("Error actualizando barra:", e)
             self.progress_bar.setValue(0)
+
+    def limpiar_panel_detalles(self):
+        """Limpia completamente el panel de detalles"""
+        # Detener el timer si está activo
+        self.timer_progreso.stop()
+        
+        # Eliminar todos los widgets del layout
+        while self.detalle_layout.count():
+            item = self.detalle_layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+            else:
+                # Si es un layout, eliminamos sus widgets recursivamente
+                if item.layout() is not None:
+                    self.limpiar_layout_recursivo(item.layout())
+        
+        # Opcional: eliminar cualquier layout vacío que quede
+        for i in reversed(range(self.detalle_layout.count())):
+            item = self.detalle_layout.itemAt(i)
+            if item.layout():
+                self.limpiar_layout_recursivo(item.layout())
+                self.detalle_layout.removeItem(item)
+
+    def limpiar_layout_recursivo(self, layout):
+        while layout.count():
+            item = layout.takeAt(0)
+            widget = item.widget()
+            if widget is not None:
+                widget.deleteLater()
+            elif item.layout() is not None:
+                self.limpiar_layout_recursivo(item.layout())
