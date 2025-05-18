@@ -211,7 +211,7 @@ class InterfazAsignacion(QWidget):
                 self.combo_ruta.addItem(f"Ruta {id_ruta} - {estaciones.split('→')[0].strip()}...", id_ruta)
 
     def cargar_horarios_disponibles(self, id_ruta):
-        """Carga los horarios disponibles para la ruta seleccionada"""
+        """Carga los horarios disponibles para la ruta seleccionada que no estén ya asignados a esta ruta"""
         self.combo_horario.clear()
         self.combo_horario.addItem("Seleccionar")  # Asegura que el primer item esté presente
         self.label_mensaje.setText("Cargando horarios...")
@@ -224,29 +224,34 @@ class InterfazAsignacion(QWidget):
                 self.label_mensaje.setText("No se pudo obtener duración de la ruta")
                 return
 
-            # Consultar horarios disponibles que no estén asignados
+            # Consultar horarios disponibles que:
+            # 1. No estén asignados a esta ruta específica
+            # 2. No estén asignados a ningún otro tren (mantenemos esta restricción)
             query = """
                 SELECT H.ID_HORARIO, 
-                       TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA,
-                       TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA,
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA
                 FROM HORARIO H
                 WHERE NOT EXISTS (
                     SELECT 1 FROM ASIGNACION_TREN A 
                     WHERE A.ID_HORARIO = H.ID_HORARIO
+                    AND A.ID_RUTA = :id_ruta
+                )
+                AND NOT EXISTS (
+                    SELECT 1 FROM ASIGNACION_TREN A2
+                    WHERE A2.ID_HORARIO = H.ID_HORARIO
                 )
                 ORDER BY H.HORA_SALIDA_PROGRAMADA
             """
             
-            horarios = self.db.fetch_all(query)
+            horarios = self.db.fetch_all(query, {"id_ruta": id_ruta})
             
             if horarios:
                 for id_horario, salida, llegada in horarios:
-                    self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
                     # Calcular duración del horario en minutos
                     salida_dt = datetime.strptime(salida, '%H:%M:%S')
                     llegada_dt = datetime.strptime(llegada, '%H:%M:%S')
                     duracion_horario = (llegada_dt - salida_dt).total_seconds() / 60
-                    self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)
                     
                     # Solo mostrar horarios cuya duración sea >= a la duración estimada de la ruta
                     if duracion_horario >= duracion:
@@ -256,7 +261,7 @@ class InterfazAsignacion(QWidget):
                     self.label_mensaje.setText(f"{self.combo_horario.count()-1} horarios disponibles")
                 else:
                     self.combo_horario.addItem("No hay horarios que cumplan con la duración")
-                    self.label_mensaje.setText("No hay horarios que cumplan con la duración")
+                    self.label_mensaje.setText("No hay horarios disponibles para esta ruta")
             else:
                 self.combo_horario.addItem("No hay horarios disponibles")
                 self.label_mensaje.setText("No hay horarios sin asignar")
@@ -265,14 +270,30 @@ class InterfazAsignacion(QWidget):
             print(f"Error al cargar horarios: {str(e)}")
             self.combo_horario.addItem("Error al cargar horarios")
             self.label_mensaje.setText("Error al cargar horarios")
-  
+
     def cargar_trenes_disponibles(self, id_horario):
-        """Carga los trenes disponibles para el horario seleccionado"""
+        """Carga los trenes disponibles para el horario seleccionado que no tengan asignaciones solapadas"""
         self.combo_tren.clear()
         self.label_mensaje.setText("Cargando trenes...")
         
         try:
-            # Consulta simplificada para obtener trenes disponibles
+            # Primero obtener el rango de tiempo del horario seleccionado
+            query_horario = """
+                SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
+                FROM HORARIO
+                WHERE ID_HORARIO = :id_horario
+            """
+            horario = self.db.fetch_one(query_horario, {"id_horario": id_horario})
+            
+            if not horario:
+                self.combo_tren.addItem("Error: Horario no encontrado")
+                return
+                
+            hora_salida, hora_llegada = horario
+            
+            # Consulta para obtener trenes disponibles que:
+            # 1. Estén ACTIVOS
+            # 2. No tengan asignaciones que se solapen con este horario
             query = """
                 SELECT T.ID_TREN, T.NOMBRE
                 FROM TREN T
@@ -280,14 +301,19 @@ class InterfazAsignacion(QWidget):
                 AND NOT EXISTS (
                     SELECT 1
                     FROM ASIGNACION_TREN A
+                    JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
                     WHERE A.ID_TREN = T.ID_TREN
-                    AND A.ID_HORARIO = :1
+                    AND (
+                        (H.HORA_SALIDA_PROGRAMADA < :hora_llegada AND H.HORA_LLEGADA_PROGRAMADA > :hora_salida)
+                    )
                 )
                 ORDER BY T.ID_TREN
             """
             
-            # Ejecutar consulta con parámetro posicional
-            trenes = self.db.fetch_all(query, (id_horario,))
+            trenes = self.db.fetch_all(query, {
+                "hora_salida": hora_salida,
+                "hora_llegada": hora_llegada
+            })
             
             if trenes:
                 self.combo_tren.addItem("Seleccionar")
@@ -308,7 +334,6 @@ class InterfazAsignacion(QWidget):
             print(f"Error al cargar trenes: {str(e)}")
             self.combo_tren.addItem("Error al cargar trenes")
             self.label_mensaje.setText("Error al cargar datos")
-        
 
     def validar_asignacion(self):
         """Valida la asignación mostrando mensajes claros"""
@@ -327,6 +352,7 @@ class InterfazAsignacion(QWidget):
             
         id_tren = self.combo_tren.currentData()
         id_horario = self.combo_horario.currentData()
+        id_ruta = self.combo_ruta.currentData()
         
         # Verificar si el tren ya está asignado a este horario
         query = """
@@ -360,6 +386,59 @@ class InterfazAsignacion(QWidget):
             )
             return False
             
+        # Verificar si el horario ya está asignado a esta ruta
+        query_ruta_horario = """
+            SELECT COUNT(*) 
+            FROM ASIGNACION_TREN 
+            WHERE ID_RUTA = :id_ruta 
+            AND ID_HORARIO = :id_horario
+        """
+        resultado_ruta = self.db.fetch_one(query_ruta_horario, {
+            "id_ruta": id_ruta,
+            "id_horario": id_horario
+        })
+        
+        if resultado_ruta and resultado_ruta[0] > 0:
+            self.mostrar_mensaje(
+                "Error: Este horario ya está asignado a esta ruta",
+                False
+            )
+            return False
+        
+        # Verificar si el tren tiene asignaciones que se solapan con este horario
+        query_solapamiento = """
+            SELECT COUNT(*)
+            FROM ASIGNACION_TREN A
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+            WHERE A.ID_TREN = :id_tren
+            AND (
+                (H.HORA_SALIDA_PROGRAMADA < :hora_llegada AND H.HORA_LLEGADA_PROGRAMADA > :hora_salida)
+            )
+        """
+        
+        # Obtener horas del horario seleccionado
+        query_horas = """
+            SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
+            FROM HORARIO
+            WHERE ID_HORARIO = :id_horario
+        """
+        horas = self.db.fetch_one(query_horas, {"id_horario": id_horario})
+        
+        if horas:
+            hora_salida, hora_llegada = horas
+            resultado_solapamiento = self.db.fetch_one(query_solapamiento, {
+                "id_tren": id_tren,
+                "hora_salida": hora_salida,
+                "hora_llegada": hora_llegada
+            })
+            
+            if resultado_solapamiento and resultado_solapamiento[0] > 0:
+                self.mostrar_mensaje(
+                    "Error: El tren ya tiene una asignación en este horario",
+                    False
+                )
+                return False
+        
         # Si todo está bien
         self.mostrar_mensaje("✓ Validación correcta. Puede confirmar la asignación", True)
         return True
