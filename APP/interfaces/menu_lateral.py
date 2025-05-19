@@ -11,6 +11,8 @@ from PyQt6.QtCore import pyqtSignal, Qt, QPropertyAnimation, QEasingCurve
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QBrush
 from PyQt6.QtCore import QSize
 
+from utils import obtener_ruta_recurso
+
 class MenuLateral(QWidget):
     cambio_interfaz = pyqtSignal(int)
     cerrar_sesion = pyqtSignal()  # Señal para cerrar sesión
@@ -82,7 +84,7 @@ class MenuLateral(QWidget):
         
         # Icono de usuario (se ocultará cuando el menú esté colapsado)
         self.user_icon = QLabel()
-        self.user_icon.setPixmap(QIcon("APP/icons/usuario.png").pixmap(32, 32))
+        self.user_icon.setPixmap(QIcon(obtener_ruta_recurso("APP/icons/usuario.png")).pixmap(32, 32))
         self.user_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.user_icon.setStyleSheet("background-color: transparent;")
         
@@ -132,13 +134,13 @@ class MenuLateral(QWidget):
         self.button_layout.setSpacing(5)
         
         self.botones = [
-            ("Home", QIcon("APP/icons/home.png"), 0),
-            ("Horarios", QIcon("APP/icons/schedule.png"), 1),
-            ("Monitoreo", QIcon("APP/icons/monitor.png"), 2),
-            ("Incidencias", QIcon("APP/icons/alert.png"), 3),
-            ("Infraestructura", QIcon("APP/icons/infra.png"), 4),
-            ("Optimización", QIcon("APP/icons/optimize.png"), 5),
-            ("Mejora", QIcon("APP/icons/mejora.png"), 6)
+            ("Home", QIcon(obtener_ruta_recurso("APP/icons/home.png")), 0),
+            ("Horarios", QIcon(obtener_ruta_recurso("APP/icons/schedule.png")), 1),
+            ("Monitoreo", QIcon(obtener_ruta_recurso("APP/icons/monitor.png")), 2),
+            ("Incidencias", QIcon(obtener_ruta_recurso("APP/icons/alert.png")), 3),
+            ("Infraestructura", QIcon(obtener_ruta_recurso("APP/icons/infra.png")), 4),
+            ("Optimización", QIcon(obtener_ruta_recurso("APP/icons/optimize.png")), 5),
+            ("Mejora", QIcon(obtener_ruta_recurso("APP/icons/mejora.png")), 6)
         ]
         
         self.button_widgets = []
@@ -191,7 +193,7 @@ class MenuLateral(QWidget):
         
         self.logo = QLabel()
         self.logo.setFixedSize(160, 80)
-        self.logo.setPixmap(QPixmap("APP/icons/TRACKSYNC.png").scaled(160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.titulo = QLabel("TRACKSYNC")
         self.titulo.setStyleSheet(f"""

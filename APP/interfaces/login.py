@@ -6,6 +6,7 @@ from PyQt6.QtGui import QPixmap, QFont
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtCore import Qt, pyqtSignal
 from base_de_datos.db import DatabaseConnection
+from utils import obtener_ruta_recurso
 
 class LineEditSeleccion(QLineEdit):
     def focusInEvent(self, event):
@@ -34,7 +35,7 @@ class LoginInterface(QWidget):
 
         self.logo = QLabel()
         self.logo.setFixedSize(400, 200)
-        self.logo.setPixmap(QPixmap("APP/icons/TRACKSYNC.png").scaled(400, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(400, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         self.titulo = QLabel("TRACKSYNC")

@@ -1,4 +1,6 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QDialog, QLineEdit
+from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
+                             QTableWidgetItem, QPushButton, QMessageBox, QDialog, QLineEdit,
+                             QScrollArea, QFrame, QHeaderView, QAbstractItemView)
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 import re
@@ -16,41 +18,165 @@ class OptimizacionDinamica(QWidget):
         self.cargar_datos()
 
     def initUI(self):
-        layout = QVBoxLayout()
+        # Layout principal con scroll
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
 
-        # Título
+        # Widget contenedor principal
+        self.main_container = QWidget()
+        self.main_container.setFixedWidth(1400)
+        layout = QVBoxLayout(self.main_container)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(20)
+
+        # Configurar el scroll area
+        self.scroll_area.setWidget(self.main_container)
+        self.setLayout(QVBoxLayout(self))
+        self.layout().addWidget(self.scroll_area)
+        self.layout().setContentsMargins(0, 0, 0, 0)
+
+        # Título con estilo mejorado
         header = QLabel("Optimización Dinámica")
+        header.setStyleSheet("""
+            QLabel {
+                font-size: 22px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 10px 0;
+                border-bottom: 2px solid #3498db;
+            }
+        """)
         header.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(header)
 
-        # Tabla unificada - ahora con 11 columnas
+        # Tabla unificada con estilo profesional
         self.tabla = QTableWidget()
         self.tabla.setColumnCount(11)
         self.tabla.setHorizontalHeaderLabels([
-            "ID Incidencia",  # Nueva columna
+            "ID Incidencia",
             "ID Horario", "ID Tren", "Fecha Incidencia", "Tipo Incidencia",
-            "Descripción", "Acción", "Horario Original", "Nuevo Horario", "Tren Asignado",
-            "Tren Sugerido"
+            "Descripción", "Acción", "Horario Original", "Nuevo Horario", 
+            "Tren Asignado", "Tren Sugerido"
         ])
+
+        # Configuración de estilo para la tabla
+        self.tabla.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 6px;
+                border-bottom: 1px solid #eee;
+            }
+        """)
+
+        # Configuración de comportamiento
+        self.tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.tabla.verticalHeader().setVisible(False)
+        self.tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla.itemSelectionChanged.connect(self._controlar_boton_cambios)
+
+        # Ajustar tamaño de columnas
+        for i in range(self.tabla.columnCount()):
+            if i in [0, 1, 2]:  # Columnas de ID
+                self.tabla.setColumnWidth(i, 80)
+            elif i == 5:  # Descripción
+                self.tabla.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+            else:
+                self.tabla.setColumnWidth(i, 120)
+
         layout.addWidget(self.tabla)
 
-        # Botones
-        botones = QHBoxLayout()
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones = QHBoxLayout(botones_container)
+        botones.setContentsMargins(0, 10, 0, 0)
+        botones.setSpacing(15)
+
+        # Botón Confirmar
         self.btn_confirmar_cambio = QPushButton("Confirmar Cambio Seleccionado")
+        self.btn_confirmar_cambio.setStyleSheet("""
+            QPushButton {
+                padding: 10px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 180px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
         self.btn_confirmar_cambio.setEnabled(False)
+
+        # Botón Editar
         self.btn_editar_cambio = QPushButton("Editar Cambio")
+        self.btn_editar_cambio.setStyleSheet("""
+            QPushButton {
+                padding: 10px 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 120px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
         self.btn_editar_cambio.setEnabled(False)
+
+        # Botón Rechazar
         self.btn_rechazar_cambio = QPushButton("Rechazar Cambio Seleccionado")
+        self.btn_rechazar_cambio.setStyleSheet("""
+            QPushButton {
+                padding: 10px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 180px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
         self.btn_rechazar_cambio.setEnabled(False)
+
+        # Agregar botones al layout
+        botones.addStretch()
         botones.addWidget(self.btn_confirmar_cambio)
         botones.addWidget(self.btn_editar_cambio)
         botones.addWidget(self.btn_rechazar_cambio)
-        layout.addLayout(botones)
+        botones.addStretch()
 
-        self.setLayout(layout)
+        layout.addWidget(botones_container)
 
-        # Conexiones
+        # Conexiones (se mantienen igual)
         self.btn_confirmar_cambio.clicked.connect(self.confirmar_cambio)
         self.btn_rechazar_cambio.clicked.connect(self.rechazar_cambio)
         self.btn_editar_cambio.clicked.connect(self.editar_cambio)

@@ -23,6 +23,7 @@ class MejoraContinua(QWidget):
         
         # Widget contenedor principal
         self.main_container = QWidget()
+        self.main_container.setFixedWidth(1400)
         main_layout = QVBoxLayout(self.main_container)
         main_layout.setContentsMargins(20, 20, 20, 20)
         main_layout.setSpacing(20)
