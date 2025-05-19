@@ -1,6 +1,7 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QMessageBox, QDialog, QLineEdit
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
+import re
 
 class OptimizacionDinamica(QWidget):
     def __init__(self, main_window, db, username):
@@ -263,7 +264,7 @@ class OptimizacionDinamica(QWidget):
         if fila < 0:
             QMessageBox.warning(self, "Advertencia", "Selecciona una fila para confirmar.")
             return
-    
+
         try:
             # Obtener datos de la fila seleccionada
             id_incidencia = self.tabla.item(fila, 0).text()  # ID_INCIDENCIA
@@ -279,7 +280,19 @@ class OptimizacionDinamica(QWidget):
             if not filas_afectadas:
                 QMessageBox.warning(self, "Error", "No se encontraron horarios afectados.")
                 return
-    
+
+            confirmacion = QMessageBox()
+            confirmacion.setIcon(QMessageBox.Icon.Question)
+            confirmacion.setWindowTitle("Confirmar Cambio")
+            confirmacion.setText(f"¿Estás seguro de confirmar los cambios para la incidencia {id_incidencia} (Tipo: {tipo_incidencia})?" +
+                                 f"\nSe procesaran {len(filas_afectadas)} registros afectados por la incidencia {id_incidencia}\n")
+            confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+            confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
+            
+            if confirmacion.exec() == 3:
+                self.ocultar_botones()
+                return
+            
             cursor = self.db.connection.cursor()
             bandera_tren = True
     
@@ -353,18 +366,21 @@ class OptimizacionDinamica(QWidget):
                         """, [tren_sugerido, id_horario])
     
                     elif accion == 'CANCELAR VIAJE':
+                        # Obtener id_asignacion
+                        cursor.execute("""
+                            SELECT ID_ASIGNACION FROM ASIGNACION_TREN
+                            WHERE ID_HORARIO = :1
+                            AND ID_TREN = :2
+                        """, (id_horario, id_tren,))
+                        id_asignacion = cursor.fetchone()[0]
+                        # Eliminar asignación
+                        self.db.execute_query("DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1", [id_asignacion])
                         # Registrar cancelación en historial
                         cursor.execute("""
-                            INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
+                            INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
                             VALUES (:1, 'Viaje cancelado por ' || :2, :3, :4, SYSDATE)
-                        """, (nuevo_id, tipo_incidencia, self.username, id_horario))
+                        """, (nuevo_id, tipo_incidencia, self.username, id_asignacion))
     
-                        # Marcar horario como cancelado
-                        cursor.execute("""
-                            UPDATE HORARIO
-                            SET ESTADO = 'CANCELADO'
-                            WHERE ID_HORARIO = :1
-                        """, [id_horario])
     
             # Marcar incidencia como resuelta
             cursor.execute("""
@@ -391,8 +407,7 @@ class OptimizacionDinamica(QWidget):
                 "Error", 
                 f"No se pudo confirmar el cambio:\n{str(e)}"
             )
-        finally:
-            cursor.close()
+            self.cargar_datos()
 
     def editar_cambio(self):
         fila = self.tabla.currentRow()
@@ -400,8 +415,65 @@ class OptimizacionDinamica(QWidget):
             QMessageBox.warning(self, "Advertencia", "Selecciona una fila para editar.")
             return
 
-        id_horario = self.tabla.item(fila, 1).text()  # Columna 1 ahora es ID_HORARIO
-        QMessageBox.information(self, "Función pendiente", f"Aquí podrías abrir una subinterfaz para editar la sugerencia del horario {id_horario}.")
+        # Obtener datos de la fila seleccionada
+        id_horario = self.tabla.item(fila, 1).text()
+        tipo_incidencia = self.tabla.item(fila, 4).text()
+
+        # Crear diálogo de edición
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Editar Sugerencia - {tipo_incidencia}")
+        layout = QVBoxLayout()
+
+        if tipo_incidencia == 'RETRASO':
+            # Editar horario
+            horario_actual = self.tabla.item(fila, 8).text()
+            label = QLabel("Nuevo Horario (HH:MM:SS - HH:MM:SS):")
+            edit = QLineEdit(horario_actual)
+            layout.addWidget(label)
+            layout.addWidget(edit)
+        else:
+            # Editar tren sugerido
+            tren_actual = self.tabla.item(fila, 10).text()
+            label = QLabel("Nuevo Tren Sugerido:")
+            edit = QLineEdit(tren_actual)
+            layout.addWidget(label)
+            layout.addWidget(edit)
+
+        # Botones
+        btn_guardar = QPushButton("Guardar Cambio")
+        btn_cancelar = QPushButton("Cancelar")
+        btn_layout = QHBoxLayout()
+        btn_layout.addWidget(btn_guardar)
+        btn_layout.addWidget(btn_cancelar)
+
+        layout.addLayout(btn_layout)
+        dialog.setLayout(layout)
+
+        def guardar_cambio():
+            nuevo_valor = edit.text().strip()
+
+            # Validación básica
+            if tipo_incidencia == 'RETRASO':
+                if not re.match(r"\d{2}:\d{2}:\d{2} - \d{2}:\d{2}:\d{2}", nuevo_valor):
+                    QMessageBox.warning(dialog, "Error", "Formato de horario inválido")
+                    return
+            elif not nuevo_valor:
+                QMessageBox.warning(dialog, "Error", "El tren sugerido no puede estar vacío")
+                return
+
+            # Actualizar tabla
+            if tipo_incidencia == 'RETRASO':
+                self.tabla.item(fila, 8).setText(nuevo_valor)
+            else:
+                self.tabla.item(fila, 10).setText(nuevo_valor)
+
+            QMessageBox.information(dialog, "Éxito", "Cambio guardado correctamente")
+            dialog.close()
+
+        btn_guardar.clicked.connect(guardar_cambio)
+        btn_cancelar.clicked.connect(dialog.close)
+
+        dialog.exec()
 
     def rechazar_cambio(self):
         fila = self.tabla.currentRow()
