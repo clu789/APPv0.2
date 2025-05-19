@@ -1,5 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget, QSizePolicy, QFrame)
+                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget, QSizePolicy, QFrame,
+                            QAbstractItemView, QHeaderView)
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
@@ -26,134 +27,254 @@ class GestionHorariosRutas(QWidget):
         self.load_asignaciones()  # Nueva función para cargar asignaciones
 
     def initUI(self):
+        # Layout principal
         layout = QVBoxLayout()
+        layout.setContentsMargins(15, 15, 15, 15)
+        layout.setSpacing(15)
 
-        # Crear el encabezado con el título
+        # Encabezado con estilo mejorado
         header_layout = QHBoxLayout()
         label = QLabel("Gestión de Horarios y Rutas")
-        label.setFont(QFont('Arial', 14, QFont.Weight.Bold))
-
+        label.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+                border-bottom: 2px solid #3498db;
+            }
+        """)
         header_layout.addWidget(label)
-        header_layout.setContentsMargins(0, 0, 0, 0)
-        header_layout.setSpacing(20)
+        header_layout.setContentsMargins(0, 0, 0, 10)
         layout.addLayout(header_layout)
 
-        # Separador principal para organizar las secciones
+        # Separador principal (manteniendo distribución original)
         main_splitter = QSplitter(Qt.Orientation.Horizontal)
 
-        # Sección izquierda: Tablas de rutas y horarios/disponibilidad
-        left_section = QVBoxLayout()
+        # --- Sección izquierda ---
+        left_container = QWidget()
+        left_container.setMinimumWidth(645)  # Manteniendo ancho original
+        left_section = QVBoxLayout(left_container)
+        left_section.setContentsMargins(0, 0, 0, 0)
+        left_section.setSpacing(10)
 
-        # Tabla de rutas con secuencia de estaciones
+        # Tabla de rutas con estilo
         routes_label = QLabel("Rutas")
+        routes_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.tabla_rutas = QTableWidget()
         self.tabla_rutas.setColumnCount(3)
         self.tabla_rutas.setHorizontalHeaderLabels(["ID Ruta", "Duración", "Estaciones"])
+        self._configurar_tabla(self.tabla_rutas)
         self.tabla_rutas.itemSelectionChanged.connect(self._controlar_boton_ruta)
         left_section.addWidget(routes_label)
         left_section.addWidget(self.tabla_rutas)
 
         # Contenedor para tablas de horarios y disponibilidad
         schedules_container = QHBoxLayout()
-        
-        # Tabla de horarios
+        schedules_container.setSpacing(10)
+
+        # Tabla de horarios con estilo
         schedules_label = QLabel("Horarios")
+        schedules_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.tabla_horarios = QTableWidget()
-        self.tabla_horarios.setColumnCount(3)  # Añadida columna para nombre del tren
+        self.tabla_horarios.setColumnCount(3)
         self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
+        self._configurar_tabla(self.tabla_horarios)
         self.tabla_horarios.itemSelectionChanged.connect(self._controlar_boton_horario)
-        
-        # Tabla de disponibilidad de trenes
+
+        # Tabla de disponibilidad de trenes con estilo
         availability_label = QLabel("Disponibilidad de Trenes")
+        availability_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.tabla_trenes = QTableWidget()
         self.tabla_trenes.setColumnCount(3)
         self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado"])
-        
-        # Agregar tablas al layout horizontal
+        self._configurar_tabla(self.tabla_trenes)
+
+        # Layouts para las tablas inferiores
         schedules_left = QVBoxLayout()
+        schedules_left.setSpacing(5)
         schedules_left.addWidget(schedules_label)
         schedules_left.addWidget(self.tabla_horarios)
-        
+
         schedules_right = QVBoxLayout()
+        schedules_right.setSpacing(5)
         schedules_right.addWidget(availability_label)
         schedules_right.addWidget(self.tabla_trenes)
-        
+
         schedules_container.addLayout(schedules_left)
         schedules_container.addLayout(schedules_right)
-        
         left_section.addLayout(schedules_container)
 
-        # Contenedor izquierdo
-        left_container = QWidget()
-        left_container.setLayout(left_section)
-        left_container.setMinimumWidth(645)
         main_splitter.addWidget(left_container)
 
-        # Sección derecha: Imagen de la ruta y tabla de asignaciones
-        right_section = QVBoxLayout()
-
-        # Imagen de la ruta
-        self.img_ruta = QLabel("Imagen de la ruta")
-        self.img_ruta.setFixedSize(800, 450)
-        self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        right_section.addWidget(self.img_ruta)
+        # --- Sección derecha ---
+        right_container = QWidget()
+        right_section = QVBoxLayout(right_container)
+        right_section.setContentsMargins(10, 0, 0, 0)
+        right_section.setSpacing(10)
         
-        # Tabla de asignaciones de trenes
+        # Contenedor scroll para la imagen de la ruta
+        img_scroll = QScrollArea()
+        img_scroll.setWidgetResizable(True)
+        img_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        # Imagen de la ruta con borde
+        self.img_ruta = QLabel("Imagen de la ruta")
+        self.img_ruta.setStyleSheet("""
+            QLabel {
+                border: 1px solid #ddd;
+                background-color: white;
+            }
+        """)
+        self.img_ruta.setFixedSize(700, 400)
+        self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.img_ruta.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        
+        # Configurar el scroll area
+        img_scroll.setWidget(self.img_ruta)
+        right_section.addWidget(img_scroll)
+
+        # Tabla de asignaciones con estilo
         asignaciones_label = QLabel("Asignaciones de Trenes")
+        asignaciones_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.tabla_asignaciones = QTableWidget()
         self.tabla_asignaciones.setColumnCount(5)
         self.tabla_asignaciones.setHorizontalHeaderLabels(["ID Asignación", "Tren", "Ruta", "Horario", "Estado"])
-        self.tabla_asignaciones.itemSelectionChanged.connect(self._controlar_boton_asignacion)  # ← Nueva conexión
+        self._configurar_tabla(self.tabla_asignaciones)
+        self.tabla_asignaciones.itemSelectionChanged.connect(self._controlar_boton_asignacion)
         right_section.addWidget(asignaciones_label)
         right_section.addWidget(self.tabla_asignaciones)
 
-        # Contenedor derecho
-        right_container = QWidget()
-        right_container.setLayout(right_section)
         main_splitter.addWidget(right_container)
-
         layout.addWidget(main_splitter)
 
-        # Botones de acción para horarios
+        # --- Botones de acción ---
+        # Estilo base para botones
+        button_style = """
+            QPushButton {
+                padding: 8px 15px;
+                border: none;
+                border-radius: 4px;
+                min-width: 120px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                opacity: 0.9;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """
+
+        # Botones para horarios
         horario_buttons = QHBoxLayout()
+        horario_buttons.setSpacing(10)
+
         self.btn_agregar_horario = QPushButton("Agregar Horario")
+        self.btn_agregar_horario.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #2ecc71;
+                color: white;
+            }
+        """)
         self.btn_agregar_horario.clicked.connect(lambda: self.mostrar_panel(0))
+
         self.btn_editar_horario = QPushButton("Editar Horario")
+        self.btn_editar_horario.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+            }
+        """)
         self.btn_editar_horario.setEnabled(False)
         self.btn_editar_horario.clicked.connect(self.abrir_edicion_horario)
+
         self.btn_eliminar_horario = QPushButton("Eliminar Horario")
+        self.btn_eliminar_horario.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+            }
+        """)
         self.btn_eliminar_horario.setEnabled(False)
         self.btn_eliminar_horario.clicked.connect(self.eliminar_horario)
+
         horario_buttons.addWidget(self.btn_agregar_horario)
         horario_buttons.addWidget(self.btn_editar_horario)
         horario_buttons.addWidget(self.btn_eliminar_horario)
         layout.addLayout(horario_buttons)
 
-        # Botones de acción para rutas
+        # Botones para rutas
         ruta_buttons = QHBoxLayout()
+        ruta_buttons.setSpacing(10)
+
         self.btn_agregar_ruta = QPushButton("Agregar Ruta")
+        self.btn_agregar_ruta.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #2ecc71;
+                color: white;
+            }
+        """)
         self.btn_agregar_ruta.clicked.connect(lambda: self.mostrar_panel(1))
+
         self.btn_editar_ruta = QPushButton("Editar Ruta")
+        self.btn_editar_ruta.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+            }
+        """)
         self.btn_editar_ruta.setEnabled(False)
         self.btn_editar_ruta.clicked.connect(self.abrir_edicion_ruta)
+
         self.btn_eliminar_ruta = QPushButton("Eliminar Ruta")
+        self.btn_eliminar_ruta.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+            }
+        """)
         self.btn_eliminar_ruta.setEnabled(False)
         self.btn_eliminar_ruta.clicked.connect(self.eliminar_ruta)
+
         ruta_buttons.addWidget(self.btn_agregar_ruta)
         ruta_buttons.addWidget(self.btn_editar_ruta)
         ruta_buttons.addWidget(self.btn_eliminar_ruta)
         layout.addLayout(ruta_buttons)
 
-        # Botones de acción para asignación de trenes
+        # Botones para asignación de trenes
         asignacion_buttons = QHBoxLayout()
+        asignacion_buttons.setSpacing(10)
+
         self.btn_asignar_tren = QPushButton("Asignar Tren")
+        self.btn_asignar_tren.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #2ecc71;
+                color: white;
+            }
+        """)
         self.btn_asignar_tren.clicked.connect(lambda: self.mostrar_panel(2))
+
         self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
+        self.btn_modificar_asignacion.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #3498db;
+                color: white;
+            }
+        """)
         self.btn_modificar_asignacion.setEnabled(False)
         self.btn_modificar_asignacion.clicked.connect(self.abrir_edicion_asignacion)
+
         self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
+        self.btn_quitar_asignacion.setStyleSheet(button_style + """
+            QPushButton {
+                background-color: #e74c3c;
+                color: white;
+            }
+        """)
         self.btn_quitar_asignacion.setEnabled(False)
-        self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion) 
+        self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion)
+
         asignacion_buttons.addWidget(self.btn_asignar_tren)
         asignacion_buttons.addWidget(self.btn_modificar_asignacion)
         asignacion_buttons.addWidget(self.btn_quitar_asignacion)
@@ -250,6 +371,31 @@ class GestionHorariosRutas(QWidget):
 
         self.setLayout(layout)
     
+    def _configurar_tabla(self, tabla):
+        """Configura el estilo común para todas las tablas"""
+        tabla.verticalHeader().setVisible(False)
+        tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tabla.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 6px;
+                border-bottom: 1px solid #eee;
+            }
+        """)
+        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+    
     def _controlar_boton_asignacion(self):
         """Habilita/deshabilita los botones según la selección"""
         hay_seleccion = self.tabla_asignaciones.currentRow() >= 0
@@ -289,6 +435,14 @@ class GestionHorariosRutas(QWidget):
         else:
             self.btn_eliminar_horario.setEnabled(True)
             self.btn_editar_horario.setEnabled(True)
+            
+    def _controlar_boton_asignacion(self):
+        if self.tabla_asignaciones.currentRow() == -1:
+            self.btn_quitar_asignacion.setEnabled(False)
+            self.btn_modificar_asignacion.setEnabled(False)
+        else:
+            self.btn_quitar_asignacion.setEnabled(True)
+            self.btn_modificar_asignacion.setEnabled(True)
 
     def mostrar_panel(self, index):
         """Muestra el panel de asignación y el scroll"""
@@ -433,7 +587,7 @@ class GestionHorariosRutas(QWidget):
             pixmap.loadFromData(image_bytes)  # Cargar la imagen desde los bytes
 
             # Ajustar el tamaño de la imagen para que no distorsione el layout
-            pixmap = pixmap.scaled(800, 600, Qt.AspectRatioMode.KeepAspectRatio)
+            pixmap = pixmap.scaled(700, 400, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
 
             self.img_ruta.setPixmap(pixmap)  # Establecer la imagen en el QLabel
         else:
@@ -575,6 +729,8 @@ class GestionHorariosRutas(QWidget):
             except Exception as e:
                 self.db.connection.rollback()
                 QMessageBox.critical(self, "Error", f"Error al eliminar: {str(e)}")
+                
+        self.bloquear_botones_asignacion()
 
     
     def abrir_edicion_asignacion(self):

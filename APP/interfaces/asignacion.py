@@ -17,102 +17,213 @@ class InterfazAsignacion(QWidget):
         self.validar_ventana_15min = True
         self.cargar_datos()
         
-
     def init_ui(self):
-        self.setFixedSize(350, 280)  # Tamaño fijo inicial
+        self.setFixedSize(700, 400)  # Aumentamos el ancho total para mejor distribución
 
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)  # Márgenes uniformes
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)  # Reducimos el espacio entre paneles
 
-        # Panel izquierdo (controles)
+        # Panel izquierdo (controles) - Ocupará aproximadamente el 60% del espacio
         panel_controles = QFrame()
-        panel_controles.setFixedWidth(300)  # Ancho fijo
         controles_layout = QVBoxLayout(panel_controles)
-        controles_layout.setSpacing(12)  # Espaciado vertical entre elementos
-
-        # Configuración común para los controles
-        control_style = """
-            QComboBox, QLabel {
-                margin-bottom: 8px;
-                min-height: 25px;
+        controles_layout.setContentsMargins(15, 15, 15, 15)
+        controles_layout.setSpacing(20)
+    
+        # Título del panel
+        titulo = QLabel("Asignar Unidad a Ruta")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding-bottom: 10px;
+                border-bottom: 2px solid #3498db;
+                margin-bottom: 15px;
             }
-        """
-
+        """)
+        controles_layout.addWidget(titulo)
+    
         # Mensaje de estado
         self.label_mensaje = QLabel("Seleccione una ruta para comenzar")
         self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.label_mensaje.setStyleSheet("font-size: 12px; color: black;")
+        self.label_mensaje.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                color: #7f8c8d;
+                margin-bottom: 15px;
+            }
+        """)
         controles_layout.addWidget(self.label_mensaje)
-
+    
         # Sección de Ruta
-        ruta_layout = QHBoxLayout()
-        ruta_layout.setSpacing(10)
-        ruta_layout.addWidget(QLabel("Ruta:"))
+        ruta_layout = QVBoxLayout()
+        ruta_layout.setSpacing(5)
+        lbl_ruta = QLabel("Ruta:")
+        lbl_ruta.setStyleSheet("font-weight: bold; font-size: 14px;")
+        ruta_layout.addWidget(lbl_ruta)
+        
         self.combo_ruta = QComboBox()
-        self.combo_ruta.setStyleSheet(control_style)
+        self.combo_ruta.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 30px;
+            }
+        """)
         self.combo_ruta.addItem("Seleccionar")
         self.cargar_rutas()
         self.combo_ruta.currentIndexChanged.connect(self.on_ruta_selected)
         ruta_layout.addWidget(self.combo_ruta)
         controles_layout.addLayout(ruta_layout)
-
+    
+        # Separador
+        separador1 = QFrame()
+        separador1.setFrameShape(QFrame.Shape.HLine)
+        separador1.setStyleSheet("color: #eee;")
+        controles_layout.addWidget(separador1)
+    
         # Sección de Horario
-        horario_layout = QHBoxLayout()
-        horario_layout.setSpacing(10)
-        horario_layout.addWidget(QLabel("Horario:"))
+        horario_layout = QVBoxLayout()
+        horario_layout.setSpacing(5)
+        lbl_horario = QLabel("Horario:")
+        lbl_horario.setStyleSheet("font-weight: bold; font-size: 14px;")
+        horario_layout.addWidget(lbl_horario)
+        
         self.combo_horario = QComboBox()
-        self.combo_horario.setStyleSheet(control_style)
+        self.combo_horario.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 30px;
+            }
+        """)
         self.combo_horario.addItem("Seleccione una ruta primero")
-        self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)    
+        self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)
         horario_layout.addWidget(self.combo_horario)
         controles_layout.addLayout(horario_layout)
-
-        # Tren
-        tren_layout = QHBoxLayout()
-        tren_layout.setSpacing(10)
-        tren_layout.addWidget(QLabel("Unidad:"))
+    
+        # Separador
+        separador2 = QFrame()
+        separador2.setFrameShape(QFrame.Shape.HLine)
+        separador2.setStyleSheet("color: #eee;")
+        controles_layout.addWidget(separador2)
+    
+        # Sección de Tren
+        tren_layout = QVBoxLayout()
+        tren_layout.setSpacing(5)
+        lbl_tren = QLabel("Unidad:")
+        lbl_tren.setStyleSheet("font-weight: bold; font-size: 14px;")
+        tren_layout.addWidget(lbl_tren)
+        
         self.combo_tren = QComboBox()
-        self.combo_tren.setStyleSheet(control_style)
+        self.combo_tren.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 30px;
+            }
+        """)
         self.combo_tren.addItem("Seleccione un horario primero")
         tren_layout.addWidget(self.combo_tren)
         controles_layout.addLayout(tren_layout)
-
+    
+        controles_layout.addStretch()
+    
         # Botones
         botones_layout = QHBoxLayout()
-        botones_layout.addStretch()
-
+        botones_layout.setSpacing(15)  # Más espacio entre botones
+    
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 90px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         #self.btn_cancelar.clicked.connect(self.regresar_home)
         botones_layout.addWidget(self.btn_cancelar)
-    
+        
         self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 90px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         self.btn_consultar.clicked.connect(self.validar_asignacion)
         botones_layout.addWidget(self.btn_consultar)
-
+    
         self.btn_confirmar = QPushButton("Asignar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 90px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
         self.btn_confirmar.clicked.connect(self.confirmar_asignacion)
         botones_layout.addWidget(self.btn_confirmar)
-
+    
         controles_layout.addLayout(botones_layout)
-
-        # Panel derecho (imagen)
+        
+        # Añadimos el panel de controles con stretch factor 1
+        main_layout.addWidget(panel_controles, 6)  # 60% del espacio
+    
+        # Panel derecho (imagen) - Ocupará aproximadamente el 40% del espacio
         self.panel_imagen = QScrollArea()
         self.panel_imagen.setWidgetResizable(True)
-        self.panel_imagen.setMinimumWidth(200)
+        self.panel_imagen.setMinimumWidth(300)  # Ancho aumentado
+        self.panel_imagen.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: white;
+            }
+        """)
         self.panel_imagen.hide()  # Oculto inicialmente
-
+    
         self.img_container = QWidget()
         self.img_layout = QVBoxLayout(self.img_container)
+        self.img_layout.setContentsMargins(10, 10, 10, 10)
         self.img_ruta = QLabel()
         self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.img_ruta.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.img_layout.addWidget(self.img_ruta)
         self.panel_imagen.setWidget(self.img_container)
-
-        main_layout.addWidget(panel_controles)
-        main_layout.addSpacing(20)  # Espacio adicional para mover la imagen a la derecha
-        main_layout.addWidget(self.panel_imagen)
+    
+        main_layout.addWidget(self.panel_imagen, 4)  # Más espacio para la imagen
+    
+        self.setLayout(main_layout)
 
     def cargar_datos(self):
         """Recarga los datos de la interfaz"""
@@ -594,102 +705,211 @@ class InterfazModificarAsignacion(QWidget):
         self.id_asignacion = None
         self.init_ui()
         self.validar_ventana_15min = True
-        
+
     def init_ui(self):
-        self.setFixedSize(350, 280)  # Tamaño fijo inicial
+        self.setFixedSize(700, 400)  # Mismo tamaño que el panel de agregar
 
         main_layout = QHBoxLayout(self)
-        main_layout.setContentsMargins(15, 15, 15, 15)  # Márgenes uniformes
-        main_layout.setSpacing(15)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)  # Mismo espaciado
 
-        # Panel izquierdo (controles)
+        # Panel izquierdo (controles) - 60% del espacio
         panel_controles = QFrame()
-        panel_controles.setFixedWidth(300)  # Ancho fijo
         controles_layout = QVBoxLayout(panel_controles)
-        controles_layout.setSpacing(12)  # Espaciado vertical entre elementos
+        controles_layout.setContentsMargins(15, 15, 15, 15)
+        controles_layout.setSpacing(20)  # Mismo espaciado vertical
 
-        # Configuración común para los controles
-        control_style = """
-            QComboBox, QLabel {
-                margin-bottom: 8px;
-                min-height: 25px;
+        # Título del panel (cambiado a "Modificar Asignación")
+        titulo = QLabel("Modificar Asignación")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding-bottom: 10px;
+                border-bottom: 2px solid #3498db;
+                margin-bottom: 15px;
             }
-        """
+        """)
+        controles_layout.addWidget(titulo)
 
         # Mensaje de estado
         self.label_mensaje = QLabel("Seleccione los nuevos valores")
         self.label_mensaje.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        self.label_mensaje.setStyleSheet("font-size: 12px; color: black;")
+        self.label_mensaje.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                color: #7f8c8d;
+                margin-bottom: 15px;
+            }
+        """)
         controles_layout.addWidget(self.label_mensaje)
 
         # Sección de Ruta
-        ruta_layout = QHBoxLayout()
-        ruta_layout.setSpacing(10)
-        ruta_layout.addWidget(QLabel("Ruta:"))
+        ruta_layout = QVBoxLayout()
+        ruta_layout.setSpacing(5)
+        lbl_ruta = QLabel("Ruta:")
+        lbl_ruta.setStyleSheet("font-weight: bold; font-size: 14px;")
+        ruta_layout.addWidget(lbl_ruta)
+
         self.combo_ruta = QComboBox()
-        self.combo_ruta.setStyleSheet(control_style)
+        self.combo_ruta.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 30px;
+            }
+        """)
         self.combo_ruta.addItem("Cargando...")
         self.cargar_rutas()
         self.combo_ruta.currentIndexChanged.connect(self.on_ruta_selected)
         ruta_layout.addWidget(self.combo_ruta)
         controles_layout.addLayout(ruta_layout)
 
+        # Separador
+        separador1 = QFrame()
+        separador1.setFrameShape(QFrame.Shape.HLine)
+        separador1.setStyleSheet("color: #eee;")
+        controles_layout.addWidget(separador1)
+
         # Sección de Horario
-        horario_layout = QHBoxLayout()
-        horario_layout.setSpacing(10)
-        horario_layout.addWidget(QLabel("Horario:"))
+        horario_layout = QVBoxLayout()
+        horario_layout.setSpacing(5)
+        lbl_horario = QLabel("Horario:")
+        lbl_horario.setStyleSheet("font-weight: bold; font-size: 14px;")
+        horario_layout.addWidget(lbl_horario)
+
         self.combo_horario = QComboBox()
-        self.combo_horario.setStyleSheet(control_style)
+        self.combo_horario.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 30px;
+            }
+        """)
         self.combo_horario.addItem("Seleccione una ruta primero")
-        self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)    
+        self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)
         horario_layout.addWidget(self.combo_horario)
         controles_layout.addLayout(horario_layout)
 
-        # Tren
-        tren_layout = QHBoxLayout()
-        tren_layout.setSpacing(10)
-        tren_layout.addWidget(QLabel("Unidad:"))
+        # Separador
+        separador2 = QFrame()
+        separador2.setFrameShape(QFrame.Shape.HLine)
+        separador2.setStyleSheet("color: #eee;")
+        controles_layout.addWidget(separador2)
+
+        # Sección de Tren
+        tren_layout = QVBoxLayout()
+        tren_layout.setSpacing(5)
+        lbl_tren = QLabel("Unidad:")
+        lbl_tren.setStyleSheet("font-weight: bold; font-size: 14px;")
+        tren_layout.addWidget(lbl_tren)
+
         self.combo_tren = QComboBox()
-        self.combo_tren.setStyleSheet(control_style)
+        self.combo_tren.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 30px;
+            }
+        """)
         self.combo_tren.addItem("Seleccione un horario primero")
         tren_layout.addWidget(self.combo_tren)
         controles_layout.addLayout(tren_layout)
 
-        # Botones
+        controles_layout.addStretch()
+
+        # Botones (mismo estilo pero con "Modificar" en naranja)
         botones_layout = QHBoxLayout()
-        botones_layout.addStretch()
+        botones_layout.setSpacing(15)
 
         self.btn_cancelar = QPushButton("Cancelar")
-        self.btn_cancelar.clicked.connect(self.ocultar_panel_modificar)
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 90px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         botones_layout.addWidget(self.btn_cancelar)
-    
+
         self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 90px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         self.btn_consultar.clicked.connect(self.validar_modificacion)
         botones_layout.addWidget(self.btn_consultar)
 
         self.btn_confirmar = QPushButton("Modificar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 90px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
         self.btn_confirmar.clicked.connect(self.confirmar_modificacion)
         botones_layout.addWidget(self.btn_confirmar)
 
         controles_layout.addLayout(botones_layout)
 
-        # Panel derecho (imagen)
+        # Panel derecho (imagen) - 40% del espacio
         self.panel_imagen = QScrollArea()
         self.panel_imagen.setWidgetResizable(True)
-        self.panel_imagen.setMinimumWidth(200)
-        self.panel_imagen.hide()  # Oculto inicialmente
+        self.panel_imagen.setMinimumWidth(300)
+        self.panel_imagen.setStyleSheet("""
+            QScrollArea {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background: white;
+            }
+        """)
+        self.panel_imagen.hide()
 
         self.img_container = QWidget()
         self.img_layout = QVBoxLayout(self.img_container)
+        self.img_layout.setContentsMargins(10, 10, 10, 10)
         self.img_ruta = QLabel()
         self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.img_ruta.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.img_layout.addWidget(self.img_ruta)
         self.panel_imagen.setWidget(self.img_container)
 
-        main_layout.addWidget(panel_controles)
-        main_layout.addSpacing(20)  # Espacio adicional para mover la imagen a la derecha
-        main_layout.addWidget(self.panel_imagen)
+        main_layout.addWidget(panel_controles, 6)  # 60% del espacio
+        main_layout.addWidget(self.panel_imagen, 4)  # 40% del espacio
+
+        self.setLayout(main_layout)
 
     def set_asignacion(self, id_asignacion):
         """Carga los datos de la asignación basada en el ID de asignación"""
@@ -732,9 +952,9 @@ class InterfazModificarAsignacion(QWidget):
             return False
 
 
-    def ocultar_panel_modificar(self):
-        """Oculta el panel de modificación"""
-        self.hide()
+    #def ocultar_panel_modificar(self):
+    #    """Oculta el panel de modificación"""
+    #    self.hide()
 
     def cargar_datos(self):
         """Recarga los datos de la interfaz"""

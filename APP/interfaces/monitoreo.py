@@ -1,4 +1,4 @@
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame, QGridLayout
+from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame, QGridLayout, QScrollArea, QHeaderView
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
 from datetime import datetime
@@ -20,28 +20,71 @@ class MonitoreoInterface(QWidget):
         self.load_real_time_data()
     
     def initUI(self):
-        # Layout principal
-        layout = QVBoxLayout()
-        
-        # Crear encabezado con título
-        header_layout = QHBoxLayout()
-        label = QLabel("Monitoreo en Tiempo Real")
-        label.setFont(QFont('Arial', 14, QFont.Weight.Bold))
-        
-        # Alineación de los widgets
-        header_layout.addWidget(label)
-        header_layout.setContentsMargins(0, 0, 0, 10)
-        header_layout.setSpacing(20)
+        # Layout principal con scroll (como en la interfaz de mejora)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
 
-        # Agregar el encabezado al layout
-        layout.addLayout(header_layout)
+        # Widget contenedor principal
+        self.main_container = QWidget()
+        main_layout = QVBoxLayout(self.main_container)
+        main_layout.setContentsMargins(20, 20, 20, 20)
+        main_layout.setSpacing(20)
 
-        # Crear tabla de asignaciones de trenes
+        # Configurar el scroll area
+        self.scroll_area.setWidget(self.main_container)
+        self.setLayout(QVBoxLayout(self))
+        self.layout().addWidget(self.scroll_area)
+        self.layout().setContentsMargins(0, 0, 0, 0)
+
+        # Título con el estilo de la interfaz de mejora
+        header = QLabel("Monitoreo en Tiempo Real")
+        header.setStyleSheet("""
+            QLabel {
+                font-size: 22px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 10px 0;
+                border-bottom: 2px solid #3498db;
+            }
+        """)
+        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        main_layout.addWidget(header)
+
+        # Sección de tabla de asignaciones
         label_estado = QLabel("Asignaciones de Trenes")
-        label_estado.setFont(QFont('Arial', 12))
-        layout.addWidget(label_estado)
-        
+        label_estado.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding-bottom: 5px;
+            }
+        """)
+        main_layout.addWidget(label_estado)
+
+        # Configuración de la tabla (manteniendo los mismos estilos)
         self.tabla_trenes = QTableWidget()
+        self.tabla_trenes.setStyleSheet("""
+            QTableWidget {
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                background-color: white;
+                alternate-background-color: #f8f9fa;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 8px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 6px;
+                border-bottom: 1px solid #eee;
+            }
+        """)
+
         self.tabla_trenes.setColumnCount(8)
         self.tabla_trenes.setHorizontalHeaderLabels([
             "ID Asignación", 
@@ -53,24 +96,65 @@ class MonitoreoInterface(QWidget):
             "Llegada Programada", 
             "Estado"
         ])
+
+        # Ajustes de tabla mejorados
+        self.tabla_trenes.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         self.tabla_trenes.setWordWrap(True)
-        layout.addWidget(self.tabla_trenes)
-        
-        # Panel de detalles (inicialmente vacío)
+        self.tabla_trenes.setAlternatingRowColors(True)
+        self.tabla_trenes.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
+        self.tabla_trenes.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
+        self.tabla_trenes.verticalHeader().setVisible(False)
+        self.tabla_trenes.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+
+        main_layout.addWidget(self.tabla_trenes)
+
+        # Panel de detalles (modificado para manejar el fixedHeight correctamente)
         self.detalle_panel = QFrame()
-        self.detalle_panel.setFrameShape(QFrame.Shape.StyledPanel)
-        self.detalle_layout = QVBoxLayout(self.detalle_panel)
-        layout.addWidget(self.detalle_panel)
-        
-        # Ocultar panel inicialmente
+        self.detalle_panel.setStyleSheet("""
+            QFrame {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        self.detalle_panel.setFixedHeight(400)  # Altura reducida pero funcional
+
+        # Creamos un scroll area interno para el panel de detalles
+        self.detalle_scroll = QScrollArea()
+        self.detalle_scroll.setWidgetResizable(True)
+        self.detalle_scroll.setFrameShape(QFrame.Shape.NoFrame)
+
+        # Widget contenedor para el contenido del detalle
+        self.detalle_content = QWidget()
+        self.detalle_layout = QVBoxLayout(self.detalle_content)
+        self.detalle_layout.setContentsMargins(15, 15, 15, 15)
+        self.detalle_layout.setSpacing(15)
+
+        # Configuramos el scroll area
+        self.detalle_scroll.setWidget(self.detalle_content)
+
+        # Layout para el panel que contendrá el scroll area
+        panel_layout = QVBoxLayout(self.detalle_panel)
+        panel_layout.setContentsMargins(0, 0, 0, 0)
+        panel_layout.addWidget(self.detalle_scroll)
+
+        # Título del panel de detalles
+        detalle_titulo = QLabel("Detalles de Asignación")
+        detalle_titulo.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding-bottom: 5px;
+            }
+        """)
+        self.detalle_layout.addWidget(detalle_titulo)
+
+        main_layout.addWidget(self.detalle_panel)
         self.detalle_panel.setVisible(False)
 
-        self.setLayout(layout)
-
-        # Conectar selección de tabla
+        # Conexiones originales
         self.tabla_trenes.cellClicked.connect(self.on_row_selected)
-
-        # Timer de actualización en tiempo real
         self.timer_progreso = QTimer()
         self.timer_progreso.timeout.connect(self.actualizar_barra_tiempo_real)
 

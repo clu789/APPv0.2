@@ -6,6 +6,7 @@ from interfaces.asignacion import InterfazAsignacion, InterfazModificarAsignacio
 from PyQt6.QtGui import QIcon, QFont
 from base_de_datos.db import DatabaseConnection
 import oracledb
+from utils import obtener_ruta_recurso
 
 class InterfazHome(QWidget):
     def __init__(self, main_window, db, username):
@@ -45,7 +46,7 @@ class InterfazHome(QWidget):
         top_layout.setSpacing(20)
         
         self.btn_correo = QPushButton()
-        self.btn_correo.setIcon(QIcon("APP/icons/alert.png"))
+        self.btn_correo.setIcon(QIcon(obtener_ruta_recurso("APP/icons/alert.png")))
         self.btn_correo.setFixedSize(40, 40)
         self.btn_correo.clicked.connect(lambda: self.main_window.cambiar_interfaz(3))
         top_layout.addWidget(self.btn_correo)

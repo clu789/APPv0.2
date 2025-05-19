@@ -21,64 +21,102 @@ class LoginInterface(QWidget):
         self.main_window = main_window
 
         self.setWindowTitle("Inicio de sesión - TRACKSYNC")
-        self.setGeometry(150, 100, 1300, 700)
+        self.setGeometry(600, 100, 400, 700)
         
         self.db = db
 
         self.initUI()
 
     def initUI(self):
+        # Layout principal con márgenes y espaciado consistentes
         layout_principal = QVBoxLayout()
+        layout_principal.setContentsMargins(40, 40, 40, 40)
+        layout_principal.setSpacing(30)
 
-        # Logo y título
-        logo_titulo_layout = QHBoxLayout()
+        # Contenedor para el formulario (similar al de editar estación)
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(20, 20, 20, 20)
+        form_layout.setSpacing(25)
 
+        # Logo centrado
         self.logo = QLabel()
-        self.logo.setFixedSize(400, 200)
-        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(400, 200, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(300, 150, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        form_layout.addWidget(self.logo)
 
-        self.titulo = QLabel("TRACKSYNC")
-        self.titulo.setFont(QFont("Arial", 50, QFont.Weight.Bold))
-        self.titulo.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        # Título con el mismo estilo que editar estación
+        titulo = QLabel("TRACKSYNC")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 28px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding-bottom: 10px;
+                border-bottom: 2px solid #3498db;
+            }
+        """)
+        titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        form_layout.addWidget(titulo)
 
-        logo_titulo_layout.addWidget(self.logo)
-        logo_titulo_layout.addWidget(self.titulo)
-        logo_titulo_layout.setSpacing(100)
-
-        layout_principal.addLayout(logo_titulo_layout)
-
-        fuente_grande = QFont("Arial", 35)  # Tamaño 14 o más si quieres
-        
         # Campo de usuario
         self.label_usuario = QLabel("Usuario:")
-        self.label_usuario.setFont(fuente_grande)
+        self.label_usuario.setStyleSheet("font-weight: bold; font-size: 14px;")
+
         self.input_usuario = LineEditSeleccion()
-        self.input_usuario.setFont(fuente_grande)
-        layout_principal.addWidget(self.label_usuario)
-        layout_principal.addWidget(self.input_usuario)
+        self.input_usuario.setStyleSheet("""
+            QLineEdit {
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 40px;
+            }
+        """)
+        form_layout.addWidget(self.label_usuario)
+        form_layout.addWidget(self.input_usuario)
 
         # Campo de contraseña
         self.label_contrasena = QLabel("Contraseña:")
-        self.label_contrasena.setFont(fuente_grande)
+        self.label_contrasena.setStyleSheet("font-weight: bold; font-size: 14px;")
+
         self.input_contrasena = LineEditSeleccion()
-        self.input_contrasena.setEchoMode(QLineEdit.EchoMode.Password)  # Oculta caracteres
-        self.input_contrasena.setFont(fuente_grande)
-        layout_principal.addWidget(self.label_contrasena)
-        layout_principal.addWidget(self.input_contrasena)
+        self.input_contrasena.setStyleSheet("""
+            QLineEdit {
+                padding: 12px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+                min-height: 40px;
+            }
+        """)
+        self.input_contrasena.setEchoMode(QLineEdit.EchoMode.Password)
+        form_layout.addWidget(self.label_contrasena)
+        form_layout.addWidget(self.input_contrasena)
 
-        # Botón de iniciar sesión
+        # Botón de login con el mismo estilo que editar estación
         self.boton_login = QPushButton("Iniciar sesión")
-        self.boton_login.setFont(fuente_grande)
-        self.boton_login.setFixedHeight(50)
-        layout_principal.addWidget(self.boton_login)
+        self.boton_login.setStyleSheet("""
+            QPushButton {
+                padding: 12px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-size: 14px;
+                font-weight: bold;
+                min-height: 45px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+        form_layout.addWidget(self.boton_login)
 
-        # Alinear todo al centro verticalmente
-        layout_principal.setAlignment(Qt.AlignmentFlag.AlignTop)
-        layout_principal.setSpacing(35)
-        layout_principal.setContentsMargins(40, 20, 40, 20)
-
+        layout_principal.addWidget(form_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout_principal)
+
+        # Conexiones se mantienen exactamente igual
         self.intentos_login = 0
         self.boton_login.clicked.connect(self.verificar_credenciales)
         self.input_usuario.returnPressed.connect(self.boton_login.click)

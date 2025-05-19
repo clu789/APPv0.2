@@ -13,34 +13,136 @@ class InterfazAgregarHorario(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        # Layout principal con márgenes y espaciado
         layout = QVBoxLayout()
-
-        # Etiquetas y campos de entrada
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+    
+        # Título del panel
+        titulo = QLabel("Agregar Nuevo Horario")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+                border-bottom: 2px solid #3498db;
+                margin-bottom: 10px;
+            }
+        """)
+        layout.addWidget(titulo)
+    
+        # Contenedor para el formulario
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(10, 10, 10, 10)
+        form_layout.setSpacing(15)
+    
+        # Campo Hora de Salida
         self.lbl_salida = QLabel("Hora de salida programada (HH:MM):")
+        self.lbl_salida.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.input_salida = QLineEdit()
+        self.input_salida.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+        self.input_salida.setPlaceholderText("Ejemplo: 08:30")
+        form_layout.addWidget(self.lbl_salida)
+        form_layout.addWidget(self.input_salida)
+    
+        # Campo Hora de Llegada
         self.lbl_llegada = QLabel("Hora de llegada programada (HH:MM):")
+        self.lbl_llegada.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.input_llegada = QLineEdit()
-
-        layout.addWidget(self.lbl_salida)
-        layout.addWidget(self.input_salida)
-        layout.addWidget(self.lbl_llegada)
-        layout.addWidget(self.input_llegada)
-
-        # Botones
-        botones_layout = QHBoxLayout()
+        self.input_llegada.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+        self.input_llegada.setPlaceholderText("Ejemplo: 10:15")
+        form_layout.addWidget(self.lbl_llegada)
+        form_layout.addWidget(self.input_llegada)
+    
+        layout.addWidget(form_container)
+    
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 10, 0, 0)
+        botones_layout.setSpacing(15)
+    
+        # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+    
+        # Botón Consultar
         self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+    
+        # Botón Confirmar
         self.btn_confirmar = QPushButton("Confirmar")
-
-        self.btn_cancelar.clicked.connect(self.cancelar)
-        self.btn_consultar.clicked.connect(self.consultar)
-        self.btn_confirmar.clicked.connect(self.confirmar)
-
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+    
+        # Centrar botones
+        botones_layout.addStretch()
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addWidget(self.btn_consultar)
         botones_layout.addWidget(self.btn_confirmar)
-
-        layout.addLayout(botones_layout)
+        botones_layout.addStretch()
+    
+        layout.addWidget(botones_container)
+    
+        # Conexiones (se mantienen igual)
+        self.btn_cancelar.clicked.connect(self.cancelar)
+        self.btn_consultar.clicked.connect(self.consultar)
+        self.btn_confirmar.clicked.connect(self.confirmar)
+    
         self.setLayout(layout)
 
     def cancelar(self):
@@ -147,36 +249,149 @@ class InterfazEditarHorario(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        # Layout principal con márgenes y espaciado
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
-        # Etiquetas y campos de entrada
+        # Título del panel
+        titulo = QLabel("Editar Horario Existente")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+                border-bottom: 2px solid #3498db;
+                margin-bottom: 10px;
+            }
+        """)
+        layout.addWidget(titulo)
+
+        # Mensaje informativo
         self.lbl_info = QLabel("Selecciona el horario a editar de la lista superior.")
-        self.lbl_salida = QLabel("Hora de salida programada (HH:MM):")
-        self.input_salida = QLineEdit()
-        self.lbl_llegada = QLabel("Hora de llegada programada (HH:MM):")
-        self.input_llegada = QLineEdit()
-
+        self.lbl_info.setStyleSheet("""
+            QLabel {
+                font-size: 14px;
+                color: #7f8c8d;
+                padding: 5px;
+                background-color: #f8f9fa;
+                border-radius: 4px;
+            }
+        """)
         layout.addWidget(self.lbl_info)
-        layout.addWidget(self.lbl_salida)
-        layout.addWidget(self.input_salida)
-        layout.addWidget(self.lbl_llegada)
-        layout.addWidget(self.input_llegada)
 
-        # Botones
-        botones_layout = QHBoxLayout()
+        # Contenedor para el formulario
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(10, 10, 10, 10)
+        form_layout.setSpacing(15)
+
+        # Campo Hora de Salida
+        self.lbl_salida = QLabel("Hora de salida programada (HH:MM):")
+        self.lbl_salida.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.input_salida = QLineEdit()
+        self.input_salida.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+        self.input_salida.setPlaceholderText("Ejemplo: 08:30")
+        form_layout.addWidget(self.lbl_salida)
+        form_layout.addWidget(self.input_salida)
+
+        # Campo Hora de Llegada
+        self.lbl_llegada = QLabel("Hora de llegada programada (HH:MM):")
+        self.lbl_llegada.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.input_llegada = QLineEdit()
+        self.input_llegada.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+        self.input_llegada.setPlaceholderText("Ejemplo: 10:15")
+        form_layout.addWidget(self.lbl_llegada)
+        form_layout.addWidget(self.input_llegada)
+
+        layout.addWidget(form_container)
+
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 10, 0, 0)
+        botones_layout.setSpacing(15)
+
+        # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
-        self.btn_consultar = QPushButton("Consultar")
-        self.btn_confirmar = QPushButton("Actualizar")
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
 
+        # Botón Consultar
+        self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+
+        # Botón Actualizar (en lugar de Confirmar)
+        self.btn_confirmar = QPushButton("Actualizar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+
+        # Centrar botones
+        botones_layout.addStretch()
+        botones_layout.addWidget(self.btn_cancelar)
+        botones_layout.addWidget(self.btn_consultar)
+        botones_layout.addWidget(self.btn_confirmar)
+        botones_layout.addStretch()
+
+        layout.addWidget(botones_container)
+
+        # Conexiones (se mantienen igual)
         self.btn_cancelar.clicked.connect(self.cancelar)
         self.btn_consultar.clicked.connect(self.consultar)
         self.btn_confirmar.clicked.connect(self.confirmar)
 
-        botones_layout.addWidget(self.btn_cancelar)
-        botones_layout.addWidget(self.btn_consultar)
-        botones_layout.addWidget(self.btn_confirmar)
-
-        layout.addLayout(botones_layout)
         self.setLayout(layout)
 
     def cargar_horario(self, datos):

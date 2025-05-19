@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
-    QMessageBox, QFileDialog, QListWidget, QComboBox, QAbstractItemView
+    QMessageBox, QFileDialog, QListWidget, QComboBox, QAbstractItemView, QFrame
 )
 from PyQt6.QtGui import QPixmap
 from PyQt6.QtCore import Qt ,pyqtSignal
@@ -24,66 +24,261 @@ class InterfazAgregarRuta(QWidget):
         self.cargar_estaciones_existentes()
 
     def init_ui(self):
+        # Layout principal con márgenes y espaciado
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
 
-        # Duración estimada
+        # Título del panel
+        titulo = QLabel("Agregar Nueva Ruta")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+                border-bottom: 2px solid #3498db;
+                margin-bottom: 10px;
+            }
+        """)
+        layout.addWidget(titulo)
+
+        # Contenedor para el formulario
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(10, 10, 10, 10)
+        form_layout.setSpacing(15)
+
+        # Campo Duración estimada
         self.lbl_duracion = QLabel("Duración estimada (en minutos):")
+        self.lbl_duracion.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.input_duracion = QLineEdit()
-        layout.addWidget(self.lbl_duracion)
-        layout.addWidget(self.input_duracion)
+        self.input_duracion.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+        form_layout.addWidget(self.lbl_duracion)
+        form_layout.addWidget(self.input_duracion)
+
+        # Separador
+        separador1 = QFrame()
+        separador1.setFrameShape(QFrame.Shape.HLine)
+        separador1.setStyleSheet("color: #eee;")
+        form_layout.addWidget(separador1)
 
         # Selección de estaciones
         self.lbl_estaciones = QLabel("Seleccionar estación:")
+        self.lbl_estaciones.setStyleSheet("font-weight: bold; font-size: 14px;")
+
         self.combo_estaciones = QComboBox()
+        self.combo_estaciones.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+
         self.btn_agregar_estacion = QPushButton("Agregar a ruta")
+        self.btn_agregar_estacion.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         self.btn_agregar_estacion.clicked.connect(self.agregar_estacion_a_ruta)
 
         estaciones_layout = QHBoxLayout()
-        estaciones_layout.addWidget(self.combo_estaciones)
-        estaciones_layout.addWidget(self.btn_agregar_estacion)
-        layout.addWidget(self.lbl_estaciones)
-        layout.addLayout(estaciones_layout)
+        estaciones_layout.addWidget(self.combo_estaciones, 4)
+        estaciones_layout.addWidget(self.btn_agregar_estacion, 1)
+        form_layout.addWidget(self.lbl_estaciones)
+        form_layout.addLayout(estaciones_layout)
 
         # Lista de estaciones agregadas
+        form_layout.addWidget(QLabel("Estaciones en orden:"))
+
         self.lista_estaciones = QListWidget()
+        self.lista_estaciones.setStyleSheet("""
+            QListWidget {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
         self.lista_estaciones.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.lista_estaciones.setDefaultDropAction(Qt.DropAction.MoveAction)
-        layout.addWidget(QLabel("Estaciones en orden:"))
-        layout.addWidget(self.lista_estaciones)
+        form_layout.addWidget(self.lista_estaciones)
+
         self.btn_eliminar_estacion = QPushButton("Eliminar estación seleccionada")
+        self.btn_eliminar_estacion.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         self.btn_eliminar_estacion.clicked.connect(self.eliminar_estacion_agregada)
-        layout.addWidget(self.btn_eliminar_estacion)
+        form_layout.addWidget(self.btn_eliminar_estacion)
+
+        # Separador
+        separador2 = QFrame()
+        separador2.setFrameShape(QFrame.Shape.HLine)
+        separador2.setStyleSheet("color: #eee;")
+        form_layout.addWidget(separador2)
 
         # Imagen de la ruta
         self.btn_seleccionar_imagen = QPushButton("Seleccionar imagen")
+        self.btn_seleccionar_imagen.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #9b59b6;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #8e44ad;
+            }
+        """)
         self.btn_seleccionar_imagen.clicked.connect(self.seleccionar_imagen)
+
         self.lbl_imagen_ruta = QLabel("No se ha seleccionado imagen")
-        layout.addWidget(self.btn_seleccionar_imagen)
-        layout.addWidget(self.lbl_imagen_ruta)
+        self.lbl_imagen_ruta.setStyleSheet("font-size: 13px; color: #7f8c8d;")
+        form_layout.addWidget(self.btn_seleccionar_imagen)
+        form_layout.addWidget(self.lbl_imagen_ruta)
+
+        # Separador
+        separador3 = QFrame()
+        separador3.setFrameShape(QFrame.Shape.HLine)
+        separador3.setStyleSheet("color: #eee;")
+        form_layout.addWidget(separador3)
 
         # Crear nueva estación
+        form_layout.addWidget(QLabel("Crear nueva estación:"))
+
         self.input_nueva_estacion = QLineEdit()
+        self.input_nueva_estacion.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+
         self.btn_crear_estacion = QPushButton("Crear estación")
+        self.btn_crear_estacion.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
         self.btn_crear_estacion.clicked.connect(self.crear_estacion)
+
         crear_estacion_layout = QHBoxLayout()
-        crear_estacion_layout.addWidget(self.input_nueva_estacion)
-        crear_estacion_layout.addWidget(self.btn_crear_estacion)
-        layout.addWidget(QLabel("Crear nueva estación:"))
-        layout.addLayout(crear_estacion_layout)
+        crear_estacion_layout.addWidget(self.input_nueva_estacion, 4)
+        crear_estacion_layout.addWidget(self.btn_crear_estacion, 1)
+        form_layout.addLayout(crear_estacion_layout)
 
-        # Botones principales
+        layout.addWidget(form_container)
+
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 10, 0, 0)
+        botones_layout.setSpacing(15)
+
+        # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
-        self.btn_consultar = QPushButton("Consultar")
-        self.btn_confirmar = QPushButton("Confirmar")
-        self.btn_cancelar.clicked.connect(self.cancelar)
-        self.btn_consultar.clicked.connect(self.consultar)
-        self.btn_confirmar.clicked.connect(self.confirmar)
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
 
-        botones_layout = QHBoxLayout()
+        # Botón Consultar
+        self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+
+        # Botón Confirmar
+        self.btn_confirmar = QPushButton("Confirmar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+
+        # Centrar botones
+        botones_layout.addStretch()
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addWidget(self.btn_consultar)
         botones_layout.addWidget(self.btn_confirmar)
-        layout.addLayout(botones_layout)
+        botones_layout.addStretch()
+
+        layout.addWidget(botones_container)
+
+        # Conexiones (se mantienen igual)
+        self.btn_cancelar.clicked.connect(self.cancelar)
+        self.btn_consultar.clicked.connect(self.consultar)
+        self.btn_confirmar.clicked.connect(self.confirmar)
 
         self.setLayout(layout)
 
@@ -303,68 +498,266 @@ class InterfazEditarRuta(QWidget):
         self.cargar_estaciones_existentes()
 
     def init_ui(self):
+        # Layout principal con márgenes y espaciado
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Título del panel
+        titulo = QLabel("Editar Ruta Existente")
+        titulo.setStyleSheet("""
+            QLabel {
+                font-size: 18px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+                border-bottom: 2px solid #3498db;
+                margin-bottom: 10px;
+            }
+        """)
+        layout.addWidget(titulo)
+
+        # Mensaje informativo
         self.lbl_info = QLabel("Selecciona la ruta a editar de la lista superior.")
+        self.lbl_info.setStyleSheet("font-size: 14px; color: #7f8c8d;")
         layout.addWidget(self.lbl_info)
 
-        # Duración estimada
+        # Contenedor para el formulario
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(10, 10, 10, 10)
+        form_layout.setSpacing(15)
+
+        # Campo Duración estimada
         self.lbl_duracion = QLabel("Duración estimada (en minutos):")
+        self.lbl_duracion.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.input_duracion = QLineEdit()
-        layout.addWidget(self.lbl_duracion)
-        layout.addWidget(self.input_duracion)
+        self.input_duracion.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+        form_layout.addWidget(self.lbl_duracion)
+        form_layout.addWidget(self.input_duracion)
+
+        # Separador
+        separador1 = QFrame()
+        separador1.setFrameShape(QFrame.Shape.HLine)
+        separador1.setStyleSheet("color: #eee;")
+        form_layout.addWidget(separador1)
 
         # Selección de estaciones
         self.lbl_estaciones = QLabel("Seleccionar estación:")
+        self.lbl_estaciones.setStyleSheet("font-weight: bold; font-size: 14px;")
+
         self.combo_estaciones = QComboBox()
+        self.combo_estaciones.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+
         self.btn_agregar_estacion = QPushButton("Agregar a ruta")
+        self.btn_agregar_estacion.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
         self.btn_agregar_estacion.clicked.connect(self.agregar_estacion_a_ruta)
 
         estaciones_layout = QHBoxLayout()
-        estaciones_layout.addWidget(self.combo_estaciones)
-        estaciones_layout.addWidget(self.btn_agregar_estacion)
-        layout.addWidget(self.lbl_estaciones)
-        layout.addLayout(estaciones_layout)
+        estaciones_layout.addWidget(self.combo_estaciones, 4)
+        estaciones_layout.addWidget(self.btn_agregar_estacion, 1)
+        form_layout.addWidget(self.lbl_estaciones)
+        form_layout.addLayout(estaciones_layout)
 
         # Lista de estaciones agregadas
+        form_layout.addWidget(QLabel("Estaciones en orden:"))
+
         self.lista_estaciones = QListWidget()
+        self.lista_estaciones.setStyleSheet("""
+            QListWidget {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
         self.lista_estaciones.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         self.lista_estaciones.setDefaultDropAction(Qt.DropAction.MoveAction)
-        layout.addWidget(QLabel("Estaciones en orden:"))
-        layout.addWidget(self.lista_estaciones)
+        form_layout.addWidget(self.lista_estaciones)
+
         self.btn_eliminar_estacion = QPushButton("Eliminar estación seleccionada")
+        self.btn_eliminar_estacion.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
         self.btn_eliminar_estacion.clicked.connect(self.eliminar_estacion_agregada)
-        layout.addWidget(self.btn_eliminar_estacion)
+        form_layout.addWidget(self.btn_eliminar_estacion)
+
+        # Separador
+        separador2 = QFrame()
+        separador2.setFrameShape(QFrame.Shape.HLine)
+        separador2.setStyleSheet("color: #eee;")
+        form_layout.addWidget(separador2)
 
         # Imagen de la ruta
         self.btn_seleccionar_imagen = QPushButton("Seleccionar imagen")
+        self.btn_seleccionar_imagen.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #9b59b6;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #8e44ad;
+            }
+        """)
         self.btn_seleccionar_imagen.clicked.connect(self.seleccionar_imagen)
+
         self.lbl_imagen_ruta = QLabel("No se ha seleccionado imagen")
-        layout.addWidget(self.btn_seleccionar_imagen)
-        layout.addWidget(self.lbl_imagen_ruta)
+        self.lbl_imagen_ruta.setStyleSheet("font-size: 13px; color: #7f8c8d;")
+        form_layout.addWidget(self.btn_seleccionar_imagen)
+        form_layout.addWidget(self.lbl_imagen_ruta)
+
+        # Separador
+        separador3 = QFrame()
+        separador3.setFrameShape(QFrame.Shape.HLine)
+        separador3.setStyleSheet("color: #eee;")
+        form_layout.addWidget(separador3)
 
         # Crear nueva estación
+        form_layout.addWidget(QLabel("Crear nueva estación:"))
+
         self.input_nueva_estacion = QLineEdit()
+        self.input_nueva_estacion.setStyleSheet("""
+            QLineEdit {
+                padding: 10px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                font-size: 14px;
+            }
+        """)
+
         self.btn_crear_estacion = QPushButton("Crear estación")
+        self.btn_crear_estacion.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
         self.btn_crear_estacion.clicked.connect(self.crear_estacion)
+
         crear_estacion_layout = QHBoxLayout()
-        crear_estacion_layout.addWidget(self.input_nueva_estacion)
-        crear_estacion_layout.addWidget(self.btn_crear_estacion)
-        layout.addWidget(QLabel("Crear nueva estación:"))
-        layout.addLayout(crear_estacion_layout)
+        crear_estacion_layout.addWidget(self.input_nueva_estacion, 4)
+        crear_estacion_layout.addWidget(self.btn_crear_estacion, 1)
+        form_layout.addLayout(crear_estacion_layout)
 
-        # Botones principales
+        layout.addWidget(form_container)
+
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 10, 0, 0)
+        botones_layout.setSpacing(15)
+
+        # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
-        self.btn_consultar = QPushButton("Consultar")
-        self.btn_confirmar = QPushButton("Actualizar")
-        self.btn_cancelar.clicked.connect(self.cancelar)
-        self.btn_consultar.clicked.connect(self.consultar)
-        self.btn_confirmar.clicked.connect(self.confirmar)
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
 
-        botones_layout = QHBoxLayout()
+        # Botón Consultar
+        self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+
+        # Botón Actualizar (en lugar de Confirmar)
+        self.btn_confirmar = QPushButton("Actualizar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 10px 20px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+
+        # Centrar botones
+        botones_layout.addStretch()
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addWidget(self.btn_consultar)
         botones_layout.addWidget(self.btn_confirmar)
-        layout.addLayout(botones_layout)
+        botones_layout.addStretch()
+
+        layout.addWidget(botones_container)
+
+        # Conexiones (se mantienen igual)
+        self.btn_cancelar.clicked.connect(self.cancelar)
+        self.btn_consultar.clicked.connect(self.consultar)
+        self.btn_confirmar.clicked.connect(self.confirmar)
 
         self.setLayout(layout)
 
