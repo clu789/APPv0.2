@@ -442,7 +442,8 @@ class InterfazHome(QWidget):
             id_horario = str(v[0]) if v[0] is not None else "N/A"
             origen_destino = f"{v[1]} - {v[2]}" if v[1] and v[2] else "N/A"
             horario = f"{v[3]}-{v[4]}" if v[3] and v[4] else "N/A"
-            rastreo = f"{v[5]}-..." if v[5] else "...-..."
+            rastreo = f"{v[5]} - {v[6] if v[6] else '...'}" if v[5] else "... - ..."
+           # rastreo = f"{v[5]}-..." if v[5] else "...-..."
             tren = f"{v[7]} - {v[8]}" if v[7] and v[8] else "N/A"
 
             self.tabla_viajes.setItem(i, 0, QTableWidgetItem(id_horario))

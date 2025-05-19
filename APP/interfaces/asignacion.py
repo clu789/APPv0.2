@@ -15,6 +15,8 @@ class InterfazAsignacion(QWidget):
         self.db = db
         self.init_ui()
         self.validar_ventana_15min = True
+        self.cargar_datos()
+        
 
     def init_ui(self):
         self.setFixedSize(350, 280)  # Tamaño fijo inicial
@@ -112,7 +114,7 @@ class InterfazAsignacion(QWidget):
         main_layout.addSpacing(20)  # Espacio adicional para mover la imagen a la derecha
         main_layout.addWidget(self.panel_imagen)
 
-    def actualizar_datos(self):
+    def cargar_datos(self):
         """Recarga los datos de la interfaz"""
         print("Actualizando datos de InterfazAsignacion")
         self.cargar_rutas()
@@ -121,6 +123,7 @@ class InterfazAsignacion(QWidget):
         self.combo_tren.clear()
         self.combo_tren.addItem("Seleccione un horario primero")
         self.label_mensaje.setText("Seleccione una ruta para comenzar")
+    
 
     def on_ruta_selected(self):
         if self.combo_ruta.currentIndex() > 0:
@@ -533,7 +536,7 @@ class InterfazAsignacion(QWidget):
             )
 
             # Actualizar interfaz
-            self.actualizar_datos()
+            self.cargar_datos()
             self.db.event_manager.update_triggered.emit()
             print('se manda la señar acutalizar') 
 
