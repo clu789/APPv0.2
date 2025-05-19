@@ -100,10 +100,22 @@ class EventManager(QObject):
         
         if not self.eventos_pendientes:
             print("\n[No hay eventos pendientes. Revisando en 1 minuto...]")
-            QTimer.singleShot(60000, self.verificar_eventos)  # Usar verificar_eventos en lugar de cargar directamente
+            QTimer.singleShot(60000, self.verificar_eventos)
             return
         
-        # Resto del método original...
+        evento = self.eventos_pendientes[0]
+        ahora = QTime.currentTime()
+        ms_hasta_evento = ahora.msecsTo(evento.hora_programada)
+        
+        if ms_hasta_evento <= 0:
+            # El evento debería haber ocurrido ya
+            self.ejecutar_evento(evento)
+        else:
+            print(f"\n[Programando próximo evento: {evento.tipo} para {evento.hora_programada.toString('HH:mm:ss')}]")
+            self.current_timer = QTimer()
+            self.current_timer.setSingleShot(True)
+            self.current_timer.timeout.connect(lambda: self.ejecutar_evento(evento))
+            self.current_timer.start(ms_hasta_evento)
 
     def ejecutar_evento(self, evento):
         """Ejecuta el evento (salida o llegada) con manejo seguro de lista vacía"""
@@ -131,36 +143,42 @@ class EventManager(QObject):
 
     def manejar_salida(self, evento):
         """Registra la salida real del tren"""
-        hora_actual = QTime.currentTime()
-        retraso_minutos = max(0, evento.hora_programada.msecsTo(hora_actual) / 60000)
-        
-        # Registrar hora de salida real
-        query = """
-        UPDATE ASIGNACION_TREN
-        SET HORA_SALIDA_REAL = TO_DATE(:hora_actual, 'HH24:MI:SS')
-        WHERE ID_ASIGNACION = :asignacion_id
-        """
-        params = {
-            'asignacion_id': evento.asignacion_id,
-            'hora_actual': hora_actual.toString("HH:mm:ss")
-        }
-        
-        if not self.db.execute_query(query, params):
-            print("[Error] No se pudo registrar la salida")
+        try:
+            hora_actual = QTime.currentTime()
+            print(f"[DEBUG] Intentando registrar salida para asignación {evento.asignacion_id} a las {hora_actual.toString('HH:mm:ss')}")
+            
+            query = """
+            UPDATE ASIGNACION_TREN
+            SET HORA_SALIDA_REAL = TO_DATE(:hora_actual, 'HH24:MI:SS')
+            WHERE ID_ASIGNACION = :asignacion_id
+            """
+            params = {
+                'asignacion_id': evento.asignacion_id,
+                'hora_actual': hora_actual.toString("HH:mm:ss")
+            }
+            
+            if not self.db.execute_query(query, params):
+                print("[ERROR] Falló el execute_query para salida")
+                return False
+            
+            print(f"[✓] Salida registrada exitosamente para asignación {evento.asignacion_id}")
+            
+            # Registrar incidencia si hay retraso > 5 minutos
+            retraso_minutos = max(0, evento.hora_programada.msecsTo(hora_actual) / 60000)
+            if retraso_minutos > 5:
+                self.registrar_incidencia_retraso(evento, retraso_minutos)
+            
+            # Registrar en historial
+            self.registrar_historial(evento, hora_actual)
+            
+            self.db.connection.commit()
+            self.update_triggered.emit()
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR CRÍTICO] en manejar_salida: {str(e)}")
             self.db.connection.rollback()
-            return
-        
-        print(f"[✓] Salida registrada: {hora_actual.toString('HH:mm:ss')}")
-        
-        # Registrar incidencia si hay retraso > 5 minutos
-        if retraso_minutos > 5:
-            self.registrar_incidencia_retraso(evento, retraso_minutos)
-        
-        # Registrar en historial
-        self.registrar_historial(evento, hora_actual)
-        
-        self.db.connection.commit()
-        self.update_triggered.emit()
+            return False
 
     def manejar_llegada(self, evento):
         """Registra la llegada real del tren"""
@@ -325,5 +343,18 @@ class EventManager(QObject):
         porcentaje = min(100, (tiempo_transcurrido / duracion_minutos) * 100)
         
         return round(porcentaje, 1)
+    
+    def verificar_estado_asignacion(self, asignacion_id):
+        """Método de debug para verificar el estado actual en BD"""
+        query = """
+        SELECT 
+            TO_CHAR(HORA_SALIDA_REAL, 'HH24:MI:SS') as salida_real,
+            TO_CHAR(HORA_LLEGADA_REAL, 'HH24:MI:SS') as llegada_real
+        FROM ASIGNACION_TREN
+        WHERE ID_ASIGNACION = :id
+        """
+        resultado = self.db.fetch_one(query, {'id': asignacion_id})
+        print(f"[DEBUG] Estado actual de asignación {asignacion_id}: {resultado}")
+        return resultado
     
 

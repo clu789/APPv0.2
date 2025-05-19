@@ -14,6 +14,9 @@ class InterfazAsignacion(QWidget):
         self.main_window = main_window
         self.db = db
         self.init_ui()
+        self.validar_ventana_15min = True
+        self.cargar_datos()
+        
 
     def init_ui(self):
         self.setFixedSize(350, 280)  # Tamaño fijo inicial
@@ -111,7 +114,7 @@ class InterfazAsignacion(QWidget):
         main_layout.addSpacing(20)  # Espacio adicional para mover la imagen a la derecha
         main_layout.addWidget(self.panel_imagen)
 
-    def actualizar_datos(self):
+    def cargar_datos(self):
         """Recarga los datos de la interfaz"""
         print("Actualizando datos de InterfazAsignacion")
         self.cargar_rutas()
@@ -120,6 +123,7 @@ class InterfazAsignacion(QWidget):
         self.combo_tren.clear()
         self.combo_tren.addItem("Seleccione un horario primero")
         self.label_mensaje.setText("Seleccione una ruta para comenzar")
+    
 
     def on_ruta_selected(self):
         if self.combo_ruta.currentIndex() > 0:
@@ -213,66 +217,227 @@ class InterfazAsignacion(QWidget):
     def cargar_horarios_disponibles(self, id_ruta):
         """Carga los horarios disponibles para la ruta seleccionada"""
         self.combo_horario.clear()
-        self.combo_horario.addItem("Seleccionar")  # Asegura que el primer item esté presente
+        self.combo_horario.addItem("Seleccionar")
         self.label_mensaje.setText("Cargando horarios...")
         
         try:
-            # Obtener duración estimada de la ruta
             duracion = self.obtener_duracion_ruta(id_ruta)
             if not duracion:
                 self.combo_horario.addItem("No hay horarios disponibles")
                 self.label_mensaje.setText("No se pudo obtener duración de la ruta")
                 return
 
-            # Consultar horarios disponibles que no estén asignados
-            query = """
+            # Obtener horarios asignados a esta ruta (solo si la validación está activa)
+            horarios_asignados = []
+            if self.validar_ventana_15min:
+                query_horarios_asignados = """
+                    SELECT H.HORA_SALIDA_PROGRAMADA, H.HORA_LLEGADA_PROGRAMADA
+                    FROM ASIGNACION_TREN A
+                    JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+                    WHERE A.ID_RUTA = :id_ruta
+                    ORDER BY H.HORA_SALIDA_PROGRAMADA
+                """
+                horarios_asignados = self.db.fetch_all(query_horarios_asignados, {"id_ruta": id_ruta})
+
+            # Consultar todos los horarios
+            query_horarios = """
                 SELECT H.ID_HORARIO, 
-                       TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA,
-                       TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA
+                    H.HORA_SALIDA_PROGRAMADA,
+                    H.HORA_LLEGADA_PROGRAMADA,
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA,
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA
                 FROM HORARIO H
-                WHERE NOT EXISTS (
-                    SELECT 1 FROM ASIGNACION_TREN A 
-                    WHERE A.ID_HORARIO = H.ID_HORARIO
-                )
                 ORDER BY H.HORA_SALIDA_PROGRAMADA
             """
+            todos_horarios = self.db.fetch_all(query_horarios)
             
-            horarios = self.db.fetch_all(query)
-            
-            if horarios:
-                for id_horario, salida, llegada in horarios:
-                    self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
-                    # Calcular duración del horario en minutos
-                    salida_dt = datetime.strptime(salida, '%H:%M:%S')
-                    llegada_dt = datetime.strptime(llegada, '%H:%M:%S')
-                    duracion_horario = (llegada_dt - salida_dt).total_seconds() / 60
-                    self.combo_horario.currentIndexChanged.connect(self.on_horario_selected)
+            if todos_horarios:
+                horarios_filtrados = []
+                
+                for id_horario, hora_salida, hora_llegada, salida_str, llegada_str in todos_horarios:
+                    # Verificar duración
+                    duracion_horario = (hora_llegada - hora_salida).total_seconds() / 60
+                    if duracion_horario < duracion:
+                        continue
                     
-                    # Solo mostrar horarios cuya duración sea >= a la duración estimada de la ruta
-                    if duracion_horario >= duracion:
+                    # Verificar si ya está asignado a esta ruta
+                    query_asignado = """
+                        SELECT COUNT(*) FROM ASIGNACION_TREN 
+                        WHERE ID_HORARIO = :id_horario AND ID_RUTA = :id_ruta
+                    """
+                    asignado = self.db.fetch_one(query_asignado, {
+                        "id_horario": id_horario,
+                        "id_ruta": id_ruta
+                    })
+                    if asignado and asignado[0] > 0:
+                        continue
+                    
+                    # Validación opcional de 15 minutos
+                    if self.validar_ventana_15min:
+                        valido = True
+                        for asignado_salida, asignado_llegada in horarios_asignados:
+                            if (abs((hora_salida - asignado_salida).total_seconds()) < 15 * 60 or
+                                abs((hora_salida - asignado_llegada).total_seconds()) < 15 * 60 or
+                                abs((hora_llegada - asignado_salida).total_seconds()) < 15 * 60 or
+                                abs((hora_llegada - asignado_llegada).total_seconds()) < 15 * 60):
+                                valido = False
+                                break
+                        if not valido:
+                            continue
+                    
+                    horarios_filtrados.append((id_horario, salida_str, llegada_str))
+                
+                # Mostrar resultados
+                if horarios_filtrados:
+                    for id_horario, salida, llegada in horarios_filtrados:
                         self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
-                
-                if self.combo_horario.count() > 1:  # Si hay más de la opción "Seleccionar"
-                    self.label_mensaje.setText(f"{self.combo_horario.count()-1} horarios disponibles")
+                    msg = f"{len(horarios_filtrados)} horarios disponibles"
+                    if self.validar_ventana_15min:
+                        msg += " (con ventana de 15 min)"
+                    self.label_mensaje.setText(msg)
                 else:
-                    self.combo_horario.addItem("No hay horarios que cumplan con la duración")
-                    self.label_mensaje.setText("No hay horarios que cumplan con la duración")
-            else:
-                self.combo_horario.addItem("No hay horarios disponibles")
-                self.label_mensaje.setText("No hay horarios sin asignar")
-                
+                    self.combo_horario.addItem("No hay horarios disponibles")
+                    self.label_mensaje.setText("No hay horarios que cumplan los requisitos")
+                    
         except Exception as e:
             print(f"Error al cargar horarios: {str(e)}")
             self.combo_horario.addItem("Error al cargar horarios")
             self.label_mensaje.setText("Error al cargar horarios")
-  
+
+    def validar_asignacion(self):
+        """Valida la asignación con validaciones opcionales"""
+        # Validaciones básicas (campos seleccionados)
+        if self.combo_ruta.currentIndex() <= 0:
+            self.mostrar_mensaje("Error: Seleccione una ruta válida", False)
+            return False
+            
+        if self.combo_horario.currentIndex() <= 0:
+            self.mostrar_mensaje("Error: Seleccione un horario válido", False)
+            return False
+            
+        if self.combo_tren.currentIndex() <= 0:
+            self.mostrar_mensaje("Error: Seleccione un tren válido", False)
+            return False
+            
+        id_tren = self.combo_tren.currentData()
+        id_horario = self.combo_horario.currentData()
+        id_ruta = self.combo_ruta.currentData()
+        
+        # 1. Verificar si el tren ya está asignado a este horario
+        query_tren_horario = """
+            SELECT COUNT(*) FROM ASIGNACION_TREN 
+            WHERE ID_TREN = :id_tren AND ID_HORARIO = :id_horario
+        """
+        resultado = self.db.fetch_one(query_tren_horario, {
+            "id_tren": id_tren,
+            "id_horario": id_horario
+        })
+        if resultado and resultado[0] > 0:
+            self.mostrar_mensaje("Error: Este tren ya está asignado a este horario", False)
+            return False
+            
+        # 2. Verificar si el horario ya está asignado a esta ruta
+        query_ruta_horario = """
+            SELECT COUNT(*) FROM ASIGNACION_TREN 
+            WHERE ID_RUTA = :id_ruta AND ID_HORARIO = :id_horario
+        """
+        resultado_ruta = self.db.fetch_one(query_ruta_horario, {
+            "id_ruta": id_ruta,
+            "id_horario": id_horario
+        })
+        if resultado_ruta and resultado_ruta[0] > 0:
+            self.mostrar_mensaje("Error: Este horario ya está asignado a esta ruta", False)
+            return False
+        
+        # 3. Verificar solapamiento de tren
+        query_horas = """
+            SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
+            FROM HORARIO WHERE ID_HORARIO = :id_horario
+        """
+        horas = self.db.fetch_one(query_horas, {"id_horario": id_horario})
+        if not horas:
+            self.mostrar_mensaje("Error: No se pudo obtener información del horario", False)
+            return False
+            
+        hora_salida, hora_llegada = horas
+        
+        query_solapamiento = """
+            SELECT COUNT(*) FROM ASIGNACION_TREN A
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+            WHERE A.ID_TREN = :id_tren AND (
+                (H.HORA_SALIDA_PROGRAMADA < :hora_llegada AND H.HORA_LLEGADA_PROGRAMADA > :hora_salida)
+            )
+        """
+        resultado_solapamiento = self.db.fetch_one(query_solapamiento, {
+            "id_tren": id_tren,
+            "hora_salida": hora_salida,
+            "hora_llegada": hora_llegada
+        })
+        if resultado_solapamiento and resultado_solapamiento[0] > 0:
+            self.mostrar_mensaje("Error: El tren ya tiene una asignación que se solapa", False)
+            return False
+        
+        # 4. Validación opcional de 15 minutos
+        if self.validar_ventana_15min:
+            query_ventana = """
+                SELECT COUNT(*) FROM ASIGNACION_TREN A
+                JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+                WHERE A.ID_RUTA = :id_ruta AND (
+                    ABS(H.HORA_SALIDA_PROGRAMADA - :hora_salida) < INTERVAL '15' MINUTE OR
+                    ABS(H.HORA_LLEGADA_PROGRAMADA - :hora_salida) < INTERVAL '15' MINUTE OR
+                    ABS(H.HORA_SALIDA_PROGRAMADA - :hora_llegada) < INTERVAL '15' MINUTE OR
+                    ABS(H.HORA_LLEGADA_PROGRAMADA - :hora_llegada) < INTERVAL '15' MINUTE
+                )
+            """
+            resultado_ventana = self.db.fetch_one(query_ventana, {
+                "id_ruta": id_ruta,
+                "hora_salida": hora_salida,
+                "hora_llegada": hora_llegada
+            })
+            if resultado_ventana and resultado_ventana[0] > 0:
+                self.mostrar_mensaje(
+                    "Error: Debe haber al menos 15 minutos entre asignaciones en esta ruta", 
+                    False
+                )
+                return False
+        
+        # 5. Verificar duración del horario
+        duracion_ruta = self.obtener_duracion_ruta(id_ruta)
+        duracion_horario = (hora_llegada - hora_salida).total_seconds() / 60
+        if duracion_horario < duracion_ruta:
+            self.mostrar_mensaje(
+                f"Error: Duración del horario ({duracion_horario} min) < Ruta ({duracion_ruta} min)", 
+                False
+            )
+            return False
+        
+        # Si pasa todas las validaciones
+        self.mostrar_mensaje("✓ Validación correcta. Puede confirmar la asignación", True)
+        return True
+
     def cargar_trenes_disponibles(self, id_horario):
-        """Carga los trenes disponibles para el horario seleccionado"""
+        """Carga los trenes disponibles para el horario seleccionado que no tengan asignaciones solapadas"""
         self.combo_tren.clear()
         self.label_mensaje.setText("Cargando trenes...")
         
         try:
-            # Consulta simplificada para obtener trenes disponibles
+            # Primero obtener el rango de tiempo del horario seleccionado
+            query_horario = """
+                SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
+                FROM HORARIO
+                WHERE ID_HORARIO = :id_horario
+            """
+            horario = self.db.fetch_one(query_horario, {"id_horario": id_horario})
+            
+            if not horario:
+                self.combo_tren.addItem("Error: Horario no encontrado")
+                return
+                
+            hora_salida, hora_llegada = horario
+            
+            # Consulta para obtener trenes disponibles que:
+            # 1. Estén ACTIVOS
+            # 2. No tengan asignaciones que se solapen con este horario
             query = """
                 SELECT T.ID_TREN, T.NOMBRE
                 FROM TREN T
@@ -280,14 +445,19 @@ class InterfazAsignacion(QWidget):
                 AND NOT EXISTS (
                     SELECT 1
                     FROM ASIGNACION_TREN A
+                    JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
                     WHERE A.ID_TREN = T.ID_TREN
-                    AND A.ID_HORARIO = :1
+                    AND (
+                        (H.HORA_SALIDA_PROGRAMADA < :hora_llegada AND H.HORA_LLEGADA_PROGRAMADA > :hora_salida)
+                    )
                 )
                 ORDER BY T.ID_TREN
             """
             
-            # Ejecutar consulta con parámetro posicional
-            trenes = self.db.fetch_all(query, (id_horario,))
+            trenes = self.db.fetch_all(query, {
+                "hora_salida": hora_salida,
+                "hora_llegada": hora_llegada
+            })
             
             if trenes:
                 self.combo_tren.addItem("Seleccionar")
@@ -308,61 +478,6 @@ class InterfazAsignacion(QWidget):
             print(f"Error al cargar trenes: {str(e)}")
             self.combo_tren.addItem("Error al cargar trenes")
             self.label_mensaje.setText("Error al cargar datos")
-        
-
-    def validar_asignacion(self):
-        """Valida la asignación mostrando mensajes claros"""
-        # Validación básica de campos
-        if self.combo_ruta.currentIndex() <= 0:
-            self.mostrar_mensaje("Error: Seleccione una ruta válida", False)
-            return False
-            
-        if self.combo_horario.currentIndex() <= 0:
-            self.mostrar_mensaje("Error: Seleccione un horario válido", False)
-            return False
-            
-        if self.combo_tren.currentIndex() <= 0:
-            self.mostrar_mensaje("Error: Seleccione un tren válido", False)
-            return False
-            
-        id_tren = self.combo_tren.currentData()
-        id_horario = self.combo_horario.currentData()
-        
-        # Verificar si el tren ya está asignado a este horario
-        query = """
-            SELECT COUNT(*) 
-            FROM ASIGNACION_TREN 
-            WHERE ID_TREN = :id_tren 
-            AND ID_HORARIO = :id_horario
-        """
-        resultado = self.db.fetch_one(query, {
-            "id_tren": id_tren,
-            "id_horario": id_horario
-        })
-        
-        if resultado and resultado[0] > 0:
-            # Obtener info del tren para el mensaje
-            query_tren = "SELECT NOMBRE FROM TREN WHERE ID_TREN = :id_tren"
-            nombre_tren = self.db.fetch_one(query_tren, {"id_tren": id_tren})
-            nombre = nombre_tren[0] if nombre_tren else f"ID {id_tren}"
-            
-            # Obtener info del horario para el mensaje
-            query_horario = """
-                SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS')
-                FROM HORARIO WHERE ID_HORARIO = :id_horario
-            """
-            horario = self.db.fetch_one(query_horario, {"id_horario": id_horario})
-            hora = horario[0] if horario else "horario desconocido"
-            
-            self.mostrar_mensaje(
-                f"Error: El tren {nombre} ya está asignado a las {hora}",
-                False
-            )
-            return False
-            
-        # Si todo está bien
-        self.mostrar_mensaje("✓ Validación correcta. Puede confirmar la asignación", True)
-        return True
 
     def confirmar_asignacion(self):
         try:
@@ -421,7 +536,7 @@ class InterfazAsignacion(QWidget):
             )
 
             # Actualizar interfaz
-            self.actualizar_datos()
+            self.cargar_datos()
             self.db.event_manager.update_triggered.emit()
             print('se manda la señar acutalizar') 
 
@@ -461,6 +576,13 @@ class InterfazAsignacion(QWidget):
         
         return int(resultado[0])  # Asegurarnos que devuelve un entero
     
+    def configurar_validacion_15min(self, activar: bool):
+        """Activa o desactiva la validación de ventana de 15 minutos"""
+        self.validar_ventana_15min = activar
+        if self.combo_ruta.currentIndex() > 0:
+            # Recargar horarios si ya hay una ruta seleccionada
+            self.cargar_horarios_disponibles(self.combo_ruta.currentData())
+
 class InterfazModificarAsignacion(QWidget):
     """Interfaz para modificar asignaciones"""
     modificacion_exitosa = pyqtSignal()  # Señal para indicar actualizacion
@@ -644,48 +766,95 @@ class InterfazModificarAsignacion(QWidget):
             for id_ruta, estaciones in rutas:
                 self.combo_ruta.addItem(f"Ruta {id_ruta} - {estaciones.split('→')[0].strip()}...", id_ruta)
 
-    def cargar_horarios_disponibles(self, id_ruta, id_horario_actual=None):
-        """Carga horarios disponibles incluyendo el actual"""
-        self.combo_horario.clear()
-        
-        # Obtener duración estimada de la ruta
-        duracion = self.obtener_duracion_ruta(id_ruta)
-        if not duracion:
-            self.combo_horario.addItem("Error al obtener duración")
-            return
-
-        # Consultar horarios disponibles (incluyendo el actual)
-        query = """
-            SELECT H.ID_HORARIO, 
-                   TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
-                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-            FROM HORARIO H
-            WHERE NOT EXISTS (
-                SELECT 1 FROM ASIGNACION_TREN A 
-                WHERE A.ID_HORARIO = H.ID_HORARIO
-                AND A.ID_HORARIO != :id_horario_actual
-            )
-            OR H.ID_HORARIO = :id_horario_actual
-            ORDER BY H.HORA_SALIDA_PROGRAMADA
+    def cargar_horarios_disponibles(self, id_ruta):
+        """Carga los horarios disponibles para la ruta seleccionada que cumplan con:
+        1. No estén asignados a ESTA ruta específica
+        2. Tengan al menos 15 minutos de diferencia con horarios ya asignados a esta ruta
+        3. Tengan duración suficiente para la ruta
         """
+        self.combo_horario.clear()
+        self.combo_horario.addItem("Seleccionar")
+        self.label_mensaje.setText("Cargando horarios...")
         
-        horarios = self.db.fetch_all(query, {"id_horario_actual": id_horario_actual})
-        
-        if horarios:
-            self.combo_horario.addItem("Seleccionar", None)
-            for id_horario, salida, llegada in horarios:
-                # Calcular duración del horario
-                salida_dt = datetime.strptime(salida, '%H:%M:%S')
-                llegada_dt = datetime.strptime(llegada, '%H:%M:%S')
-                duracion_horario = (llegada_dt - salida_dt).total_seconds() / 60
-                
-                if duracion_horario >= duracion or id_horario == id_horario_actual:
-                    self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
-            
-            if self.combo_horario.count() == 1:  # Solo el item "Seleccionar"
+        try:
+            # Obtener duración estimada de la ruta
+            duracion = self.obtener_duracion_ruta(id_ruta)
+            if not duracion:
                 self.combo_horario.addItem("No hay horarios disponibles")
-        else:
-            self.combo_horario.addItem("No hay horarios disponibles")
+                self.label_mensaje.setText("No se pudo obtener duración de la ruta")
+                return
+
+            # Obtener los horarios ya asignados a esta ruta para calcular la ventana de 15 minutos
+            query_horarios_asignados = """
+                SELECT H.HORA_SALIDA_PROGRAMADA, H.HORA_LLEGADA_PROGRAMADA
+                FROM ASIGNACION_TREN A
+                JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+                WHERE A.ID_RUTA = :id_ruta
+                ORDER BY H.HORA_SALIDA_PROGRAMADA
+            """
+            horarios_asignados = self.db.fetch_all(query_horarios_asignados, {"id_ruta": id_ruta})
+
+            # Consultar todos los horarios que no estén asignados a ESTA ruta
+            query_horarios = """
+                SELECT H.ID_HORARIO, 
+                    H.HORA_SALIDA_PROGRAMADA,
+                    H.HORA_LLEGADA_PROGRAMADA,
+                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SALIDA,
+                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEGADA
+                FROM HORARIO H
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM ASIGNACION_TREN A 
+                    WHERE A.ID_HORARIO = H.ID_HORARIO
+                    AND A.ID_RUTA = :id_ruta  # Solo verificamos asignaciones a ESTA ruta
+                )
+                ORDER BY H.HORA_SALIDA_PROGRAMADA
+            """
+            
+            todos_horarios = self.db.fetch_all(query_horarios, {"id_ruta": id_ruta})
+            
+            if todos_horarios:
+                horarios_filtrados = []
+                
+                for id_horario, hora_salida, hora_llegada, salida_str, llegada_str in todos_horarios:
+                    # Calcular duración del horario en minutos
+                    duracion_horario = (hora_llegada - hora_salida).total_seconds() / 60
+                    
+                    # Filtrar por duración mínima de la ruta
+                    if duracion_horario < duracion:
+                        continue
+                    
+                    # Verificar ventana de 15 minutos con horarios asignados a ESTA ruta
+                    valido = True
+                    for asignado_salida, asignado_llegada in horarios_asignados:
+                        # Verificar si el horario propuesto está dentro de 15 minutos antes o después
+                        # de un horario ya asignado a ESTA ruta
+                        if (abs((hora_salida - asignado_salida).total_seconds()) < 15 * 60 or
+                            abs((hora_salida - asignado_llegada).total_seconds()) < 15 * 60 or
+                            abs((hora_llegada - asignado_salida).total_seconds()) < 15 * 60 or
+                            abs((hora_llegada - asignado_llegada).total_seconds()) < 15 * 60):
+                            valido = False
+                            break
+                    
+                    if valido:
+                        horarios_filtrados.append((id_horario, salida_str, llegada_str))
+                
+                # Agregar horarios filtrados al combo
+                if horarios_filtrados:
+                    for id_horario, salida, llegada in horarios_filtrados:
+                        self.combo_horario.addItem(f"{salida} - {llegada}", id_horario)
+                    
+                    self.label_mensaje.setText(f"{len(horarios_filtrados)} horarios disponibles")
+                else:
+                    self.combo_horario.addItem("No hay horarios que cumplan los requisitos")
+                    self.label_mensaje.setText("No hay horarios con 15+ minutos de diferencia")
+            else:
+                self.combo_horario.addItem("No hay horarios disponibles")
+                self.label_mensaje.setText("No hay horarios sin asignar")
+                
+        except Exception as e:
+            print(f"Error al cargar horarios: {str(e)}")
+            self.combo_horario.addItem("Error al cargar horarios")
+            self.label_mensaje.setText("Error al cargar horarios")
 
     def cargar_trenes_disponibles(self, id_horario, id_tren_actual=None):
         """Carga trenes disponibles incluyendo el actual"""

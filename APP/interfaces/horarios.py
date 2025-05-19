@@ -59,8 +59,8 @@ class GestionHorariosRutas(QWidget):
         # Tabla de horarios
         schedules_label = QLabel("Horarios")
         self.tabla_horarios = QTableWidget()
-        self.tabla_horarios.setColumnCount(4)  # Añadida columna para nombre del tren
-        self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada", "Tren Asignado"])
+        self.tabla_horarios.setColumnCount(3)  # Añadida columna para nombre del tren
+        self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
         self.tabla_horarios.itemSelectionChanged.connect(self._controlar_boton_horario)
         
         # Tabla de disponibilidad de trenes
@@ -398,7 +398,6 @@ class GestionHorariosRutas(QWidget):
             self.tabla_horarios.setItem(i, 0, QTableWidgetItem(str(schedule[0])))
             self.tabla_horarios.setItem(i, 1, QTableWidgetItem(schedule[1]))
             self.tabla_horarios.setItem(i, 2, QTableWidgetItem(schedule[2]))
-            self.tabla_horarios.setItem(i, 3, QTableWidgetItem(schedule[3] if schedule[3] else "No asignado"))
 
         self.tabla_horarios.resizeColumnsToContents()
         self.tabla_horarios.resizeRowsToContents()
