@@ -1,7 +1,8 @@
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QDateTimeEdit, QMessageBox
+    QDateTimeEdit, QMessageBox, QScrollArea, QFrame, QAbstractItemView, QHeaderView,
+    QSizePolicy
 )
 from PyQt6.QtCore import Qt, QDateTime
 from datetime import datetime
@@ -21,62 +22,249 @@ class InterfazAgregarIncidencia(QWidget):
         self.cargar_asignaciones()
 
     def initUI(self):
-        layout = QVBoxLayout()
+        # Layout principal con scroll (como en las otras interfaces)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
 
-        # Tabla de Asignaciones
+        # Widget contenedor principal
+        self.main_container = QWidget()
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(15)
+
+        # Configurar el scroll area
+        self.scroll_area.setWidget(self.main_container)
+        self.setLayout(QVBoxLayout(self))
+        self.layout().addWidget(self.scroll_area)
+        self.layout().setContentsMargins(0, 0, 0, 0)
+
+        # Título
+        titulo = QLabel("Agregar Nueva Incidencia")
+        titulo.setStyleSheet("""
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            padding: 5px;
+            border-bottom: 2px solid #3498db;
+            margin-bottom: 15px;
+        """)
+        self.main_layout.addWidget(titulo)
+
+        # Contenedor para el contenido con ancho fijo
+        self.content_container = QWidget()
+        self.content_container.setFixedWidth(1250)
+        content_layout = QVBoxLayout(self.content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(15)
+
+        # --- Tabla de Asignaciones ---
+        label_asignaciones = QLabel("Selecciona la asignación:")
+        label_asignaciones.setStyleSheet("font-weight: bold; font-size: 14px;")
+        content_layout.addWidget(label_asignaciones)
+
         self.tabla_asignaciones = QTableWidget()
         self.tabla_asignaciones.setColumnCount(4)
         self.tabla_asignaciones.setHorizontalHeaderLabels(["ID", "Tren", "Ruta", "Horario"])
-        layout.addWidget(QLabel("Selecciona la asignación:"))
-        layout.addWidget(self.tabla_asignaciones)
+        self.tabla_asignaciones.verticalHeader().setVisible(False)
+        self.tabla_asignaciones.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.tabla_asignaciones.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.tabla_asignaciones.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 5px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 8px;
+                border-bottom: 1px solid #eee;
+            }
+        """)
+
+        # Ajustar tamaño de columnas y filas
+        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
+
+        # Configurar altura de las filas y tamaño mínimo de la tabla
+        self.tabla_asignaciones.verticalHeader().setDefaultSectionSize(35)  # Altura de cada fila
+        self.tabla_asignaciones.setMinimumHeight(200)  # Altura mínima para mostrar varias filas
+        self.tabla_asignaciones.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.MinimumExpanding)
+
+        # Configurar scrollbars
+        self.tabla_asignaciones.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_asignaciones.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+        content_layout.addWidget(self.tabla_asignaciones)
+
+        # --- Formulario de incidencia ---
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(0, 0, 0, 0)
+        form_layout.setSpacing(10)
 
         # Tipo de incidencia
-        layout.addWidget(QLabel("Tipo de incidencia:"))
+        tipo_label = QLabel("Tipo de incidencia:")
+        tipo_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        form_layout.addWidget(tipo_label)
+
         self.tipo_combo = QComboBox()
         self.tipo_combo.addItems(["Retraso", "Averia", "Emergencia"])
-        layout.addWidget(self.tipo_combo)
+        self.tipo_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                min-width: 200px;
+            }
+        """)
+        form_layout.addWidget(self.tipo_combo)
 
         # Descripción
-        layout.addWidget(QLabel("Descripción (máx 150 caracteres):"))
+        desc_label = QLabel("Descripción (máx 150 caracteres):")
+        desc_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        form_layout.addWidget(desc_label)
+
         self.descripcion_input = QLineEdit()
         self.descripcion_input.setMaxLength(150)
-        layout.addWidget(self.descripcion_input)
+        self.descripcion_input.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(self.descripcion_input)
 
         # Estado
-        layout.addWidget(QLabel("Estado:"))
+        estado_label = QLabel("Estado:")
+        estado_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        form_layout.addWidget(estado_label)
+
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["No resuelto", "Resuelto"])
         self.estado_combo.setCurrentIndex(0)
-        layout.addWidget(self.estado_combo)
+        self.estado_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+                min-width: 200px;
+            }
+        """)
+        form_layout.addWidget(self.estado_combo)
 
         # Fecha
-        fecha_layout = QHBoxLayout()
+        fecha_label = QLabel("Fecha y hora:")
+        fecha_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        form_layout.addWidget(fecha_label)
+
+        fecha_btn_container = QWidget()
+        fecha_btn_layout = QHBoxLayout(fecha_btn_container)
+        fecha_btn_layout.setContentsMargins(0, 0, 0, 0)
+        fecha_btn_layout.setSpacing(10)
+
         self.btn_fecha_actual = QPushButton("Usar fecha actual")
         self.btn_elegir_fecha = QPushButton("Elegir fecha")
+
+        # Estilo para botones de fecha
+        for btn in [self.btn_fecha_actual, self.btn_elegir_fecha]:
+            btn.setStyleSheet("""
+                QPushButton {
+                    padding: 8px 15px;
+                    background-color: #3498db;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    min-width: 120px;
+                }
+                QPushButton:hover {
+                    background-color: #2980b9;
+                }
+            """)
+
         self.datetime_edit = QDateTimeEdit(QDateTime.currentDateTime())
         self.datetime_edit.setCalendarPopup(True)
         self.datetime_edit.setEnabled(False)
+        self.datetime_edit.setStyleSheet("""
+            QDateTimeEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
 
-        fecha_layout.addWidget(self.btn_fecha_actual)
-        fecha_layout.addWidget(self.btn_elegir_fecha)
-        fecha_layout.addWidget(self.datetime_edit)
-        layout.addLayout(fecha_layout)
+        fecha_btn_layout.addWidget(self.btn_fecha_actual)
+        fecha_btn_layout.addWidget(self.btn_elegir_fecha)
+        fecha_btn_layout.addWidget(self.datetime_edit)
+        fecha_btn_layout.addStretch()
 
-        self.btn_fecha_actual.clicked.connect(self.usar_fecha_actual)
-        self.btn_elegir_fecha.clicked.connect(self.elegir_fecha)
+        form_layout.addWidget(fecha_btn_container)
+        content_layout.addWidget(form_container)
 
-        # Botones finales
-        botones_layout = QHBoxLayout()
-        self.btn_confirmar = QPushButton("Confirmar")
+        # --- Botones finales ---
+        botones_container = QWidget()
+        botones_container.setFixedWidth(900)
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 0, 0, 0)
+        botones_layout.setSpacing(15)
+
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_confirmar = QPushButton("Confirmar")
+
+        # Estilo para botones principales
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 120px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+
+        botones_layout.addStretch()
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addWidget(self.btn_confirmar)
-        layout.addLayout(botones_layout)
 
+        content_layout.addWidget(botones_container)
+        self.main_layout.addWidget(self.content_container)
+
+        # Conectar señales
+        self.btn_fecha_actual.clicked.connect(self.usar_fecha_actual)
+        self.btn_elegir_fecha.clicked.connect(self.elegir_fecha)
         self.btn_confirmar.clicked.connect(self.insertar_incidencia)
         self.btn_cancelar.clicked.connect(self.cancelar)
 
-        self.setLayout(layout)
+        # Ajustes del scroll area
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
     def cancelar(self):
         # Limpiar la tabla y volver a cargar asignaciones
@@ -105,7 +293,7 @@ class InterfazAgregarIncidencia(QWidget):
 
     def cargar_asignaciones(self):
         query = """
-            SELECT A.ID_ASIGNACION, T.NOMBRE, H.HORA_SALIDA_PROGRAMADA, H.HORA_LLEGADA_PROGRAMADA, R.ID_RUTA, R.DURACION_ESTIMADA
+            SELECT A.ID_ASIGNACION, T.NOMBRE, TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), R.ID_RUTA, R.DURACION_ESTIMADA
             FROM ASIGNACION_TREN A
             JOIN TREN T ON A.ID_TREN = T.ID_TREN
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO

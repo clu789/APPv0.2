@@ -1,7 +1,7 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QTableWidget, 
                              QTableWidgetItem, QPushButton, QHBoxLayout, 
                              QSizePolicy, QHeaderView, QStackedWidget, QScrollArea,
-                             QMessageBox)
+                             QMessageBox, QFrame, QAbstractItemView)
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 from interfaces.paneles.panel_incidencias import InterfazAgregarIncidencia
@@ -20,35 +20,68 @@ class GestionIncidencias(QWidget):
         self.load_incidencias()
 
     def initUI(self):
-        layout = QVBoxLayout()
+        # Layout principal con scroll (solo para diseño)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+
+        # Widget contenedor principal
+        self.main_container = QWidget()
+        self.main_container.setFixedWidth(1400)
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(15)
+
+        # Configurar el scroll area
+        self.scroll_area.setWidget(self.main_container)
+        self.setLayout(QVBoxLayout(self))
+        self.layout().addWidget(self.scroll_area)
+        self.layout().setContentsMargins(0, 0, 0, 0)
 
         # --- Encabezado ---
         header = QLabel("Gestión de Incidencias")
-        header.setStyleSheet("font-size: 20px; font-weight: bold;")
-        layout.addWidget(header)
+        header.setStyleSheet("""
+            font-size: 20px;
+            font-weight: bold;
+            color: #2c3e50;
+            padding: 5px;
+            border-bottom: 2px solid #3498db;
+        """)
+        self.main_layout.addWidget(header)
+
+        # Contenedor para el contenido con ancho fijo
+        self.content_container = QWidget()
+        self.content_container.setFixedWidth(1350)
+        content_layout = QVBoxLayout(self.content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(15)
 
         # === Sección 1: Incidencias del día y todas ===
         seccion1_layout = QHBoxLayout()
+        seccion1_layout.setContentsMargins(0, 0, 0, 0)
+        seccion1_layout.setSpacing(15)
 
-        # Tabla incidencias del día
+        # Tabla incidencias por resolver
         self.tabla_no_resueltas = QTableWidget()
         self.tabla_no_resueltas.setColumnCount(5)
         self.tabla_no_resueltas.setHorizontalHeaderLabels(["ID", "ID Asignacion", "Tipo", "Descripción", "Fecha y Hora"])
-        self.tabla_no_resueltas.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._configurar_tabla(self.tabla_no_resueltas)
         self.tabla_no_resueltas.itemSelectionChanged.connect(self._controlar_boton_resolver)
         seccion1_layout.addWidget(self._con_titulo("Incidencias por Resolver", self.tabla_no_resueltas))
 
-        # Tabla todas las incidencias
+        # Tabla incidencias resueltas
         self.tabla_resueltas = QTableWidget()
         self.tabla_resueltas.setColumnCount(5)
         self.tabla_resueltas.setHorizontalHeaderLabels(["ID", "ID Asignacion", "Tipo", "Descripción", "Fecha y Hora"])
-        self.tabla_resueltas.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._configurar_tabla(self.tabla_resueltas)
         seccion1_layout.addWidget(self._con_titulo("Incidencias Resueltas", self.tabla_resueltas))
 
-        layout.addLayout(seccion1_layout)
+        content_layout.addLayout(seccion1_layout)
 
         # === Sección 2: Afectaciones ===
         seccion2_layout = QHBoxLayout()
+        seccion2_layout.setContentsMargins(0, 0, 0, 0)
+        seccion2_layout.setSpacing(15)
 
         # Tabla horarios afectados
         self.tabla_horarios_afectados = QTableWidget()
@@ -56,32 +89,80 @@ class GestionIncidencias(QWidget):
         self.tabla_horarios_afectados.setHorizontalHeaderLabels([
             "ID Asignación", "Hora Salida", "Hora Llegada", "Ruta", "Tren"
         ])
-        self.tabla_horarios_afectados.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self._configurar_tabla(self.tabla_horarios_afectados)
         seccion2_layout.addWidget(self._con_titulo("Asignaciones Afectadas", self.tabla_horarios_afectados))
-        
+
+        content_layout.addLayout(seccion2_layout)
+
+        # Conectar señales (igual que antes)
         self.tabla_no_resueltas.cellClicked.connect(self.mostrar_afectaciones_no_resuelta)
         self.tabla_resueltas.cellClicked.connect(self.mostrar_afectaciones_resuelta)
 
-
-        layout.addLayout(seccion2_layout)
+        # Añadir contenedor de contenido al layout principal
+        self.main_layout.addWidget(self.content_container, 1)
 
         # === Botones de acción ===
-        botones_layout = QHBoxLayout()
+        botones_container = QWidget()
+        botones_container.setFixedWidth(900)
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 0, 0, 0)
+        botones_layout.setSpacing(15)
+
+        # Botón Agregar
         self.btn_agregar_incidencia = QPushButton("Agregar Incidencia")
+        self.btn_agregar_incidencia.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 150px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
         self.btn_agregar_incidencia.clicked.connect(lambda: self.mostrar_panel(0))
+
+        # Botón Resolver
         self.btn_resolver_incidencia = QPushButton("Resolver Incidencia")
+        self.btn_resolver_incidencia.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 150px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+            }
+        """)
         self.btn_resolver_incidencia.setEnabled(False)
         self.btn_resolver_incidencia.clicked.connect(self.resolver_incidencia)
+
+        botones_layout.addStretch()
         botones_layout.addWidget(self.btn_agregar_incidencia)
         botones_layout.addWidget(self.btn_resolver_incidencia)
+        botones_layout.addStretch()
 
-        layout.addLayout(botones_layout)
-        
-        # Contenedor apilado
+        # Añadir contenedor de botones al layout principal
+        botones_main_container = QWidget()
+        botones_main_layout = QHBoxLayout(botones_main_container)
+        botones_main_layout.addWidget(botones_container)
+        self.main_layout.addWidget(botones_main_container)
+
+        # === Panel desplegable === 
+        # (MANTENEMOS EXACTAMENTE LA MISMA LÓGICA ORIGINAL)
         self.stacked = QStackedWidget()
         self.stacked.hide()
-        
-        # Panel para agregar incidencias
+
+        # Panel para agregar incidencias (igual que antes)
         self.scroll_incidencias = QScrollArea()
         self.scroll_incidencias.setWidgetResizable(True)
         self.scroll_incidencias.hide()
@@ -91,22 +172,59 @@ class GestionIncidencias(QWidget):
         self.panel_incidencias.btn_confirmar.clicked.connect(self.ocultar_panel)
         self.panel_incidencias.btn_confirmar.clicked.connect(self.actualizar_datos)
         self.scroll_incidencias.setWidget(self.panel_incidencias)
-        
-        # Panel para editar incidencias
-        #self.scroll_incidencias2 = QScrollArea()
-        #self.scroll_incidencias2.setWidgetResizable(True)
-        #self.scroll_incidencias2.hide()
-        #self.panel_incidencias2 = InterfazEditarIncidencia(self.main_window, self.db)
-        #self.panel_incidencias2.btn_cancelar.clicked.connect(self.ocultar_panel)
-        #self.panel_incidencias2.btn_confirmar.clicked.connect(self.ocultar_panel)
-        #self.panel_incidencias2.btn_confirmar.clicked.connect(self.actualizar_datos)
-        #self.scroll_incidencias2.setWidget(self.panel_incidencias2)
-        
+
         self.stacked.addWidget(self.scroll_incidencias)
-        #self.stacked.addWidget(self.scroll_incidencias2)
-        layout.addWidget(self.stacked)
-        
-        self.setLayout(layout)
+        self.main_layout.addWidget(self.stacked)
+
+        # Ajustes del scroll area
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+
+    def _configurar_tabla(self, tabla):
+        """Configura el estilo de las tablas sin modificar su funcionamiento"""
+        tabla.verticalHeader().setVisible(False)
+        tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        tabla.setStyleSheet("""
+            QTableWidget {
+                background-color: white;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+            QHeaderView::section {
+                background-color: #3498db;
+                color: white;
+                padding: 5px;
+                font-weight: bold;
+                border: none;
+            }
+            QTableWidget::item {
+                padding: 5px;
+                border-bottom: 1px solid #eee;
+            }
+        """)
+        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+
+    def _con_titulo(self, titulo, widget):
+        """Envuelve un widget con un título con estilo"""
+        contenedor = QWidget()
+        layout = QVBoxLayout(contenedor)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(5)
+
+        label = QLabel(titulo)
+        label.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            padding: 5px;
+            border-bottom: 2px solid #3498db;
+        """)
+
+        layout.addWidget(label)
+        layout.addWidget(widget)
+
+        return contenedor
 
     def _controlar_boton_resolver(self):
         if self.tabla_no_resueltas.currentRow() == -1:
