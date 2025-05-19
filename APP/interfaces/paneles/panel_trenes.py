@@ -9,37 +9,135 @@ class InterfazAgregarTren(QWidget):
         self.initUI()
 
     def initUI(self):
+        # Layout principal con márgenes y espaciado
         layout = QVBoxLayout()
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+
+        # Título del panel
+        titulo = QLabel("Agregar Nuevo Tren")
+        titulo.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            padding: 5px;
+            border-bottom: 2px solid #3498db;
+        """)
+        layout.addWidget(titulo)
+
+        # Contenedor para el formulario
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(10, 10, 10, 10)
+        form_layout.setSpacing(15)
 
         # Campo: Nombre
+        lbl_nombre = QLabel("Nombre del Tren:")
+        lbl_nombre.setStyleSheet("font-weight: bold;")
         self.input_nombre = QLineEdit()
-        layout.addWidget(QLabel("Nombre del Tren:"))
-        layout.addWidget(self.input_nombre)
+        self.input_nombre.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(lbl_nombre)
+        form_layout.addWidget(self.input_nombre)
 
         # Campo: Capacidad
+        lbl_capacidad = QLabel("Capacidad:")
+        lbl_capacidad.setStyleSheet("font-weight: bold;")
         self.input_capacidad = QLineEdit()
-        layout.addWidget(QLabel("Capacidad:"))
-        layout.addWidget(self.input_capacidad)
+        self.input_capacidad.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(lbl_capacidad)
+        form_layout.addWidget(self.input_capacidad)
 
         # Campo: Estado
+        lbl_estado = QLabel("Estado:")
+        lbl_estado.setStyleSheet("font-weight: bold;")
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["Activo", "En mantenimiento", "Fuera de servicio"])
-        layout.addWidget(QLabel("Estado:"))
-        layout.addWidget(self.estado_combo)
+        self.estado_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(lbl_estado)
+        form_layout.addWidget(self.estado_combo)
 
-        # Botones
-        botones_layout = QHBoxLayout()
+        layout.addWidget(form_container)
+
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 10, 0, 0)
+        botones_layout.setSpacing(15)
+
+        # Botones con estilos
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+
         self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+
         self.btn_confirmar = QPushButton("Confirmar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addWidget(self.btn_consultar)
         botones_layout.addWidget(self.btn_confirmar)
-        layout.addLayout(botones_layout)
+
+        layout.addWidget(botones_container)
+        layout.addStretch()
 
         self.setLayout(layout)
 
-        # Conexiones
+        # Conexiones (se mantienen exactamente igual)
         self.btn_cancelar.clicked.connect(self.cancelar)
         self.btn_consultar.clicked.connect(self.verificar_nombre)
         self.btn_confirmar.clicked.connect(self.insertar_tren)
@@ -101,37 +199,135 @@ class InterfazEditarTren(QWidget):
         self.initUI()
 
     def initUI(self):
+        # Layout principal con márgenes y espaciado
         layout = QVBoxLayout()
-
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+    
+        # Título del panel
+        titulo = QLabel("Editar Tren Existente")
+        titulo.setStyleSheet("""
+            font-size: 18px;
+            font-weight: bold;
+            color: #2c3e50;
+            padding: 5px;
+            border-bottom: 2px solid #3498db;
+        """)
+        layout.addWidget(titulo)
+    
+        # Contenedor para el formulario
+        form_container = QWidget()
+        form_layout = QVBoxLayout(form_container)
+        form_layout.setContentsMargins(10, 10, 10, 10)
+        form_layout.setSpacing(15)
+    
         # Campo: Nombre
+        lbl_nombre = QLabel("Nombre del Tren:")
+        lbl_nombre.setStyleSheet("font-weight: bold;")
         self.input_nombre = QLineEdit()
-        layout.addWidget(QLabel("Nombre del Tren:"))
-        layout.addWidget(self.input_nombre)
-
+        self.input_nombre.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(lbl_nombre)
+        form_layout.addWidget(self.input_nombre)
+    
         # Campo: Capacidad
+        lbl_capacidad = QLabel("Capacidad:")
+        lbl_capacidad.setStyleSheet("font-weight: bold;")
         self.input_capacidad = QLineEdit()
-        layout.addWidget(QLabel("Capacidad:"))
-        layout.addWidget(self.input_capacidad)
-
+        self.input_capacidad.setStyleSheet("""
+            QLineEdit {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(lbl_capacidad)
+        form_layout.addWidget(self.input_capacidad)
+    
         # Campo: Estado
+        lbl_estado = QLabel("Estado:")
+        lbl_estado.setStyleSheet("font-weight: bold;")
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["Activo", "En mantenimiento", "Fuera de servicio"])
-        layout.addWidget(QLabel("Estado:"))
-        layout.addWidget(self.estado_combo)
-
-        # Botones
-        botones_layout = QHBoxLayout()
+        self.estado_combo.setStyleSheet("""
+            QComboBox {
+                padding: 8px;
+                border: 1px solid #ddd;
+                border-radius: 4px;
+            }
+        """)
+        form_layout.addWidget(lbl_estado)
+        form_layout.addWidget(self.estado_combo)
+    
+        layout.addWidget(form_container)
+    
+        # Contenedor para botones
+        botones_container = QWidget()
+        botones_layout = QHBoxLayout(botones_container)
+        botones_layout.setContentsMargins(0, 10, 0, 0)
+        botones_layout.setSpacing(15)
+    
+        # Botones con estilos consistentes
         self.btn_cancelar = QPushButton("Cancelar")
+        self.btn_cancelar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #e74c3c;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+        """)
+    
         self.btn_consultar = QPushButton("Consultar")
+        self.btn_consultar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #3498db;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #2980b9;
+            }
+        """)
+    
         self.btn_confirmar = QPushButton("Confirmar")
+        self.btn_confirmar.setStyleSheet("""
+            QPushButton {
+                padding: 8px 15px;
+                background-color: #2ecc71;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                min-width: 100px;
+            }
+            QPushButton:hover {
+                background-color: #27ae60;
+            }
+        """)
+    
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addWidget(self.btn_consultar)
         botones_layout.addWidget(self.btn_confirmar)
-        layout.addLayout(botones_layout)
-
+    
+        layout.addWidget(botones_container)
+        layout.addStretch()
+    
         self.setLayout(layout)
-
-        # Conexiones
+    
+        # Conexiones se mantienen exactamente igual
         self.btn_consultar.clicked.connect(self.verificar_nombre)
         self.btn_confirmar.clicked.connect(self.actualizar_tren)
 

@@ -382,13 +382,10 @@ class GestionHorariosRutas(QWidget):
     def load_schedules(self):
         """Carga los horarios con los trenes asignados"""
         query = """
-            SELECT H.ID_HORARIO,
-                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
-                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'),
-                    T.NOMBRE
-            FROM HORARIO H
-            LEFT JOIN ASIGNACION_TREN A ON H.ID_HORARIO = A.ID_HORARIO
-            LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
+            SELECT ID_HORARIO,
+                    TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
+                    TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
+            FROM HORARIO
             ORDER BY 1 ASC
         """
         schedules = self.db.fetch_all(query)

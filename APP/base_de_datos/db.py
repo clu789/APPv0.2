@@ -1,5 +1,6 @@
 import oracledb
 from base_de_datos.event_manager import EventManager
+oracledb.init_oracle_client(lib_dir=None)  # fuerza modo thin (útil para evitar errores en Windows)
 
 class DatabaseConnection:
     _instance = None
