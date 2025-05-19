@@ -88,11 +88,11 @@ class InterfazHome(QWidget):
         self.tabla_viajes.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.tabla_viajes.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.tabla_viajes.setColumnCount(5)
+        self.tabla_viajes.setColumnCount(6)
        # self.tabla_viajes.setFixedWidth(1050)
         #self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.tabla_viajes.setHorizontalHeaderLabels([
-            "Num.Horario", "Origen-Destino", "Horario", "Rastreo", "Tren"
+            "ID Asignación","Origen-Destino", "Tren", "Horario", "Rastreo", "Num.Horario"
         ])
         self.tabla_viajes.verticalHeader().setVisible(False)
         self.tabla_viajes.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -126,10 +126,11 @@ class InterfazHome(QWidget):
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
         self.tabla_viajes.horizontalHeader().setSectionResizeMode(4, QHeaderView.ResizeMode.Interactive)
-        self.tabla_viajes.setColumnWidth(0, 100)
-        self.tabla_viajes.setColumnWidth(2, 120)
-        self.tabla_viajes.setColumnWidth(3, 120)
-        self.tabla_viajes.setColumnWidth(4, 150)
+        self.tabla_viajes.setColumnWidth(0, 90) 
+        self.tabla_viajes.setColumnWidth(1, 90)
+        self.tabla_viajes.setColumnWidth(2, 150)
+        self.tabla_viajes.setColumnWidth(3, 110)
+        self.tabla_viajes.setColumnWidth(4, 110)
         
         self.content_layout.addWidget(self.tabla_viajes)
 
@@ -148,11 +149,11 @@ class InterfazHome(QWidget):
         self.tabla_proximos.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
         self.tabla_proximos.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tabla_proximos.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-        self.tabla_proximos.setColumnCount(4)
+        self.tabla_proximos.setColumnCount(5)
         #self.tabla_viajes.setFixedWidth(850)
         #self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Expanding)
         self.tabla_proximos.setHorizontalHeaderLabels([
-            "Num.Horario", "Origen-Destino", "Horario", "Tren"
+             "ID Asignación","Origen-Destino", "Num.Horario", "Horario", "Tren"
         ])
         self.tabla_proximos.verticalHeader().setVisible(False)
         self.tabla_proximos.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
@@ -185,9 +186,11 @@ class InterfazHome(QWidget):
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Interactive)
         self.tabla_proximos.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Interactive)
-        self.tabla_proximos.setColumnWidth(0, 100)
-        self.tabla_proximos.setColumnWidth(2, 120)
-        self.tabla_proximos.setColumnWidth(3, 150)
+        self.tabla_proximos.setColumnWidth(0, 90)
+        self.tabla_proximos.setColumnWidth(1, 90)
+        self.tabla_proximos.setColumnWidth(2, 150)
+        self.tabla_proximos.setColumnWidth(3, 110)
+        self.tabla_proximos.setColumnWidth(4, 190)
         
         self.content_layout.addWidget(self.tabla_proximos)
 
@@ -311,20 +314,16 @@ class InterfazHome(QWidget):
         # Restaurar posición del scroll
         QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
 
-    def mostrar_panel_modificar(self, id_horario):
-        """Muestra el panel de modificación con el horario seleccionado"""
-        # Reducir altura de las tablas
-        self.tabla_viajes.setMaximumHeight(250)
-        self.tabla_proximos.setMaximumHeight(250)
-        
-        # Configurar panel de modificación
-        self.panel_modificar.set_horario(int(id_horario))
-        self.panel_modificar.show()
-        
-        # Ajustar scroll
-        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
-            self.scroll_area.verticalScrollBar().maximum()
-        ))
+    def mostrar_panel_modificar(self, id_asignacion):
+            self.tabla_viajes.setMaximumHeight(250)
+            self.tabla_proximos.setMaximumHeight(250)
+
+            self.panel_modificar.set_asignacion(int(id_asignacion))
+            self.panel_modificar.show()
+
+            QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
+                self.scroll_area.verticalScrollBar().maximum()
+            ))
 
     def ocultar_panel_modificar(self):
         """Oculta el panel de modificación"""
@@ -339,7 +338,10 @@ class InterfazHome(QWidget):
             QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para cancelar.")
             return
 
-        id_horario = self.tabla_proximos.item(fila, 0).text()
+        #id_asignacion = self.tabla_proximos.item(fila, 2).text()
+        id_horario = self.tabla_proximos.item(fila, 2).text() 
+        id_asignacion = self.tabla_proximos.item(fila, 0).text()
+        self.mostrar_panel_modificar(id_asignacion) 
 
         try:
             # Confirmar cancelación
@@ -407,6 +409,7 @@ class InterfazHome(QWidget):
     def cargar_datos_viajes(self):
         query = """
               SELECT
+                A.ID_ASIGNACION,  
                 H.ID_HORARIO,
                 E1.NOMBRE AS ORIGEN,
                 E2.NOMBRE AS DESTINO,
@@ -439,22 +442,24 @@ class InterfazHome(QWidget):
 
         self.tabla_viajes.setRowCount(len(viajes))
         for i, v in enumerate(viajes):
-            id_horario = str(v[0]) if v[0] is not None else "N/A"
-            origen_destino = f"{v[1]} - {v[2]}" if v[1] and v[2] else "N/A"
-            horario = f"{v[3]}-{v[4]}" if v[3] and v[4] else "N/A"
-            rastreo = f"{v[5]} - {v[6] if v[6] else '...'}" if v[5] else "... - ..."
-           # rastreo = f"{v[5]}-..." if v[5] else "...-..."
-            tren = f"{v[7]} - {v[8]}" if v[7] and v[8] else "N/A"
+            id_asignacion = str(v[0]) if v[0] is not None else "N/A"
+            id_horario = str(v[1]) if v[1] is not None else "N/A"
+            origen_destino = f"{v[2]} - {v[3]}" if v[2] and v[3] else "N/A"
+            horario = f"{v[4]}-{v[5]}" if v[4] and v[5] else "N/A"
+            rastreo = f"{v[6]} - {v[7] if v[7] else '...'}" if v[6] else "... - ..."
+            tren = f"{v[8]} - {v[9]}" if v[8] and v[9] else "N/A"
 
-            self.tabla_viajes.setItem(i, 0, QTableWidgetItem(id_horario))
+            self.tabla_viajes.setItem(i, 0, QTableWidgetItem(id_asignacion))
+            self.tabla_viajes.setItem(i, 5, QTableWidgetItem(id_horario))
             self.tabla_viajes.setItem(i, 1, QTableWidgetItem(origen_destino))
-            self.tabla_viajes.setItem(i, 2, QTableWidgetItem(horario))
-            self.tabla_viajes.setItem(i, 3, QTableWidgetItem(rastreo))
-            self.tabla_viajes.setItem(i, 4, QTableWidgetItem(tren))
+            self.tabla_viajes.setItem(i, 3, QTableWidgetItem(horario))
+            self.tabla_viajes.setItem(i, 4, QTableWidgetItem(rastreo))
+            self.tabla_viajes.setItem(i, 2, QTableWidgetItem(tren))
 
     def cargar_datos_proximos(self):
         query = """
                 SELECT
+                    A.ID_ASIGNACION,
                     H.ID_HORARIO,
                     E1.NOMBRE AS ORIGEN,
                     E2.NOMBRE AS DESTINO,
@@ -480,11 +485,11 @@ class InterfazHome(QWidget):
         if proximos:
             self.tabla_proximos.setRowCount(len(proximos))
             for i, p in enumerate(proximos):
-                self.tabla_proximos.setItem(i, 0, QTableWidgetItem(str(p[0])))
-                self.tabla_proximos.setItem(i, 1, QTableWidgetItem(f"{p[1]} - {p[2]}"))
-                self.tabla_proximos.setItem(i, 2, QTableWidgetItem(f"{p[3]}-{p[4]}"))
-                self.tabla_proximos.setItem(i, 3, QTableWidgetItem(f"{p[5]} - {p[6]}"))
-
+                self.tabla_proximos.setItem(i, 0, QTableWidgetItem(str(p[0])))  # ID Asignación
+                self.tabla_proximos.setItem(i, 2, QTableWidgetItem(str(p[1])))  # Num.Horario
+                self.tabla_proximos.setItem(i, 1, QTableWidgetItem(f"{p[2]} - {p[3]}"))  # Origen-Destino
+                self.tabla_proximos.setItem(i, 3, QTableWidgetItem(f"{p[4]}-{p[5]}"))  # Horario
+                self.tabla_proximos.setItem(i, 4, QTableWidgetItem(f"{p[6]} - {p[7]}"))  # Tren
 
     def accion_modificar(self):
         fila = self.tabla_proximos.currentRow()
@@ -492,8 +497,8 @@ class InterfazHome(QWidget):
             QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para modificar.")
             return
 
-        id_horario = self.tabla_proximos.item(fila, 0).text()
-        self.mostrar_panel_modificar(id_horario)
+        id_asignacion = self.tabla_proximos.item(fila, 0).text()
+        self.mostrar_panel_modificar(id_asignacion)
 
     def load_user_name(self):
         print(self.username)

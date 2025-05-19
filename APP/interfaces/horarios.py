@@ -579,38 +579,19 @@ class GestionHorariosRutas(QWidget):
                 self.db.connection.rollback()
                 QMessageBox.critical(self, "Error", f"Error al eliminar: {str(e)}")
 
+    
     def abrir_edicion_asignacion(self):
-        print("[DEBUG] Se ejecutó abrir_edicion_asignacion()")
         """Abre el panel de edición con los datos de la asignación seleccionada"""
         fila = self.tabla_asignaciones.currentRow()
         if fila == -1:
             QMessageBox.warning(self, "Advertencia", "Selecciona una asignación para modificar.")
             return
 
-        # Obtener datos de la fila seleccionada
         id_asignacion = self.tabla_asignaciones.item(fila, 0).text()
-        id_tren = self.tabla_asignaciones.item(fila, 1).text().split()[0]  # Asume formato "ID - Nombre"
-        id_ruta = self.tabla_asignaciones.item(fila, 2).text()
-        id_horario = self.tabla_asignaciones.item(fila, 3).text()
-        estado = self.tabla_asignaciones.item(fila, 4).text()
-        print(f"[DEBUG] ID Horario seleccionado: {id_horario}")
-        # Crear diccionario con los datos
-        datos_asignacion = {
-            'id_asignacion': id_asignacion,
-            'id_tren': id_tren,
-            'id_ruta': id_ruta,
-            'id_horario': id_horario,
-            'estado': estado
-        }
-        # Cargar datos en el panel y mostrarlo
-        #self.panel_modificar_asignacion.modificacion_exitosa.connect(self.actualizar_datos)
-        #self.mostrar_panel_modificar_asignacion.modificacion_exitosa.connect(self.actualizar_datos)
-        #self.panel_modificar_asignacion.cargar_datos(datos_asignacion)
-        #self.panel_modificar_asignacion.set_horario(id_horario)
-        #self.mostrar_panel_modificar_asignacion()
-        self.panel_modificar_asignacion.modificacion_exitosa.connect(self.actualizar_datos)
-        self.panel_modificar_asignacion.set_horario(id_horario)
-        self.mostrar_panel_modificar_asignacion()
+
+        self.panel_modificar_asignacion.set_asignacion(int(id_asignacion))
+        self.mostrar_panel(5)  # índice 5 corresponde a scroll_modificar_asignacion
+
 
     def mostrar_panel_modificar_asignacion(self):
         """Muestra el panel de modificación de asignación"""
