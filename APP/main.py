@@ -58,7 +58,7 @@ class MainWindow(QMainWindow):
             MonitoreoInterface(self, self.db),
             GestionIncidencias(self, self.db, id_usuario),
             GestionInfraestructura(self, self.db, id_usuario),
-            OptimizacionDinamica(self, self.db),
+            OptimizacionDinamica(self, self.db, id_usuario),
             #InterfazAsignacion(self, self.db),
             MejoraContinua(self, self.db)
         ]

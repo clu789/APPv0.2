@@ -238,3 +238,6 @@ class InterfazAgregarIncidencia(QWidget):
         except Exception as e:
             self.db.rollback()
             QMessageBox.critical(self, "Error al insertar", str(e))
+
+    def actualizar_datos(self):
+        self.cargar_asignaciones()

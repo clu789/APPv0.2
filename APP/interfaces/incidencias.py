@@ -86,6 +86,7 @@ class GestionIncidencias(QWidget):
         self.scroll_incidencias.setWidgetResizable(True)
         self.scroll_incidencias.hide()
         self.panel_incidencias = InterfazAgregarIncidencia(self.main_window, self.db, self.username)
+        self.db.event_manager.update_triggered.connect(self.panel_incidencias.actualizar_datos)
         self.panel_incidencias.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_incidencias.btn_confirmar.clicked.connect(self.ocultar_panel)
         self.panel_incidencias.btn_confirmar.clicked.connect(self.actualizar_datos)
