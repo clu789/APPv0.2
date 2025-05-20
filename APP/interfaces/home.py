@@ -206,6 +206,8 @@ class InterfazHome(QWidget):
         print(self.username)
         
         self.panel_modificar = InterfazModificarAsignacion(self.main_window, self.db, self.username)
+        self.panel_modificar.btn_cancelar.clicked.connect(self.ocultar_panel_modificar)
+        self.panel_modificar.btn_confirmar.clicked.connect(self.ocultar_panel_modificar)
         self.panel_modificar.modificacion_exitosa.connect(self.actualizar_datos)
         self.panel_modificar.hide()
         self.content_layout.addWidget(self.panel_modificar)
@@ -271,8 +273,8 @@ class InterfazHome(QWidget):
 
         # Añade los botones normalmente...
         botones_layout.addStretch()
-        botones_layout.addWidget(self.btn_modificar)
         botones_layout.addWidget(self.btn_asignar)
+        botones_layout.addWidget(self.btn_modificar)
         botones_layout.addWidget(self.btn_cancelar)
         botones_layout.addStretch()
 
@@ -342,7 +344,7 @@ class InterfazHome(QWidget):
         #id_asignacion = self.tabla_proximos.item(fila, 2).text()
         id_horario = self.tabla_proximos.item(fila, 2).text() 
         id_asignacion = self.tabla_proximos.item(fila, 0).text()
-        self.mostrar_panel_modificar(id_asignacion) 
+        #self.mostrar_panel_modificar(id_asignacion) 
 
         try:
             # Confirmar cancelación

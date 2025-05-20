@@ -355,7 +355,7 @@ class GestionHorariosRutas(QWidget):
         self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.bloquear_botones_asignacion)
         self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel)
-        self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.bloquear_botones_asignacion)
+        self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.bloquear_botones_asignacion)
         self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.actualizar_datos)
 
         layout_modificar.addWidget(self.panel_modificar_asignacion)

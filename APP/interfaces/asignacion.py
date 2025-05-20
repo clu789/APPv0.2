@@ -1423,7 +1423,7 @@ class InterfazModificarAsignacion(QWidget):
             )
 
             # Actualizar interfaz
-            self.ocultar_panel_modificar()
+            #self.ocultar_panel_modificar()
             self.db.event_manager.update_triggered.emit()
 
         except oracledb.DatabaseError as e:
