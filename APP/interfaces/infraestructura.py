@@ -367,9 +367,53 @@ class GestionInfraestructura(QWidget):
             for j, valor in enumerate(fila):
                 self.estaciones_table.setItem(i, j, QTableWidgetItem(str(valor)))
 
+    def buscar_tren_disponible(self, id_horario):
+        """
+        Busca el ID del primer tren activo disponible que no tenga asignaciones solapadas con el horario dado.
+        """
+        try:
+            query_horario = """
+                SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
+                FROM HORARIO
+                WHERE ID_HORARIO = :id_horario
+            """
+            horario = self.db.fetch_one(query_horario, {"id_horario": id_horario})
+            if not horario:
+                return None
+
+            hora_inicio, hora_fin = horario
+
+            query = """
+                SELECT T.ID_TREN
+                FROM TREN T
+                WHERE T.ESTADO = 'ACTIVO'
+                AND NOT EXISTS (
+                    SELECT 1
+                    FROM ASIGNACION_TREN A
+                    JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+                    WHERE A.ID_TREN = T.ID_TREN
+                    AND (
+                        H.HORA_SALIDA_PROGRAMADA < :hora_fin
+                        AND H.HORA_LLEGADA_PROGRAMADA > :hora_inicio
+                    )
+                )
+                ORDER BY T.ID_TREN
+            """
+
+            params = {
+                "hora_inicio": hora_inicio,
+                "hora_fin": hora_fin
+            }
+
+            resultados = self.db.fetch_all(query, params)
+            return resultados[0][0] if resultados else None
+
+        except Exception as e:
+            print(f"Error al buscar tren disponible: {str(e)}")
+            return None
+        
     def eliminar_tren(self):
-        """Elimina un tren seleccionado
-            guarda en historial todas las asignaciones que tenia ese tren antes de eliminarlo"""
+        """Elimina un tren reasignando sus asignaciones si es posible y registrando los cambios en el historial"""
         self.ocultar_panel()
         fila = self.trenes_table.currentRow()
         if fila == -1:
@@ -377,79 +421,85 @@ class GestionInfraestructura(QWidget):
             return
         id_tren = self.trenes_table.item(fila, 0).text()
         nombre = self.trenes_table.item(fila, 1).text()
-        
+    
         confirmacion = QMessageBox()
         confirmacion.setIcon(QMessageBox.Icon.Question)
         confirmacion.setWindowTitle("Confirmar eliminación")
         confirmacion.setText(f"¿Estás seguro de que deseas eliminar el tren #{id_tren}?")
         confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
         confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
-        
+    
+        if confirmacion.exec() != 2:
+            self.bloquear_botones_tren()
+            return
+    
         try:
-            if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                # Se busca todas las asignaciones que tengan ese horario para insertarlas en el historial
+            cursor = self.db.connection.cursor()
+    
+            cursor.execute("""
+                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_TREN = :1
+            """, (id_tren,))
+            asignaciones = cursor.fetchall()
+    
+            for asignacion in asignaciones:
+                id_asignacion = asignacion[0]
+    
                 cursor.execute("""
-                    SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_TREN = :1
-                """, (id_tren,))
-                asignaciones = cursor.fetchall()
-                for asignacion in asignaciones:
-                    id_asignacion = asignacion[0]
-                    # Obtener ID_RUTA e ID_TREN de la asignacion
-                    cursor.execute("""
-                        SELECT ID_RUTA, ID_HORARIO FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
-                    """, (id_asignacion,))
-                    id_ruta, id_horario = cursor.fetchone()
-                    #Obtener duracion estimada y orden de las estaciones
-                    cursor.execute("""
-                        SELECT DURACION_ESTIMADA,
-                               LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-                        FROM RUTA R
-                        JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-                        JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-                        WHERE R.ID_RUTA = :1
-                        GROUP BY R.DURACION_ESTIMADA
-                    """, (id_ruta,))
-                    resultado_ruta = cursor.fetchone()
-                    duracion = resultado_ruta[0]
-                    estaciones = resultado_ruta[1]
-
-                    # Obtener hora inicio y fin del horario
-                    cursor.execute("""
-                        SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-                        FROM HORARIO WHERE ID_HORARIO = :1
-                    """, (id_horario,))
-                    hora_inicio, hora_fin = cursor.fetchone()
-
-
-                    # Construir el string de información
-                    info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren: {nombre}"
-
-                    # Se genera el id del nuevo registro del historial
-                    cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                    nuevo_id = cursor.fetchone()[0]
-
-                    # Se inserta el registro de la asignacion que se va a eliminar
-                    cursor.execute("""
-                        INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                        VALUES (:1, :2, :3, :4, SYSDATE)
-                    """, (nuevo_id, info, self.username, id_asignacion,))
-
-                # Se elimina el tren
+                    SELECT ID_RUTA, ID_HORARIO FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
+                """, (id_asignacion,))
+                id_ruta, id_horario = cursor.fetchone()
+    
+                nuevo_tren = self.buscar_tren_disponible(id_horario)
+                if not nuevo_tren:
+                    raise Exception("No hay trenes disponibles para reemplazar en todas las asignaciones. Cancelando eliminación.")
+    
+                # Actualizar la asignación con el nuevo tren
                 cursor.execute("""
-                    DELETE FROM TREN WHERE ID_TREN = :1
-                """, (id_tren,))
-                # Realiza commit
-                self.db.connection.commit()
-                # Se notifica que el tren se elimino
-                self.db.event_manager.update_triggered.emit()
-                QMessageBox.information(self, "Resultado", "El tren se ha eliminado correctamente.")
-                self.actualizar_datos()
-                self.bloquear_botones_tren()
-            else:
-                self.bloquear_botones_tren()
+                    UPDATE ASIGNACION_TREN SET ID_TREN = :1 WHERE ID_ASIGNACION = :2
+                """, (nuevo_tren, id_asignacion))
+    
+                # Obtener datos para historial
+                cursor.execute("""
+                    SELECT DURACION_ESTIMADA,
+                           LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
+                    FROM RUTA R
+                    JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
+                    JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
+                    WHERE R.ID_RUTA = :1
+                    GROUP BY R.DURACION_ESTIMADA
+                """, (id_ruta,))
+                duracion, estaciones = cursor.fetchone()
+    
+                cursor.execute("""
+                    SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
+                           TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
+                    FROM HORARIO WHERE ID_HORARIO = :1
+                """, (id_horario,))
+                hora_inicio, hora_fin = cursor.fetchone()
+    
+                info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren reemplazado: {nombre} → Nuevo tren ID: {nuevo_tren}"
+    
+                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+                nuevo_id = cursor.fetchone()[0]
+    
+                cursor.execute("""
+                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
+                    VALUES (:1, :2, :3, :4, SYSDATE)
+                """, (nuevo_id, info, self.username, id_asignacion))
+    
+            # Eliminar el tren
+            cursor.execute("DELETE FROM TREN WHERE ID_TREN = :1", (id_tren,))
+            self.db.connection.commit()
+    
+            self.db.event_manager.update_triggered.emit()
+            QMessageBox.information(self, "Resultado", "El tren se ha eliminado correctamente y sus asignaciones fueron reasignadas.")
+            self.actualizar_datos()
+            self.bloquear_botones_tren()
+    
         except Exception as e:
-            QMessageBox.critical(self, "Error al eliminar", str(e))
+            self.db.connection.rollback()
+            QMessageBox.critical(self, "Error al eliminar", f"No se pudo eliminar el tren.\n{str(e)}")
+            self.bloquear_botones_tren()
 
     def eliminar_estacion(self):
         self.ocultar_panel()
