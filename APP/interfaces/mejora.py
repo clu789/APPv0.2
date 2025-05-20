@@ -35,7 +35,7 @@ class MejoraContinua(QWidget):
         self.layout().setContentsMargins(0, 0, 0, 0)
     
         # Título con estilo mejorado
-        header = QLabel("Historial del Sistema")
+        header = QLabel("Mejora Continua")
         header.setStyleSheet("""
             QLabel {
                 font-size: 22px;

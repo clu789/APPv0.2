@@ -16,6 +16,7 @@ class LineEditSeleccion(QLineEdit):
 
 class LoginInterface(QWidget):
     login_exitoso = pyqtSignal(str)
+    login_es_admin = pyqtSignal()
     def __init__(self, db, main_window=None):
         super().__init__()
         self.main_window = main_window
@@ -134,12 +135,20 @@ class LoginInterface(QWidget):
         resultado = self.db.fetch_all(query, (usuario, contrasena))
 
         if resultado and resultado[0][0] > 0:
-            self.login_exitoso.emit(usuario)
-            # Reinicia en caso de éxito
-            self.intentos_login = 0
-            self.input_usuario.clear()
-            self.input_usuario.setFocus()
-            self.input_contrasena.clear()
+            print(usuario)
+            print(contrasena)
+            if usuario == "9999" and contrasena == "ADMIN_CONTROL_TRENES_0000":
+                self.login_es_admin.emit()
+                self.input_usuario.clear()
+                self.input_usuario.setFocus()
+                self.input_contrasena.clear()
+            else:
+                self.login_exitoso.emit(usuario)
+                # Reinicia en caso de éxito
+                self.intentos_login = 0
+                self.input_usuario.clear()
+                self.input_usuario.setFocus()
+                self.input_contrasena.clear()
         else:
             self.intentos_login += 1
             if self.intentos_login >= 3:

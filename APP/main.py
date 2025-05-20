@@ -14,6 +14,7 @@ import sys
 from PyQt6.QtCore import pyqtSignal
 from base_de_datos.event_manager import EventManager
 from interfaces.mejora import MejoraContinua
+from interfaces.usuarios import InterfazGestionUsuarios
 
 class MainWindow(QMainWindow):
     cerrar_sesion_signal = pyqtSignal()
@@ -101,8 +102,8 @@ def main():
     app = QApplication([])
 
     # Conexión a base de datos
-    db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-    #db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "orcldb21c")
+    #db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
+    db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "orcldb21c")
     if not db.connect():
         QMessageBox.critical(None, "Error", "No se pudo conectar a la base de datos")
         sys.exit()
@@ -110,6 +111,18 @@ def main():
     # Crear ventana de login
     login = LoginInterface(db)
     login.show()
+
+    # Señal cuando es el usuario administrador
+    def iniciar_como_admin():
+        login.close()
+        login.ventana_admin = InterfazGestionUsuarios(db)
+        login.ventana_admin.showMaximized()
+        def volver_a_login():
+            login.ventana_admin.close()
+            login.show()
+        login.ventana_admin.cerrar_sesion.connect(volver_a_login)
+
+    login.login_es_admin.connect(iniciar_como_admin)
 
     # Función que se ejecuta al iniciar sesión correctamente
     def iniciar_sesion_exitoso(id_usuario):
