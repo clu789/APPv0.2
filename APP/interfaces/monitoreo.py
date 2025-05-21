@@ -1,9 +1,10 @@
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame, QGridLayout, QScrollArea, QHeaderView
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont
+from PyQt6.QtGui import QFont, QPixmap
 from datetime import datetime
 from base_de_datos.db import DatabaseConnection  
 from base_de_datos.event_manager import EventManager
+from utils import obtener_ruta_recurso
 
 class MonitoreoInterface(QWidget):
     def __init__(self, main_window, db):
@@ -20,16 +21,16 @@ class MonitoreoInterface(QWidget):
         self.load_real_time_data()
     
     def initUI(self):
-        # Layout principal con scroll (como en la interfaz de mejora)
+        # Layout principal con scroll
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
 
         # Widget contenedor principal
         self.main_container = QWidget()
-        main_layout = QVBoxLayout(self.main_container)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(20)
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(15)
 
         # Configurar el scroll area
         self.scroll_area.setWidget(self.main_container)
@@ -37,31 +38,60 @@ class MonitoreoInterface(QWidget):
         self.layout().addWidget(self.scroll_area)
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Título con el estilo de la interfaz de mejora
-        header = QLabel("Monitoreo en Tiempo Real")
-        header.setStyleSheet("""
+        # --- Encabezado con logo y título ---
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 15)
+
+        # Título principal centrado
+        title_label = QLabel("Monitoreo en Tiempo Real")
+        title_label.setStyleSheet("""
             QLabel {
-                font-size: 22px;
+                font-size: 20px;
                 font-weight: bold;
                 color: #2c3e50;
-                padding: 10px 0;
-                border-bottom: 2px solid #3498db;
+                padding: 5px 0;
             }
         """)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(header)
+        header_layout.addWidget(title_label)
+
+        # Contenedor para logo a la derecha
+        logo_container = QWidget()
+        logo_layout = QVBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(20)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(
+            160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
+
+        header_layout.addWidget(logo_container)
+        self.main_layout.addLayout(header_layout)
 
         # Sección de tabla de asignaciones
         label_estado = QLabel("Asignaciones de Trenes")
         label_estado.setStyleSheet("""
             QLabel {
-                font-size: 16px;
+                font-size: 20px;
                 font-weight: bold;
                 color: #2c3e50;
                 padding-bottom: 5px;
             }
         """)
-        main_layout.addWidget(label_estado)
+        self.main_layout.addWidget(label_estado)
 
         # Configuración de la tabla (manteniendo los mismos estilos)
         self.tabla_trenes = QTableWidget()
@@ -106,7 +136,7 @@ class MonitoreoInterface(QWidget):
         self.tabla_trenes.verticalHeader().setVisible(False)
         self.tabla_trenes.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
 
-        main_layout.addWidget(self.tabla_trenes)
+        self.main_layout.addWidget(self.tabla_trenes)
 
         # Panel de detalles (modificado para manejar el fixedHeight correctamente)
         self.detalle_panel = QFrame()
@@ -150,7 +180,7 @@ class MonitoreoInterface(QWidget):
         """)
         self.detalle_layout.addWidget(detalle_titulo)
 
-        main_layout.addWidget(self.detalle_panel)
+        self.main_layout.addWidget(self.detalle_panel)
         self.detalle_panel.setVisible(False)
 
         # Conexiones originales

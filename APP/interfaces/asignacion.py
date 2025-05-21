@@ -14,7 +14,7 @@ class InterfazAsignacion(QWidget):
         self.main_window = main_window
         self.db = db
         self.init_ui()
-        self.validar_ventana_15min = True
+        self.validar_ventana_15min = False
         self.cargar_datos()
         
     def init_ui(self):
@@ -704,7 +704,7 @@ class InterfazModificarAsignacion(QWidget):
         self.username = username
         self.id_asignacion = None
         self.init_ui()
-        self.validar_ventana_15min = True
+        self.validar_ventana_15min = False
 
     def init_ui(self):
         self.setFixedSize(700, 400)  # Mismo tamaño que el panel de agregar

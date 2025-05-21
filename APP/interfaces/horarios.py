@@ -1,43 +1,52 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
-                            QTableWidgetItem, QSplitter, QPushButton, QScrollArea, QStackedWidget, QSizePolicy, QFrame,
-                            QAbstractItemView, QHeaderView)
+                            QTableWidgetItem, QPushButton, QScrollArea, QFrame,
+                            QAbstractItemView, QHeaderView, QSizePolicy, QMessageBox)
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import QMessageBox
-import oracledb
-from interfaces.asignacion import InterfazAsignacion,InterfazModificarAsignacion
+from interfaces.asignacion import InterfazAsignacion, InterfazModificarAsignacion
 from interfaces.paneles.panel_horarios import InterfazAgregarHorario, InterfazEditarHorario
 from interfaces.paneles.panel_rutas import InterfazAgregarRuta, InterfazEditarRuta
+from utils import obtener_ruta_recurso
 
 class GestionHorariosRutas(QWidget):
     def __init__(self, main_window, db, username):
         super().__init__()
         self.username = username
         self.main_window = main_window
-        self.db = db  # Usar la conexión existente
-
-        self.setWindowTitle("Gestión de Horarios y Rutas")
-        self.setGeometry(100, 100, 1000, 600)
-
+        self.db = db
+        # Aumentamos el tamaño inicial de la ventana
+        self.setGeometry(100, 100, 1200, 800)  # Cambiado de 1000x600 a 1200x800
         self.initUI()
         self.load_routes()
         self.load_schedules()
         self.load_train_availability()
-        self.load_asignaciones()  # Nueva función para cargar asignaciones
+        self.load_asignaciones()
 
     def initUI(self):
-        # Layout principal
-        layout = QVBoxLayout()
-        layout.setContentsMargins(15, 15, 15, 15)
-        layout.setSpacing(15)
+        # Configuración del scroll area principal
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
+        
+        # Widget contenedor principal
+        self.main_container = QWidget()
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(15)
+        
+        # Configurar el scroll area
+        self.scroll_area.setWidget(self.main_container)
+        self.setLayout(QVBoxLayout(self))
+        self.layout().addWidget(self.scroll_area)
+        self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Encabezado con estilo mejorado
+        # Encabezado
         header_layout = QHBoxLayout()
         label = QLabel("Gestión de Horarios y Rutas")
         label.setStyleSheet("""
             QLabel {
-                font-size: 18px;
+                font-size: 20px;
                 font-weight: bold;
                 color: #2c3e50;
                 padding: 5px 0;
@@ -46,78 +55,64 @@ class GestionHorariosRutas(QWidget):
         """)
         header_layout.addWidget(label)
         header_layout.setContentsMargins(0, 0, 0, 10)
-        layout.addLayout(header_layout)
+        
+        # Layout vertical para logo y título
+        logo_layout = QVBoxLayout()
+        logo_layout.setSpacing(20)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+        
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
 
-        # Separador principal (manteniendo distribución original)
-        main_splitter = QSplitter(Qt.Orientation.Horizontal)
+        header_layout.addStretch()
+        # Agrega este layout al top_layout (alineado a la derecha)
+        header_layout.addLayout(logo_layout)
+        
+        self.main_layout.addLayout(header_layout)
 
-        # --- Sección izquierda ---
-        left_container = QWidget()
-        left_container.setMinimumWidth(645)  # Manteniendo ancho original
-        left_section = QVBoxLayout(left_container)
-        left_section.setContentsMargins(0, 0, 0, 0)
-        left_section.setSpacing(10)
+        # Contenedor para el contenido principal (ahora más ancho)
+        self.content_container = QWidget()
+        self.content_container.setFixedWidth(1100)  # Aumentado de 900 a 1100
+        content_layout = QVBoxLayout(self.content_container)
+        content_layout.setContentsMargins(0, 0, 0, 0)
+        content_layout.setSpacing(15)
 
-        # Tabla de rutas con estilo
+        # --- Sección superior (tabla de rutas e imagen) ---
+        top_section = QHBoxLayout()
+        top_section.setSpacing(15)
+
+        # Tabla de rutas (ahora más ancha)
+        routes_container = QVBoxLayout()
         routes_label = QLabel("Rutas")
         routes_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.tabla_rutas = QTableWidget()
         self.tabla_rutas.setColumnCount(3)
         self.tabla_rutas.setHorizontalHeaderLabels(["ID Ruta", "Duración", "Estaciones"])
         self._configurar_tabla(self.tabla_rutas)
+        self.tabla_rutas.setMinimumHeight(250)
         self.tabla_rutas.itemSelectionChanged.connect(self._controlar_boton_ruta)
-        left_section.addWidget(routes_label)
-        left_section.addWidget(self.tabla_rutas)
 
-        # Contenedor para tablas de horarios y disponibilidad
-        schedules_container = QHBoxLayout()
-        schedules_container.setSpacing(10)
+        routes_container.addWidget(routes_label)
+        routes_container.addWidget(self.tabla_rutas)
+        top_section.addLayout(routes_container, stretch=3)  # Más espacio para rutas
 
-        # Tabla de horarios con estilo
-        schedules_label = QLabel("Horarios")
-        schedules_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        self.tabla_horarios = QTableWidget()
-        self.tabla_horarios.setColumnCount(3)
-        self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
-        self._configurar_tabla(self.tabla_horarios)
-        self.tabla_horarios.itemSelectionChanged.connect(self._controlar_boton_horario)
-
-        # Tabla de disponibilidad de trenes con estilo
-        availability_label = QLabel("Disponibilidad de Trenes")
-        availability_label.setStyleSheet("font-weight: bold; font-size: 14px;")
-        self.tabla_trenes = QTableWidget()
-        self.tabla_trenes.setColumnCount(3)
-        self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado"])
-        self._configurar_tabla(self.tabla_trenes)
-
-        # Layouts para las tablas inferiores
-        schedules_left = QVBoxLayout()
-        schedules_left.setSpacing(5)
-        schedules_left.addWidget(schedules_label)
-        schedules_left.addWidget(self.tabla_horarios)
-
-        schedules_right = QVBoxLayout()
-        schedules_right.setSpacing(5)
-        schedules_right.addWidget(availability_label)
-        schedules_right.addWidget(self.tabla_trenes)
-
-        schedules_container.addLayout(schedules_left)
-        schedules_container.addLayout(schedules_right)
-        left_section.addLayout(schedules_container)
-
-        main_splitter.addWidget(left_container)
-
-        # --- Sección derecha ---
-        right_container = QWidget()
-        right_section = QVBoxLayout(right_container)
-        right_section.setContentsMargins(10, 0, 0, 0)
-        right_section.setSpacing(10)
-        
         # Contenedor scroll para la imagen de la ruta
         img_scroll = QScrollArea()
         img_scroll.setWidgetResizable(True)
         img_scroll.setFrameShape(QFrame.Shape.NoFrame)
-
         # Imagen de la ruta con borde
         self.img_ruta = QLabel("Imagen de la ruta")
         self.img_ruta.setStyleSheet("""
@@ -129,27 +124,85 @@ class GestionHorariosRutas(QWidget):
         self.img_ruta.setFixedSize(700, 400)
         self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.img_ruta.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        
         # Configurar el scroll area
         img_scroll.setWidget(self.img_ruta)
-        right_section.addWidget(img_scroll)
+        top_section.addWidget(img_scroll)
 
-        # Tabla de asignaciones con estilo
+        # Imagen de la ruta
+        #img_container = QVBoxLayout()
+        #img_label = QLabel("Mapa de Ruta")
+        #img_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        #self.img_ruta = QLabel("Imagen de la ruta")
+        #self.img_ruta.setStyleSheet("""
+        #    QLabel {
+        #        border: 1px solid #ddd;
+        #        background-color: white;
+        #        min-height: 250px;
+        #    }
+        #""")
+        #self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
+#
+        #img_container.addWidget(img_label)
+        #img_container.addWidget(self.img_ruta)
+        #top_section.addLayout(img_container, stretch=2)  # Menos espacio para imagen
+
+        content_layout.addLayout(top_section)
+
+        # --- Sección media (tablas de horarios, trenes y asignaciones en horizontal) ---
+        middle_section = QHBoxLayout()
+        middle_section.setSpacing(15)
+
+        # Tabla de horarios
+        schedules_container = QVBoxLayout()
+        schedules_label = QLabel("Horarios")
+        schedules_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.tabla_horarios = QTableWidget()
+        self.tabla_horarios.setColumnCount(3)
+        self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
+        self._configurar_tabla(self.tabla_horarios)
+        self.tabla_horarios.setMinimumHeight(300)
+        self.tabla_horarios.itemSelectionChanged.connect(self._controlar_boton_horario)
+
+        schedules_container.addWidget(schedules_label)
+        schedules_container.addWidget(self.tabla_horarios)
+        middle_section.addLayout(schedules_container, stretch=1)
+
+        # Tabla de disponibilidad de trenes
+        availability_container = QVBoxLayout()
+        availability_label = QLabel("Disponibilidad de Trenes")
+        availability_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.tabla_trenes = QTableWidget()
+        self.tabla_trenes.setColumnCount(3)
+        self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado"])
+        self._configurar_tabla(self.tabla_trenes)
+        self.tabla_trenes.setMinimumHeight(300)
+
+        availability_container.addWidget(availability_label)
+        availability_container.addWidget(self.tabla_trenes)
+        middle_section.addLayout(availability_container, stretch=1)
+
+        # Tabla de asignaciones (ahora en la sección media)
+        asignaciones_container = QVBoxLayout()
         asignaciones_label = QLabel("Asignaciones de Trenes")
         asignaciones_label.setStyleSheet("font-weight: bold; font-size: 14px;")
         self.tabla_asignaciones = QTableWidget()
         self.tabla_asignaciones.setColumnCount(5)
         self.tabla_asignaciones.setHorizontalHeaderLabels(["ID Asignación", "Tren", "Ruta", "Horario", "Estado"])
         self._configurar_tabla(self.tabla_asignaciones)
+        self.tabla_asignaciones.setMinimumHeight(300)
         self.tabla_asignaciones.itemSelectionChanged.connect(self._controlar_boton_asignacion)
-        right_section.addWidget(asignaciones_label)
-        right_section.addWidget(self.tabla_asignaciones)
 
-        main_splitter.addWidget(right_container)
-        layout.addWidget(main_splitter)
+        asignaciones_container.addWidget(asignaciones_label)
+        asignaciones_container.addWidget(self.tabla_asignaciones)
+        middle_section.addLayout(asignaciones_container, stretch=2)  # Más espacio para asignaciones
+
+        content_layout.addLayout(middle_section)
+
+
+        # Añadir contenedor de contenido al layout principal
+        self.main_layout.addWidget(self.content_container, 1)
 
         # --- Botones de acción ---
-        # Estilo base para botones
         button_style = """
             QPushButton {
                 padding: 8px 15px;
@@ -172,75 +225,51 @@ class GestionHorariosRutas(QWidget):
 
         self.btn_agregar_horario = QPushButton("Agregar Horario")
         self.btn_agregar_horario.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #2ecc71;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #2ecc71; color: white; }""")
         self.btn_agregar_horario.clicked.connect(lambda: self.mostrar_panel(0))
 
         self.btn_editar_horario = QPushButton("Editar Horario")
         self.btn_editar_horario.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #3498db; color: white; }""")
         self.btn_editar_horario.setEnabled(False)
         self.btn_editar_horario.clicked.connect(self.abrir_edicion_horario)
 
         self.btn_eliminar_horario = QPushButton("Eliminar Horario")
         self.btn_eliminar_horario.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #e74c3c; color: white; }""")
         self.btn_eliminar_horario.setEnabled(False)
         self.btn_eliminar_horario.clicked.connect(self.eliminar_horario)
 
         horario_buttons.addWidget(self.btn_agregar_horario)
         horario_buttons.addWidget(self.btn_editar_horario)
         horario_buttons.addWidget(self.btn_eliminar_horario)
-        layout.addLayout(horario_buttons)
+        self.main_layout.addLayout(horario_buttons)
 
-        # Botones para rutas
+        # Botones para rutas (similar a los de horarios)
         ruta_buttons = QHBoxLayout()
         ruta_buttons.setSpacing(10)
 
         self.btn_agregar_ruta = QPushButton("Agregar Ruta")
         self.btn_agregar_ruta.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #2ecc71;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #2ecc71; color: white; }""")
         self.btn_agregar_ruta.clicked.connect(lambda: self.mostrar_panel(1))
 
         self.btn_editar_ruta = QPushButton("Editar Ruta")
         self.btn_editar_ruta.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #3498db; color: white; }""")
         self.btn_editar_ruta.setEnabled(False)
         self.btn_editar_ruta.clicked.connect(self.abrir_edicion_ruta)
 
         self.btn_eliminar_ruta = QPushButton("Eliminar Ruta")
         self.btn_eliminar_ruta.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #e74c3c; color: white; }""")
         self.btn_eliminar_ruta.setEnabled(False)
         self.btn_eliminar_ruta.clicked.connect(self.eliminar_ruta)
 
         ruta_buttons.addWidget(self.btn_agregar_ruta)
         ruta_buttons.addWidget(self.btn_editar_ruta)
         ruta_buttons.addWidget(self.btn_eliminar_ruta)
-        layout.addLayout(ruta_buttons)
+        self.main_layout.addLayout(ruta_buttons)
 
         # Botones para asignación de trenes
         asignacion_buttons = QHBoxLayout()
@@ -248,129 +277,136 @@ class GestionHorariosRutas(QWidget):
 
         self.btn_asignar_tren = QPushButton("Asignar Tren")
         self.btn_asignar_tren.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #2ecc71;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #2ecc71; color: white; }""")
         self.btn_asignar_tren.clicked.connect(lambda: self.mostrar_panel(2))
 
         self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
         self.btn_modificar_asignacion.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #3498db;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #3498db; color: white; }""")
         self.btn_modificar_asignacion.setEnabled(False)
         self.btn_modificar_asignacion.clicked.connect(self.abrir_edicion_asignacion)
 
         self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
         self.btn_quitar_asignacion.setStyleSheet(button_style + """
-            QPushButton {
-                background-color: #e74c3c;
-                color: white;
-            }
-        """)
+            QPushButton { background-color: #e74c3c; color: white; }""")
         self.btn_quitar_asignacion.setEnabled(False)
         self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion)
 
         asignacion_buttons.addWidget(self.btn_asignar_tren)
         asignacion_buttons.addWidget(self.btn_modificar_asignacion)
         asignacion_buttons.addWidget(self.btn_quitar_asignacion)
-        layout.addLayout(asignacion_buttons)
-        
-        # Contenedor apilado
-        self.stacked = QStackedWidget()
-        self.stacked.hide()
+        self.main_layout.addLayout(asignacion_buttons)
 
-        #Panel para agregar horarios
-        self.scroll_horarios = QScrollArea()
-        self.scroll_horarios.setWidgetResizable(True)
-        self.scroll_horarios.hide()
+        # --- Paneles ocultos ---
+        # Panel para agregar horarios
         self.panel_horarios = InterfazAgregarHorario(self.main_window, self.db)
         self.panel_horarios.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_horarios.btn_confirmar.clicked.connect(self.ocultar_panel)
         self.panel_horarios.btn_confirmar.clicked.connect(self.actualizar_datos)
-        self.scroll_horarios.setWidget(self.panel_horarios)
+        self.panel_horarios.hide()
+        self.main_layout.addWidget(self.panel_horarios)
         
-        #Panel para agregar rutas
-        self.scroll_rutas = QScrollArea()
-        self.scroll_rutas.setWidgetResizable(True)
-        self.scroll_rutas.hide()
+        # Panel para agregar rutas
         self.panel_rutas = InterfazAgregarRuta(self.main_window, self.db)
         self.panel_rutas.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_rutas.btn_confirmar.clicked.connect(self.ocultar_panel)
         self.panel_rutas.btn_confirmar.clicked.connect(self.actualizar_datos)
-        self.scroll_rutas.setWidget(self.panel_rutas)
+        self.panel_rutas.hide()
+        self.main_layout.addWidget(self.panel_rutas)
         
-        # Panel de asignación de trenes (oculto por defecto)
-        self.scroll_asignacion = QScrollArea()
-        self.scroll_asignacion.setWidgetResizable(True)
-        self.scroll_asignacion.hide()  # Oculto inicialmente
+        # Panel de asignación de trenes
         self.panel_asignacion = InterfazAsignacion(self.main_window, self.db)
         self.panel_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel)
-        self.scroll_asignacion.setWidget(self.panel_asignacion)
+        self.panel_asignacion.hide()
+        self.main_layout.addWidget(self.panel_asignacion)
         
-        #Panel para editar horarios
-        self.scroll_horarios2 = QScrollArea()
-        self.scroll_horarios2.setWidgetResizable(True)
-        self.scroll_horarios2.hide()
+        # Panel para editar horarios
         self.panel_horarios2 = InterfazEditarHorario(self.main_window, self.db, self.username)
         self.panel_horarios2.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_horarios2.btn_cancelar.clicked.connect(self.bloquear_botones_horario)
         self.panel_horarios2.btn_confirmar.clicked.connect(self.ocultar_panel)
-        self.panel_horarios2.btn_confirmar.clicked.connect(self.bloquear_botones_horario)
         self.panel_horarios2.btn_confirmar.clicked.connect(self.actualizar_datos)
-        self.scroll_horarios2.setWidget(self.panel_horarios2)
+        self.panel_horarios2.btn_confirmar.clicked.connect(self.bloquear_botones_horario)
+        self.panel_horarios2.hide()
+        self.main_layout.addWidget(self.panel_horarios2)
         
-        #Panel para agregar rutas
-        self.scroll_rutas2 = QScrollArea()
-        self.scroll_rutas2.setWidgetResizable(True)
-        self.scroll_rutas2.hide()
+        # Panel para editar rutas
         self.panel_rutas2 = InterfazEditarRuta(self.main_window, self.db, self.username)
         self.panel_rutas2.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_rutas2.btn_cancelar.clicked.connect(self.bloquear_botones_ruta)
         self.panel_rutas2.btn_confirmar.clicked.connect(self.ocultar_panel)
-        self.panel_rutas2.btn_confirmar.clicked.connect(self.bloquear_botones_ruta)
         self.panel_rutas2.btn_confirmar.clicked.connect(self.actualizar_datos)
-        self.scroll_rutas2.setWidget(self.panel_rutas2)
+        self.panel_rutas2.btn_confirmar.clicked.connect(self.bloquear_botones_ruta)
+        self.panel_rutas2.hide()
+        self.main_layout.addWidget(self.panel_rutas2)
 
         # Panel de modificación de asignación
-        self.scroll_modificar_asignacion = QScrollArea()
-        self.scroll_modificar_asignacion.setWidgetResizable(True)
-        self.scroll_modificar_asignacion.hide()
-        self.scroll_modificar_asignacion.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.scroll_modificar_asignacion.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
-        self.scroll_modificar_asignacion.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
-
-        # Contenedor con layout para el scroll
-        contenedor_modificar = QWidget()
-        layout_modificar = QVBoxLayout(contenedor_modificar)
-        layout_modificar.setContentsMargins(0, 0, 0, 0)
-        layout_modificar.setSpacing(0)
-
         self.panel_modificar_asignacion = InterfazModificarAsignacion(self.main_window, self.db, self.username)
         self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_modificar_asignacion.btn_cancelar.clicked.connect(self.bloquear_botones_asignacion)
         self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.ocultar_panel)
-        self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.bloquear_botones_asignacion)
         self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.actualizar_datos)
+        self.panel_modificar_asignacion.btn_confirmar.clicked.connect(self.bloquear_botones_asignacion)
+        self.panel_modificar_asignacion.hide()
+        self.main_layout.addWidget(self.panel_modificar_asignacion)
 
-        layout_modificar.addWidget(self.panel_modificar_asignacion)
-        self.scroll_modificar_asignacion.setWidget(contenedor_modificar)
+        # Configuración final del scroll
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setWidgetResizable(True)
+
+    def resizeEvent(self, event):
+        """Ajustar el ancho del contenido cuando cambia el tamaño de la ventana"""
+        new_width = min(1250, self.width() - 100)  # 100px de margen
+        self.content_container.setFixedWidth(new_width)
+        super().resizeEvent(event)
+
+    def mostrar_panel(self, panel_type):
+        """Muestra el panel correspondiente y ajusta el scroll"""
+        panels = {
+            0: self.panel_horarios,
+            1: self.panel_rutas,
+            2: self.panel_asignacion,
+            3: self.panel_horarios2,
+            4: self.panel_rutas2,
+            5: self.panel_modificar_asignacion
+        }
         
-        self.stacked.addWidget(self.scroll_horarios)
-        self.stacked.addWidget(self.scroll_rutas)
-        self.stacked.addWidget(self.scroll_asignacion)
-        self.stacked.addWidget(self.scroll_horarios2)
-        self.stacked.addWidget(self.scroll_rutas2)
-        self.stacked.addWidget(self.scroll_modificar_asignacion)  
-        layout.addWidget(self.stacked)
+        # Ocultar todos los paneles primero
+        for panel in panels.values():
+            panel.hide()
+        
+        # Mostrar el panel solicitado
+        panel = panels.get(panel_type)
+        if panel:
+            panel.show()
+            # Ajustar tamaños de tablas cuando se muestra un panel
+            self.tabla_rutas.setMaximumHeight(250)
+            self.tabla_horarios.setMaximumHeight(250)
+            self.tabla_trenes.setMaximumHeight(250)
+            self.tabla_asignaciones.setMaximumHeight(250)
+            
+            # Mover el scroll al panel
+            QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
+                self.scroll_area.verticalScrollBar().maximum()
+            ))
 
-        self.setLayout(layout)
-    
+    def ocultar_panel(self):
+        """Oculta todos los paneles y restaura los tamaños"""
+        for panel in [self.panel_horarios, self.panel_rutas, self.panel_asignacion, 
+                      self.panel_horarios2, self.panel_rutas2, self.panel_modificar_asignacion]:
+            panel.hide()
+        
+        # Restaurar tamaños de las tablas
+        self.tabla_rutas.setMaximumHeight(16777215)  # Valor máximo de Qt
+        self.tabla_horarios.setMaximumHeight(16777215)
+        self.tabla_trenes.setMaximumHeight(16777215)
+        self.tabla_asignaciones.setMaximumHeight(16777215)
+        
+        # Restaurar posición del scroll
+        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
+
     def _configurar_tabla(self, tabla):
         """Configura el estilo común para todas las tablas"""
         tabla.verticalHeader().setVisible(False)
@@ -395,12 +431,6 @@ class GestionHorariosRutas(QWidget):
             }
         """)
         tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
-    
-    def _controlar_boton_asignacion(self):
-        """Habilita/deshabilita los botones según la selección"""
-        hay_seleccion = self.tabla_asignaciones.currentRow() >= 0
-        self.btn_modificar_asignacion.setEnabled(hay_seleccion)
-        self.btn_quitar_asignacion.setEnabled(hay_seleccion)
 
     def bloquear_botones_horario(self):
         self.tabla_horarios.clearSelection()
@@ -443,15 +473,6 @@ class GestionHorariosRutas(QWidget):
         else:
             self.btn_quitar_asignacion.setEnabled(True)
             self.btn_modificar_asignacion.setEnabled(True)
-
-    def mostrar_panel(self, index):
-        """Muestra el panel de asignación y el scroll"""
-        self.stacked.setCurrentIndex(index)
-        self.stacked.show()
-
-    def ocultar_panel(self):
-        """Oculta el panel de asignación y el scroll"""
-        self.stacked.hide()
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""

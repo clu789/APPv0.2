@@ -4,6 +4,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 import re
+from PyQt6.QtGui import QPixmap
+from utils import obtener_ruta_recurso
 
 class OptimizacionDinamica(QWidget):
     def __init__(self, main_window, db, username):
@@ -26,9 +28,9 @@ class OptimizacionDinamica(QWidget):
         # Widget contenedor principal
         self.main_container = QWidget()
         self.main_container.setFixedWidth(1400)
-        layout = QVBoxLayout(self.main_container)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(20)
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(20)
 
         # Configurar el scroll area
         self.scroll_area.setWidget(self.main_container)
@@ -36,19 +38,48 @@ class OptimizacionDinamica(QWidget):
         self.layout().addWidget(self.scroll_area)
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Título con estilo mejorado
-        header = QLabel("Optimización Dinámica")
-        header.setStyleSheet("""
+        # --- Encabezado con logo y título ---
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 15)
+
+        # Título principal centrado
+        title_label = QLabel("Optimización Dinámica")
+        title_label.setStyleSheet("""
             QLabel {
-                font-size: 22px;
+                font-size: 20px;
                 font-weight: bold;
                 color: #2c3e50;
-                padding: 10px 0;
-                border-bottom: 2px solid #3498db;
+                padding: 5px 0;
             }
         """)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        layout.addWidget(header)
+        header_layout.addWidget(title_label)
+
+        # Contenedor para logo a la derecha
+        logo_container = QWidget()
+        logo_layout = QVBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(20)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(
+            160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
+
+        header_layout.addWidget(logo_container)
+        self.main_layout.addLayout(header_layout)
 
         # Tabla unificada con estilo profesional
         self.tabla = QTableWidget()
@@ -96,7 +127,7 @@ class OptimizacionDinamica(QWidget):
             else:
                 self.tabla.setColumnWidth(i, 120)
 
-        layout.addWidget(self.tabla)
+        self.main_layout.addWidget(self.tabla)
 
         # Contenedor para botones
         botones_container = QWidget()
@@ -174,7 +205,7 @@ class OptimizacionDinamica(QWidget):
         botones.addWidget(self.btn_rechazar_cambio)
         botones.addStretch()
 
-        layout.addWidget(botones_container)
+        self.main_layout.addWidget(botones_container)
 
         # Conexiones (se mantienen igual)
         self.btn_confirmar_cambio.clicked.connect(self.confirmar_cambio)

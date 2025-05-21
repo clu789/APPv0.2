@@ -3,7 +3,7 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
                             QSizePolicy)
 from PyQt6.QtCore import Qt, QTimer, QTime
 from interfaces.asignacion import InterfazAsignacion, InterfazModificarAsignacion
-from PyQt6.QtGui import QIcon, QFont
+from PyQt6.QtGui import QIcon, QFont, QPixmap
 from base_de_datos.db import DatabaseConnection
 import oracledb
 from utils import obtener_ruta_recurso
@@ -53,18 +53,40 @@ class InterfazHome(QWidget):
 
         self.label_bienvenida = QLabel()
         self.load_user_name()
-        self.label_bienvenida.setStyleSheet("font-weight: bold; font-size: 16px;")
+        self.label_bienvenida.setStyleSheet("font-weight: bold; font-size: 20px;")
         top_layout.addWidget(self.label_bienvenida)
 
         self.label_reloj = QLabel()
-        self.label_reloj.setStyleSheet("font-size: 18px;")
+        self.label_reloj.setStyleSheet("font-size: 22px;")
         self.actualizar_reloj()
         timer = QTimer(self)
         timer.timeout.connect(self.actualizar_reloj)
         timer.start(1000)
         top_layout.addWidget(self.label_reloj)
+        
+        # Layout vertical para logo y título
+        logo_layout = QVBoxLayout()
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+        
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+        
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
 
         top_layout.addStretch()
+        # Agrega este layout al top_layout (alineado a la derecha)
+        top_layout.addLayout(logo_layout)
         self.main_layout.addLayout(top_layout)
 
         # Contenedor para tablas y panel de asignación

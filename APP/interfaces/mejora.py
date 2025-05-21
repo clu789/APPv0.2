@@ -3,6 +3,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWi
                              QHeaderView, QAbstractItemView)
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
+from PyQt6.QtGui import QPixmap
+from utils import obtener_ruta_recurso
 
 class MejoraContinua(QWidget):
     def __init__(self, main_window, db):
@@ -24,9 +26,9 @@ class MejoraContinua(QWidget):
         # Widget contenedor principal
         self.main_container = QWidget()
         self.main_container.setFixedWidth(1400)
-        main_layout = QVBoxLayout(self.main_container)
-        main_layout.setContentsMargins(20, 20, 20, 20)
-        main_layout.setSpacing(20)
+        self.main_layout = QVBoxLayout(self.main_container)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(20)
         
         # Configurar el scroll area
         self.scroll_area.setWidget(self.main_container)
@@ -34,19 +36,48 @@ class MejoraContinua(QWidget):
         self.layout().addWidget(self.scroll_area)
         self.layout().setContentsMargins(0, 0, 0, 0)
     
-        # Título con estilo mejorado
-        header = QLabel("Mejora Continua")
-        header.setStyleSheet("""
+        # --- Encabezado con logo y título ---
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 15)
+
+        # Título principal centrado
+        title_label = QLabel("Mejora Continua")
+        title_label.setStyleSheet("""
             QLabel {
-                font-size: 22px;
+                font-size: 20px;
                 font-weight: bold;
                 color: #2c3e50;
-                padding: 10px 0;
-                border-bottom: 2px solid #3498db;
+                padding: 5px 0;
             }
         """)
-        header.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        main_layout.addWidget(header)
+        header_layout.addWidget(title_label)
+
+        # Contenedor para logo a la derecha
+        logo_container = QWidget()
+        logo_layout = QVBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(20)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(
+            160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
+
+        header_layout.addWidget(logo_container)
+        self.main_layout.addLayout(header_layout)
     
         # --- Primera fila: Tres tablas en horizontal ---
         tablas_superiores_container = QWidget()
@@ -117,7 +148,7 @@ class MejoraContinua(QWidget):
         configurar_tabla(self.tabla_reporte_trenes, ["ID Tren", "Asignaciones", "Retraso Promedio", "Incidencias"])
         crear_seccion_tabla_horizontal("Reporte de Trenes:", self.tabla_reporte_trenes, 1)
     
-        main_layout.addWidget(tablas_superiores_container)
+        self.main_layout.addWidget(tablas_superiores_container)
     
         # --- Segunda fila: Historial de Rutas ---
         rutas_label = QLabel("Historial de Rutas:")
@@ -129,11 +160,11 @@ class MejoraContinua(QWidget):
                 padding-bottom: 5px;
             }
         """)
-        main_layout.addWidget(rutas_label)
+        self.main_layout.addWidget(rutas_label)
         
         self.tabla_rutas = QTableWidget()
         configurar_tabla(self.tabla_rutas, ["ID Ruta", "Información", "Fecha Registro"])
-        main_layout.addWidget(self.tabla_rutas)
+        self.main_layout.addWidget(self.tabla_rutas)
     
         # --- Tercera fila: Historial de Asignaciones ---
         asignaciones_label = QLabel("Historial de Asignaciones:")
@@ -145,11 +176,11 @@ class MejoraContinua(QWidget):
                 padding-bottom: 5px;
             }
         """)
-        main_layout.addWidget(asignaciones_label)
+        self.main_layout.addWidget(asignaciones_label)
         
         self.tabla_asignaciones = QTableWidget()
         configurar_tabla(self.tabla_asignaciones, ["ID Asignación", "Información", "Fecha Registro"])
-        main_layout.addWidget(self.tabla_asignaciones)
+        self.main_layout.addWidget(self.tabla_asignaciones)
     
         # Botón para actualizar con estilo
         btn_actualizar = QPushButton("Actualizar Datos")
@@ -177,7 +208,7 @@ class MejoraContinua(QWidget):
         btn_layout.addWidget(btn_actualizar)
         btn_layout.addStretch()
         
-        main_layout.addWidget(btn_container)
+        self.main_layout.addWidget(btn_container)
 
     def cargar_datos(self):
         self.cargar_historial_horarios()

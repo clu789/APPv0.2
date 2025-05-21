@@ -26,9 +26,9 @@ class MenuLateral(QWidget):
         self.setFixedWidth(self.collapsed_width)
         
         # Configuración de colores
-        self.menu_color = QColor(53, 73, 94)  # Azul grajáceo
+        self.menu_color = QColor(52, 152, 219)  # Azul grajáceo
         self.button_color = QColor(72, 101, 129)  # Color botones
-        self.text_color = QColor(220, 220, 220)  # Color texto
+        self.text_color = QColor(0, 0, 0)  # Color texto
         
         self.initUI()
 

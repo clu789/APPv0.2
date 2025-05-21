@@ -5,6 +5,8 @@ from PyQt6.QtCore import Qt
 
 from interfaces.paneles.panel_trenes import InterfazAgregarTren, InterfazEditarTren  # pendiente definir
 from interfaces.paneles.panel_estaciones import InterfazAgregarEstacion, InterfazEditarEstacion  # pendiente definir
+from PyQt6.QtGui import QPixmap
+from utils import obtener_ruta_recurso
 
 class GestionInfraestructura(QWidget):
     def __init__(self, main_window, db, username):
@@ -38,16 +40,48 @@ class GestionInfraestructura(QWidget):
         self.layout().addWidget(self.scroll_area)
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # Encabezado con mejor estilo
-        header = QLabel("Gestión de Infraestructura")
-        header.setStyleSheet("""
-            font-size: 20px;
-            font-weight: bold;
-            color: #2c3e50;
-            padding: 5px;
-            border-bottom: 2px solid #3498db;
+        # --- Encabezado con logo y título ---
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 15)
+
+        # Título principal centrado
+        title_label = QLabel("Gestión de Infraestructura")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 20px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+            }
         """)
-        self.main_layout.addWidget(header)
+        header_layout.addWidget(title_label)
+
+        # Contenedor para logo a la derecha
+        logo_container = QWidget()
+        logo_layout = QVBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(20)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(
+            160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
+
+        header_layout.addWidget(logo_container)
+        self.main_layout.addLayout(header_layout)
 
         # === Sección 1: Tablas lado a lado ===
         tablas_container = QWidget()

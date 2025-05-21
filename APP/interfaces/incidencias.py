@@ -5,6 +5,8 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QTableWidget,
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 from interfaces.paneles.panel_incidencias import InterfazAgregarIncidencia
+from PyQt6.QtGui import QPixmap
+from utils import obtener_ruta_recurso
 
 class GestionIncidencias(QWidget):
     def __init__(self, main_window, db, username):
@@ -38,16 +40,60 @@ class GestionIncidencias(QWidget):
         self.layout().addWidget(self.scroll_area)
         self.layout().setContentsMargins(0, 0, 0, 0)
 
-        # --- Encabezado ---
-        header = QLabel("Gestión de Incidencias")
-        header.setStyleSheet("""
-            font-size: 20px;
-            font-weight: bold;
-            color: #2c3e50;
-            padding: 5px;
-            border-bottom: 2px solid #3498db;
+        # --- Encabezado con logo y título ---
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(0, 0, 0, 15)
+
+        # Título principal centrado
+        title_label = QLabel("Gestión de Incidencias")
+        title_label.setStyleSheet("""
+            QLabel {
+                font-size: 20px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 5px 0;
+            }
         """)
-        self.main_layout.addWidget(header)
+        header_layout.addWidget(title_label)
+
+        # Contenedor para logo a la derecha
+        logo_container = QWidget()
+        logo_layout = QVBoxLayout(logo_container)
+        logo_layout.setContentsMargins(0, 0, 0, 0)
+        logo_layout.setSpacing(20)
+        logo_layout.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignTop)
+
+        # Logo
+        self.logo = QLabel()
+        self.logo.setFixedSize(160, 80)
+        self.logo.setPixmap(QPixmap(obtener_ruta_recurso("APP/icons/TRACKSYNC.png")).scaled(
+            160, 80, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation))
+        self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.logo)
+
+        # Título debajo del logo
+        self.titulo = QLabel("TRACKSYNC")
+        self.titulo.setStyleSheet("""
+            font-size: 22px;
+            font-style: italic;
+        """)
+        self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        logo_layout.addWidget(self.titulo)
+
+        header_layout.addWidget(logo_container)
+        self.main_layout.addLayout(header_layout)
+
+        # Sección de tabla de asignaciones
+        label_estado = QLabel("Asignaciones de Trenes")
+        label_estado.setStyleSheet("""
+            QLabel {
+                font-size: 16px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding-bottom: 5px;
+            }
+        """)
+        self.main_layout.addWidget(label_estado)
 
         # Contenedor para el contenido con ancho fijo
         self.content_container = QWidget()
