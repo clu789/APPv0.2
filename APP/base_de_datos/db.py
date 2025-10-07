@@ -11,7 +11,7 @@ class DatabaseConnection:
             cls._instance._initialized = False
         return cls._instance
 
-    def __init__(self, username=None, password=None, host=None, port=None, sid=None):
+    def __init__(self, username=None, password=None, host=None, port=None, sid=None, service_name=None):
         if self._initialized:
             return
 
@@ -20,6 +20,8 @@ class DatabaseConnection:
         self.host = host
         self.port = port
         self.sid = sid
+        # Nombre del servicio (PDB). Si se proporciona, se usará en lugar del SID
+        self.service_name = service_name
         self.connection = None
         self.cursor = None
         self.event_manager = None
@@ -31,7 +33,12 @@ class DatabaseConnection:
             if self.connection and self._test_connection():
                 return True
 
-            dsn = oracledb.makedsn(self.host, self.port, self.sid)
+            # Si se proporcionó un service_name (p. ej. orclpdb21c) lo usamos para
+            # crear el DSN y conectar al PDB. En caso contrario, se intenta con SID.
+            if self.service_name:
+                dsn = oracledb.makedsn(self.host, self.port, service_name=self.service_name)
+            else:
+                dsn = oracledb.makedsn(self.host, self.port, self.sid)
             self.connection = oracledb.connect(
                 user=self.username,
                 password=self.password,

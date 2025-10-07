@@ -102,8 +102,9 @@ def main():
     app = QApplication([])
 
     # Conexión a base de datos
-    db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
-    #db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "orcldb21c")
+    #db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")
+    # Para conectar al PDB, pasar service_name en lugar de SID
+    db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, sid=None, service_name="orclpdb21c")
     if not db.connect():
         QMessageBox.critical(None, "Error", "No se pudo conectar a la base de datos")
         sys.exit()
