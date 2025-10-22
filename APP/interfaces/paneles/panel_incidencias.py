@@ -4,7 +4,8 @@ from PyQt6.QtWidgets import (
     QDateTimeEdit, QMessageBox, QScrollArea, QFrame, QAbstractItemView, QHeaderView,
     QSizePolicy
 )
-from PyQt6.QtCore import Qt, QDateTime
+from PyQt6.QtCore import Qt, QDateTime, QDate
+from PyQt6.QtGui import QTextCharFormat, QColor
 from datetime import datetime
 
 class InterfazAgregarIncidencia(QWidget):
@@ -42,12 +43,11 @@ class InterfazAgregarIncidencia(QWidget):
         # Título
         titulo = QLabel("Agregar Nueva Incidencia")
         titulo.setStyleSheet("""
-            font-size: 20px;
+            font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
-            padding: 5px;
-            border-bottom: 2px solid #3498db;
-            margin-bottom: 15px;
+            color: white;
+            padding: 5px 0;
+            margin-bottom: 10px;
         """)
         self.main_layout.addWidget(titulo)
 
@@ -60,7 +60,7 @@ class InterfazAgregarIncidencia(QWidget):
 
         # --- Tabla de Asignaciones ---
         label_asignaciones = QLabel("Selecciona la asignación:")
-        label_asignaciones.setStyleSheet("font-weight: bold; font-size: 14px;")
+        label_asignaciones.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         content_layout.addWidget(label_asignaciones)
 
         self.tabla_asignaciones = QTableWidget()
@@ -71,20 +71,22 @@ class InterfazAgregarIncidencia(QWidget):
         self.tabla_asignaciones.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla_asignaciones.setStyleSheet("""
             QTableWidget {
-                background-color: white;
-                border: 1px solid #ddd;
+                background-color: #0b1522;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
+                background-color: #121f30ff;
+                color: #55a2e7;
                 padding: 5px;
                 font-weight: bold;
-                border: none;
+                border: 1px solid #55a2e7;
             }
             QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
                 padding: 8px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #0b1522;
             }
         """)
 
@@ -113,7 +115,7 @@ class InterfazAgregarIncidencia(QWidget):
 
         # Tipo de incidencia
         tipo_label = QLabel("Tipo de incidencia:")
-        tipo_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        tipo_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         form_layout.addWidget(tipo_label)
 
         self.tipo_combo = QComboBox()
@@ -124,13 +126,14 @@ class InterfazAgregarIncidencia(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 min-width: 200px;
+                color: white;
             }
         """)
         form_layout.addWidget(self.tipo_combo)
 
         # Descripción
         desc_label = QLabel("Descripción (máx 150 caracteres):")
-        desc_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        desc_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         form_layout.addWidget(desc_label)
 
         self.descripcion_input = QLineEdit()
@@ -140,13 +143,14 @@ class InterfazAgregarIncidencia(QWidget):
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                color: white;
             }
         """)
         form_layout.addWidget(self.descripcion_input)
 
         # Estado
         estado_label = QLabel("Estado:")
-        estado_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        estado_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         form_layout.addWidget(estado_label)
 
         self.estado_combo = QComboBox()
@@ -158,13 +162,14 @@ class InterfazAgregarIncidencia(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 min-width: 200px;
+                color: white;
             }
         """)
         form_layout.addWidget(self.estado_combo)
 
         # Fecha
         fecha_label = QLabel("Fecha y hora:")
-        fecha_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        fecha_label.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         form_layout.addWidget(fecha_label)
 
         fecha_btn_container = QWidget()
@@ -177,17 +182,39 @@ class InterfazAgregarIncidencia(QWidget):
 
         # Estilo para botones de fecha
         for btn in [self.btn_fecha_actual, self.btn_elegir_fecha]:
+            #btn.setStyleSheet("""
+            #    QPushButton {
+            #        padding: 8px 15px;
+            #        background-color: #3498db;
+            #        color: white;
+            #        border: none;
+            #        border-radius: 4px;
+            #        min-width: 120px;
+            #    }
+            #    QPushButton:hover {
+            #        background-color: #2980b9;
+            #    }
+            #""")
             btn.setStyleSheet("""
                 QPushButton {
-                    padding: 8px 15px;
                     background-color: #3498db;
                     color: white;
+                    padding: 8px 15px;
                     border: none;
                     border-radius: 4px;
                     min-width: 120px;
+                    font-weight: bold;
                 }
                 QPushButton:hover {
                     background-color: #2980b9;
+                }
+                QPushButton:pressed {
+                    background-color: #2472a4;
+                    padding: 9px 14px 7px 16px;
+                }
+                QPushButton:disabled {
+                    background-color: #95a5a6;
+                    color: #7f8c8d;
                 }
             """)
 
@@ -197,10 +224,32 @@ class InterfazAgregarIncidencia(QWidget):
         self.datetime_edit.setStyleSheet("""
             QDateTimeEdit {
                 padding: 8px;
-                border: 1px solid #ddd;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
+                color: white;
+            }
+            QDateTimeEdit: disabled{
+                color: #13243aff;
             }
         """)
+
+        # Colorear NUMEROS de días entre semana (L-V) del mes ACTUAL en blanco en el calendario
+        cal = self.datetime_edit.calendarWidget()
+        if cal is not None:
+            fmt_weekday = QTextCharFormat()
+            fmt_weekday.setForeground(QColor("white"))
+
+            current = QDate.currentDate()
+            year = current.year()
+            month = current.month()
+            first = QDate(year, month, 1)
+            days_in_month = first.daysInMonth()
+
+            for day in range(1, days_in_month + 1):
+                d = QDate(year, month, day)
+                # 1 = Lunes ... 7 = Domingo; queremos Lunes(1) a Viernes(5)
+                if 1 <= d.dayOfWeek() <= 5:
+                    cal.setDateTextFormat(d, fmt_weekday)
 
         fecha_btn_layout.addWidget(self.btn_fecha_actual)
         fecha_btn_layout.addWidget(self.btn_elegir_fecha)
@@ -221,31 +270,75 @@ class InterfazAgregarIncidencia(QWidget):
         self.btn_confirmar = QPushButton("Confirmar")
 
         # Estilo para botones principales
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
 
@@ -267,10 +360,7 @@ class InterfazAgregarIncidencia(QWidget):
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
 
     def cancelar(self):
-        # Limpiar la tabla y volver a cargar asignaciones
-        self.tabla_asignaciones.setRowCount(0)
-        self.cargar_asignaciones()  # vuelve a llenar la tabla como al inicio
-    
+        # Solo restablecer el formulario sin recargar asignaciones (evita bloqueos)
         # Restaurar combo de tipo
         self.tipo_combo.setCurrentIndex(0)  # asume que la opción por defecto está en el índice 0
     
@@ -292,38 +382,45 @@ class InterfazAgregarIncidencia(QWidget):
         self.datetime_edit.setEnabled(True)
 
     def cargar_asignaciones(self):
+        # Cargar todas las asignaciones y sus rutas en una sola consulta (evita N+1 queries)
         query = """
-            SELECT A.ID_ASIGNACION, T.NOMBRE, TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS'), R.ID_RUTA, R.DURACION_ESTIMADA
+            WITH RUTAS_ORDEN AS (
+                SELECT RD.ID_RUTA,
+                       LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ORDEN_RUTA
+                FROM RUTA_DETALLE RD
+                JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
+                GROUP BY RD.ID_RUTA
+            )
+            SELECT A.ID_ASIGNACION,
+                   T.NOMBRE AS TREN,
+                   RORD.ORDEN_RUTA AS RUTA,
+                   TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS HORA_INI,
+                   TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS HORA_FIN
             FROM ASIGNACION_TREN A
             JOIN TREN T ON A.ID_TREN = T.ID_TREN
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
-            JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
+            LEFT JOIN RUTAS_ORDEN RORD ON RORD.ID_RUTA = A.ID_RUTA
+            ORDER BY A.ID_ASIGNACION
         """
         asignaciones = self.db.fetch_all(query)
-        self.tabla_asignaciones.setRowCount(0)
 
-        for i, asignacion in enumerate(asignaciones):
-            id_asignacion, tren_nombre, hora_ini, hora_fin, id_ruta, duracion = asignacion
+        # Mejorar rendimiento durante la carga de datos
+        self.tabla_asignaciones.setUpdatesEnabled(False)
+        try:
+            self.tabla_asignaciones.setRowCount(len(asignaciones))
+            for i, asignacion in enumerate(asignaciones):
+                id_asignacion, tren_nombre, ruta_formato, hora_ini, hora_fin = asignacion
+                horario_str = f"{hora_ini} - {hora_fin}"
 
-            # Obtener estaciones ordenadas
-            estaciones_query = """
-                SELECT LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN)
-                FROM RUTA_DETALLE RD
-                JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-                WHERE RD.ID_RUTA = :1
-            """
-            estaciones = self.db.fetch_one(estaciones_query, (id_ruta,))
-            ruta_formato = estaciones[0] if estaciones else "Ruta no disponible"
-            horario_str = f"{hora_ini} - {hora_fin}"
+                self.tabla_asignaciones.setItem(i, 0, QTableWidgetItem(str(id_asignacion)))
+                self.tabla_asignaciones.setItem(i, 1, QTableWidgetItem(tren_nombre))
+                self.tabla_asignaciones.setItem(i, 2, QTableWidgetItem(ruta_formato or "Ruta no disponible"))
+                self.tabla_asignaciones.setItem(i, 3, QTableWidgetItem(horario_str))
 
-            self.tabla_asignaciones.insertRow(i)
-            self.tabla_asignaciones.setItem(i, 0, QTableWidgetItem(str(id_asignacion)))
-            self.tabla_asignaciones.setItem(i, 1, QTableWidgetItem(tren_nombre))
-            self.tabla_asignaciones.setItem(i, 2, QTableWidgetItem(ruta_formato))
-            self.tabla_asignaciones.setItem(i, 3, QTableWidgetItem(horario_str))
-            
             self.tabla_asignaciones.resizeColumnsToContents()
             self.tabla_asignaciones.resizeRowsToContents()
+        finally:
+            self.tabla_asignaciones.setUpdatesEnabled(True)
 
     def obtener_info(self):
         cursor = self.db.connection.cursor()
@@ -420,7 +517,12 @@ class InterfazAgregarIncidencia(QWidget):
             # Emitir la señal update_triggered
             self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Éxito", "Incidencia registrada correctamente.")
-            self.cancelar()
+            # Restablecer formulario sin recargar la tabla (rápido)
+            self.tipo_combo.setCurrentIndex(0)
+            self.descripcion_input.clear()
+            self.estado_combo.setCurrentIndex(0)
+            self.datetime_edit.setDateTime(QDateTime.currentDateTime())
+            self.datetime_edit.setEnabled(False)
             #if self.confirmar_callback:
             #    self.confirmar_callback()
         except Exception as e:

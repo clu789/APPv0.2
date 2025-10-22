@@ -46,18 +46,18 @@ class InterfazHome(QWidget):
         top_layout.setSpacing(20)
         
         self.btn_correo = QPushButton()
-        self.btn_correo.setIcon(QIcon(obtener_ruta_recurso("APP/icons/alert.png")))
+        self.btn_correo.setIcon(QIcon(obtener_ruta_recurso("APP/icons/exclamacion.png")))
         self.btn_correo.setFixedSize(40, 40)
         self.btn_correo.clicked.connect(lambda: self.main_window.cambiar_interfaz(3))
         top_layout.addWidget(self.btn_correo)
 
         self.label_bienvenida = QLabel()
         self.load_user_name()
-        self.label_bienvenida.setStyleSheet("font-weight: bold; font-size: 20px;")
+        self.label_bienvenida.setStyleSheet("font-weight: bold; font-size: 20px; color: white;")
         top_layout.addWidget(self.label_bienvenida)
 
         self.label_reloj = QLabel()
-        self.label_reloj.setStyleSheet("font-size: 22px;")
+        self.label_reloj.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         self.actualizar_reloj()
         timer = QTimer(self)
         timer.timeout.connect(self.actualizar_reloj)
@@ -80,6 +80,7 @@ class InterfazHome(QWidget):
         self.titulo.setStyleSheet("""
             font-size: 22px;
             font-style: italic;
+            color: #197fbc;
         """)
         self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_layout.addWidget(self.titulo)
@@ -89,9 +90,9 @@ class InterfazHome(QWidget):
         top_layout.addLayout(logo_layout)
         self.main_layout.addLayout(top_layout)
 
-        # Contenedor para tablas y panel de asignación
+        # Contenedor para tablas y panel de asignación (usar todo el ancho)
         self.content_container = QWidget()
-        self.content_container.setFixedWidth(900)  # Ancho fijo
+        self.content_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.content_layout = QVBoxLayout(self.content_container)
         self.content_layout.setContentsMargins(0, 0, 0, 0)
         self.content_layout.setSpacing(15)
@@ -101,9 +102,8 @@ class InterfazHome(QWidget):
         label_curso.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: #197fbc;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
         self.content_layout.addWidget(label_curso)
                 
@@ -122,20 +122,22 @@ class InterfazHome(QWidget):
         self.tabla_viajes.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla_viajes.setStyleSheet("""
             QTableWidget {
-                background-color: white;
-                border: 1px solid #ddd;
+                background-color: #0b1522;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
+                background-color: #121f30ff;
+                color: #55a2e7;
                 padding: 5px;
                 font-weight: bold;
-                border: none;
+                border: 1px solid #55a2e7;
             }
             QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
                 padding: 5px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #0b1522;
             }
         """)
         
@@ -162,9 +164,8 @@ class InterfazHome(QWidget):
         label_proximos.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: #197fbc;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
         self.content_layout.addWidget(label_proximos)
                 
@@ -183,20 +184,22 @@ class InterfazHome(QWidget):
         self.tabla_proximos.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.tabla_proximos.setStyleSheet("""
             QTableWidget {
-                background-color: white;
-                border: 1px solid #ddd;
+                background-color: #0b1522;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
+                background-color: #121f30ff;
+                color: #55a2e7;
                 padding: 5px;
                 font-weight: bold;
-                border: none;
+                border: 1px solid #55a2e7;
             }
             QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
                 padding: 5px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #0b1522;
             }
         """)
         
@@ -214,6 +217,8 @@ class InterfazHome(QWidget):
         self.tabla_proximos.setColumnWidth(2, 150)
         self.tabla_proximos.setColumnWidth(3, 110)
         self.tabla_proximos.setColumnWidth(4, 190)
+        # Habilitar/deshabilitar botones según selección
+        self.tabla_proximos.itemSelectionChanged.connect(self._controlar_botones_proximos)
         
         self.content_layout.addWidget(self.tabla_proximos)
 
@@ -238,60 +243,129 @@ class InterfazHome(QWidget):
         self.main_layout.addWidget(self.content_container, 1)  # Factor de estiramiento 1
 
         # Botones de acción
-        
         self.btn_modificar = QPushButton("Modificar")
+        #self.btn_modificar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_modificar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #3498db;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
         self.btn_modificar.clicked.connect(self.accion_modificar)
         
         self.btn_asignar = QPushButton("Asignar")
+        #self.btn_asignar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_asignar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
         self.btn_asignar.clicked.connect(self.mostrar_panel_asignacion)
         
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
         self.btn_cancelar.clicked.connect(self.accion_cancelar)
-
-
+        
+        # Deshabilitar Modificar y Cancelar hasta que se seleccione un registro en "Próximamente"
+        self.btn_modificar.setEnabled(False)
+        self.btn_cancelar.setEnabled(False)
+        
         self.botones_container = QWidget()  # Convertir en atributo de clase
-        self.botones_container.setFixedWidth(1200)  # Mismo ancho que las tablas
+        self.botones_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         botones_layout = QHBoxLayout(self.botones_container)
-        botones_layout.setContentsMargins(0, 0, 850, 0)
+        # Quitar margen derecho excesivo que generaba hueco
+        botones_layout.setContentsMargins(0, 0, 0, 0)
 
         # Añade los botones normalmente...
         botones_layout.addStretch()
@@ -311,16 +385,33 @@ class InterfazHome(QWidget):
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        
+        # Color del fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
+
+    def ocultar_botones(self):
+        self.btn_asignar.hide()
+        self.btn_cancelar.hide()
+        self.btn_modificar.hide()
+    
+    def mostrar_botones(self):
+        self.btn_asignar.show()
+        self.btn_cancelar.show()
+        self.btn_modificar.show()
+
+    def bloquear_botones(self):
+        self.tabla_proximos.clearSelection()
+        self.tabla_proximos.clearFocus()
+        self.btn_cancelar.setEnabled(False)
+        self.btn_modificar.setEnabled(False)
 
     def resizeEvent(self, event):
-        # Ajustar el ancho del contenido cuando cambia el tamaño de la ventana
-        new_width = min(1250, self.width() - 100)  # 100px de margen
-        self.content_container.setFixedWidth(new_width)
-        self.botones_container.setFixedWidth(new_width)
+        # No forzar anchos fijos; dejar que Expanding maneje el tamaño
         super().resizeEvent(event)
 
     def mostrar_panel_asignacion(self):
         """Muestra el panel de asignación y ajusta el tamaño de las tablas"""
+        self.ocultar_botones()
         self.tabla_viajes.setMaximumHeight(250)
         self.tabla_proximos.setMaximumHeight(250)
         self.panel_asignacion.show()
@@ -338,17 +429,21 @@ class InterfazHome(QWidget):
         self.panel_asignacion.hide()
         # Restaurar posición del scroll
         QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
+        #self.panel_asignacion.combo_ruta.clear()
+        #self.panel_asignacion.combo_horario.clear()
+        #self.panel_asignacion.combo_tren.clear()
+        self.panel_asignacion.cargar_datos()
+        self.mostrar_botones()
 
     def mostrar_panel_modificar(self, id_asignacion):
-            self.tabla_viajes.setMaximumHeight(250)
-            self.tabla_proximos.setMaximumHeight(250)
-
-            self.panel_modificar.set_asignacion(int(id_asignacion))
-            self.panel_modificar.show()
-
-            QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
-                self.scroll_area.verticalScrollBar().maximum()
-            ))
+        self.ocultar_botones()
+        self.tabla_viajes.setMaximumHeight(250)
+        self.tabla_proximos.setMaximumHeight(250)
+        self.panel_modificar.set_asignacion(int(id_asignacion))
+        self.panel_modificar.show()
+        QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
+            self.scroll_area.verticalScrollBar().maximum()
+        ))
 
     def ocultar_panel_modificar(self):
         """Oculta el panel de modificación"""
@@ -356,11 +451,13 @@ class InterfazHome(QWidget):
         self.tabla_proximos.setMaximumHeight(16777215)
         self.panel_modificar.hide()
         QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
+        self.mostrar_botones()
     
     def accion_cancelar(self):
         fila = self.tabla_proximos.currentRow()
         if fila == -1:
-            QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para cancelar.")
+            # Mensaje no necesario: los botones están deshabilitados cuando no hay selección
+            # QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para cancelar.")
             return
 
         #id_asignacion = self.tabla_proximos.item(fila, 2).text()
@@ -377,6 +474,7 @@ class InterfazHome(QWidget):
             )
 
             if confirmar == QMessageBox.StandardButton.No:
+                self.bloquear_botones()
                 return
 
             # Obtener ID de asignación
@@ -410,6 +508,8 @@ class InterfazHome(QWidget):
             self.db.event_manager.update_triggered.emit()
             QMessageBox.information(self, "Éxito", f"Asignación del horario {id_horario} cancelada correctamente.")
             self.cargar_datos()
+            
+            self.bloquear_botones()
 
         except oracledb.DatabaseError as e:
             error_msg = f"Error de base de datos: {e.args[0].message}"
@@ -515,15 +615,21 @@ class InterfazHome(QWidget):
                 self.tabla_proximos.setItem(i, 1, QTableWidgetItem(f"{p[2]} - {p[3]}"))  # Origen-Destino
                 self.tabla_proximos.setItem(i, 3, QTableWidgetItem(f"{p[4]}-{p[5]}"))  # Horario
                 self.tabla_proximos.setItem(i, 4, QTableWidgetItem(f"{p[6]} - {p[7]}"))  # Tren
+        # Limpiar selección y actualizar estado de botones tras recargar datos
+        self.tabla_proximos.clearSelection()
+        self._controlar_botones_proximos()
 
     def accion_modificar(self):
         fila = self.tabla_proximos.currentRow()
         if fila == -1:
-            QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para modificar.")
+            # Mensaje no necesario: los botones están deshabilitados cuando no hay selección
+            # QMessageBox.warning(self, "Atención", "Selecciona un registro de 'Próximamente' para modificar.")
             return
 
         id_asignacion = self.tabla_proximos.item(fila, 0).text()
         self.mostrar_panel_modificar(id_asignacion)
+        
+        self.bloquear_botones()
 
     def load_user_name(self):
         print(self.username)
@@ -533,3 +639,9 @@ class InterfazHome(QWidget):
         if result:
             nombre_usuario = result[0][0]
             self.label_bienvenida.setText(f"Bienvenido de vuelta, {nombre_usuario}!")
+
+    def _controlar_botones_proximos(self):
+        """Habilita o deshabilita Modificar/Cancelar según selección en la tabla Próximamente."""
+        hay_seleccion = self.tabla_proximos.currentRow() != -1
+        self.btn_modificar.setEnabled(hay_seleccion)
+        self.btn_cancelar.setEnabled(hay_seleccion)

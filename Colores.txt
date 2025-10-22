@@ -1,0 +1,97 @@
+fondo general: #0b1522 #132239ff
+letras: #197fbc
+texto input y tablas: #82caff
+fondo tablas: #2a4254ff
+fondo encabezado tablas: #121f30ff
+texto encabezado tablas: #55a2e7
+button_style_green = """
+    QPushButton {
+        background-color: #2ecc71;
+        color: white;
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        min-width: 120px;
+        font-weight: bold;
+    }
+    QPushButton:hover {
+        background-color: #27ae60;
+    }
+    QPushButton:pressed {
+        background-color: #219653;
+        padding: 9px 14px 7px 16px; 
+    }
+    QPushButton:disabled {
+        background-color: #95a5a6;
+        color: #7f8c8d;
+    }
+"""
+        
+button_style_blue = """
+    QPushButton {
+        background-color: #3498db;
+        color: white;
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        min-width: 120px;
+        font-weight: bold;
+    }
+    QPushButton:hover {
+        background-color: #2980b9;
+    }
+    QPushButton:pressed {
+        background-color: #2472a4;
+        padding: 9px 14px 7px 16px;
+    }
+    QPushButton:disabled {
+        background-color: #95a5a6;
+        color: #7f8c8d;
+    }
+"""
+        
+button_style_red = """
+    QPushButton {
+        background-color: #e74c3c;
+        color: white;
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        min-width: 120px;
+        font-weight: bold;
+    }
+    QPushButton:hover {
+        background-color: #c0392b;
+    }
+    QPushButton:pressed {
+        background-color: #a93226;
+        padding: 9px 14px 7px 16px;
+    }
+    QPushButton:disabled {
+        background-color: #95a5a6;
+        color: #7f8c8d;
+    }
+"""
+        
+button_style_orange = """
+    QPushButton {
+        background-color: #e67e22;
+        color: white;
+        padding: 8px 15px;
+        border: none;
+        border-radius: 4px;
+        min-width: 120px;
+        font-weight: bold;
+    }
+    QPushButton:hover {
+        background-color: #d35400;
+    }
+    QPushButton:pressed {
+        background-color: #ba4a00;
+        padding: 9px 14px 7px 16px;
+    }
+    QPushButton:disabled {
+        background-color: #95a5a6;
+        color: #7f8c8d;
+    }
+"""

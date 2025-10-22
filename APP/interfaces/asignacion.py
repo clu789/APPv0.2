@@ -36,9 +36,8 @@ class InterfazAsignacion(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding-bottom: 10px;
-                border-bottom: 2px solid #3498db;
                 margin-bottom: 15px;
             }
         """)
@@ -50,7 +49,7 @@ class InterfazAsignacion(QWidget):
         self.label_mensaje.setStyleSheet("""
             QLabel {
                 font-size: 13px;
-                color: #7f8c8d;
+                color: white;
                 margin-bottom: 15px;
             }
         """)
@@ -60,7 +59,7 @@ class InterfazAsignacion(QWidget):
         ruta_layout = QVBoxLayout()
         ruta_layout.setSpacing(5)
         lbl_ruta = QLabel("Ruta:")
-        lbl_ruta.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_ruta.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         ruta_layout.addWidget(lbl_ruta)
         
         self.combo_ruta = QComboBox()
@@ -71,6 +70,10 @@ class InterfazAsignacion(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 30px;
+                color: white;
+            }
+            QComboBox QAbstractItemView {
+                color: white;
             }
         """)
         self.combo_ruta.addItem("Seleccionar")
@@ -80,16 +83,16 @@ class InterfazAsignacion(QWidget):
         controles_layout.addLayout(ruta_layout)
     
         # Separador
-        separador1 = QFrame()
-        separador1.setFrameShape(QFrame.Shape.HLine)
-        separador1.setStyleSheet("color: #eee;")
-        controles_layout.addWidget(separador1)
+        #separador1 = QFrame()
+        #separador1.setFrameShape(QFrame.Shape.HLine)
+        #separador1.setStyleSheet("color: white;")
+        #controles_layout.addWidget(separador1)
     
         # Sección de Horario
         horario_layout = QVBoxLayout()
         horario_layout.setSpacing(5)
         lbl_horario = QLabel("Horario:")
-        lbl_horario.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_horario.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         horario_layout.addWidget(lbl_horario)
         
         self.combo_horario = QComboBox()
@@ -100,6 +103,10 @@ class InterfazAsignacion(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 30px;
+                color: white;
+            }
+            QComboBox QAbstractItemView {
+                color: white;
             }
         """)
         self.combo_horario.addItem("Seleccione una ruta primero")
@@ -108,16 +115,16 @@ class InterfazAsignacion(QWidget):
         controles_layout.addLayout(horario_layout)
     
         # Separador
-        separador2 = QFrame()
-        separador2.setFrameShape(QFrame.Shape.HLine)
-        separador2.setStyleSheet("color: #eee;")
-        controles_layout.addWidget(separador2)
+        #separador2 = QFrame()
+        #separador2.setFrameShape(QFrame.Shape.HLine)
+        #separador2.setStyleSheet("color: white;")
+        #controles_layout.addWidget(separador2)
     
         # Sección de Tren
         tren_layout = QVBoxLayout()
         tren_layout.setSpacing(5)
         lbl_tren = QLabel("Unidad:")
-        lbl_tren.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_tren.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         tren_layout.addWidget(lbl_tren)
         
         self.combo_tren = QComboBox()
@@ -128,6 +135,10 @@ class InterfazAsignacion(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 30px;
+                color: white;
+            }
+            QComboBox QAbstractItemView {
+                color: white;
             }
         """)
         self.combo_tren.addItem("Seleccione un horario primero")
@@ -141,11 +152,25 @@ class InterfazAsignacion(QWidget):
         botones_layout.setSpacing(15)  # Más espacio entre botones
     
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 90px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 90px;
@@ -154,16 +179,38 @@ class InterfazAsignacion(QWidget):
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
         #self.btn_cancelar.clicked.connect(self.regresar_home)
         botones_layout.addWidget(self.btn_cancelar)
         
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 90px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 90px;
@@ -172,16 +219,38 @@ class InterfazAsignacion(QWidget):
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
         self.btn_consultar.clicked.connect(self.validar_asignacion)
         botones_layout.addWidget(self.btn_consultar)
     
         self.btn_confirmar = QPushButton("Asignar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 90px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 90px;
@@ -189,6 +258,14 @@ class InterfazAsignacion(QWidget):
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
         self.btn_confirmar.clicked.connect(self.confirmar_asignacion)
@@ -275,13 +352,28 @@ class InterfazAsignacion(QWidget):
                 self.img_ruta.setText("No hay imagen disponible")
                 return
 
-            # 2. Leer el BLOB
-            blob = result[0]
-            image_data = blob.read()
-            
-            # 3. Crear QPixmap
+            # 2. Obtener bytes de la imagen (acepta LOB, bytes, memoryview, etc.)
+            raw = result[0]
+            image_bytes = None
+            try:
+                if hasattr(raw, 'read') and callable(raw.read):
+                    image_bytes = raw.read()
+                elif isinstance(raw, (bytes, bytearray)):
+                    image_bytes = bytes(raw)
+                elif isinstance(raw, memoryview):
+                    image_bytes = raw.tobytes()
+                else:
+                    image_bytes = bytes(raw)
+            except Exception:
+                image_bytes = None
+
+            # 3. Crear QPixmap a partir de los bytes
+            if not image_bytes:
+                self.img_ruta.setText("Imagen no disponible")
+                return
+
             pixmap = QPixmap()
-            if not pixmap.loadFromData(image_data):
+            if not pixmap.loadFromData(image_bytes):
                 self.img_ruta.setText("Formato no soportado")
                 return
 
@@ -725,9 +817,8 @@ class InterfazModificarAsignacion(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding-bottom: 10px;
-                border-bottom: 2px solid #3498db;
                 margin-bottom: 15px;
             }
         """)
@@ -739,7 +830,7 @@ class InterfazModificarAsignacion(QWidget):
         self.label_mensaje.setStyleSheet("""
             QLabel {
                 font-size: 13px;
-                color: #7f8c8d;
+                color: white;
                 margin-bottom: 15px;
             }
         """)
@@ -749,7 +840,7 @@ class InterfazModificarAsignacion(QWidget):
         ruta_layout = QVBoxLayout()
         ruta_layout.setSpacing(5)
         lbl_ruta = QLabel("Ruta:")
-        lbl_ruta.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_ruta.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         ruta_layout.addWidget(lbl_ruta)
 
         self.combo_ruta = QComboBox()
@@ -760,6 +851,10 @@ class InterfazModificarAsignacion(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 30px;
+                color: white;
+            }
+            QComboBox QAbstractItemView {
+                color: white;
             }
         """)
         self.combo_ruta.addItem("Cargando...")
@@ -769,16 +864,16 @@ class InterfazModificarAsignacion(QWidget):
         controles_layout.addLayout(ruta_layout)
 
         # Separador
-        separador1 = QFrame()
-        separador1.setFrameShape(QFrame.Shape.HLine)
-        separador1.setStyleSheet("color: #eee;")
-        controles_layout.addWidget(separador1)
+        #separador1 = QFrame()
+        #separador1.setFrameShape(QFrame.Shape.HLine)
+        #separador1.setStyleSheet("color: #eee;")
+        #controles_layout.addWidget(separador1)
 
         # Sección de Horario
         horario_layout = QVBoxLayout()
         horario_layout.setSpacing(5)
         lbl_horario = QLabel("Horario:")
-        lbl_horario.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_horario.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         horario_layout.addWidget(lbl_horario)
 
         self.combo_horario = QComboBox()
@@ -789,6 +884,10 @@ class InterfazModificarAsignacion(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 30px;
+                color: white;
+            }
+            QComboBox QAbstractItemView {
+                color: white;
             }
         """)
         self.combo_horario.addItem("Seleccione una ruta primero")
@@ -797,16 +896,16 @@ class InterfazModificarAsignacion(QWidget):
         controles_layout.addLayout(horario_layout)
 
         # Separador
-        separador2 = QFrame()
-        separador2.setFrameShape(QFrame.Shape.HLine)
-        separador2.setStyleSheet("color: #eee;")
-        controles_layout.addWidget(separador2)
+        #separador2 = QFrame()
+        #separador2.setFrameShape(QFrame.Shape.HLine)
+        #separador2.setStyleSheet("color: #eee;")
+        #controles_layout.addWidget(separador2)
 
         # Sección de Tren
         tren_layout = QVBoxLayout()
         tren_layout.setSpacing(5)
         lbl_tren = QLabel("Unidad:")
-        lbl_tren.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_tren.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         tren_layout.addWidget(lbl_tren)
 
         self.combo_tren = QComboBox()
@@ -817,6 +916,10 @@ class InterfazModificarAsignacion(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 30px;
+                color: white;
+            }
+            QComboBox QAbstractItemView {
+                color: white;
             }
         """)
         self.combo_tren.addItem("Seleccione un horario primero")
@@ -830,11 +933,25 @@ class InterfazModificarAsignacion(QWidget):
         botones_layout.setSpacing(15)
 
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 90px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 90px;
@@ -843,15 +960,37 @@ class InterfazModificarAsignacion(QWidget):
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
         botones_layout.addWidget(self.btn_cancelar)
 
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 90px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 90px;
@@ -860,16 +999,38 @@ class InterfazModificarAsignacion(QWidget):
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
         self.btn_consultar.clicked.connect(self.validar_modificacion)
         botones_layout.addWidget(self.btn_consultar)
 
         self.btn_confirmar = QPushButton("Modificar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 90px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 90px;
@@ -877,6 +1038,14 @@ class InterfazModificarAsignacion(QWidget):
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
         self.btn_confirmar.clicked.connect(self.confirmar_modificacion)
@@ -1003,13 +1172,28 @@ class InterfazModificarAsignacion(QWidget):
                 self.img_ruta.setText("No hay imagen disponible")
                 return
 
-            # 2. Leer el BLOB
-            blob = result[0]
-            image_data = blob.read()
-            
-            # 3. Crear QPixmap
+            # 2. Obtener bytes de la imagen (acepta LOB, bytes, memoryview, etc.)
+            raw = result[0]
+            image_bytes = None
+            try:
+                if hasattr(raw, 'read') and callable(raw.read):
+                    image_bytes = raw.read()
+                elif isinstance(raw, (bytes, bytearray)):
+                    image_bytes = bytes(raw)
+                elif isinstance(raw, memoryview):
+                    image_bytes = raw.tobytes()
+                else:
+                    image_bytes = bytes(raw)
+            except Exception:
+                image_bytes = None
+
+            # 3. Crear QPixmap a partir de los bytes
+            if not image_bytes:
+                self.img_ruta.setText("Imagen no disponible")
+                return
+
             pixmap = QPixmap()
-            if not pixmap.loadFromData(image_data):
+            if not pixmap.loadFromData(image_bytes):
                 self.img_ruta.setText("Formato no soportado")
                 return
 

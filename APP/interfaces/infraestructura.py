@@ -27,9 +27,9 @@ class GestionInfraestructura(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
 
-        # Widget contenedor principal (igual que antes pero con mejor estilo)
+        # Widget contenedor principal (usar todo el ancho)
         self.main_container = QWidget()
-        self.main_container.setFixedWidth(1400)
+        self.main_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         self.main_layout = QVBoxLayout(self.main_container)
         self.main_layout.setContentsMargins(20, 20, 20, 20)
         self.main_layout.setSpacing(15)
@@ -50,7 +50,7 @@ class GestionInfraestructura(QWidget):
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding: 5px 0;
             }
         """)
@@ -76,6 +76,7 @@ class GestionInfraestructura(QWidget):
         self.titulo.setStyleSheet("""
             font-size: 22px;
             font-style: italic;
+            color: #197fbc;
         """)
         self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_layout.addWidget(self.titulo)
@@ -208,6 +209,9 @@ class GestionInfraestructura(QWidget):
         self.stacked.addWidget(self.scroll_estaciones2)
 
         self.main_layout.addWidget(self.stacked)
+        
+        # Color del fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
 
     def _configurar_tabla(self, tabla):
         """Configura el estilo de las tablas sin afectar su funcionamiento"""
@@ -216,20 +220,22 @@ class GestionInfraestructura(QWidget):
         tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         tabla.setStyleSheet("""
             QTableWidget {
-                background-color: white;
-                border: 1px solid #ddd;
+                background-color: #0b1522;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
+                background-color: #121f30ff;
+                color: #55a2e7;
                 padding: 5px;
                 font-weight: bold;
-                border: none;
+                border: 1px solid #55a2e7;
             }
             QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
                 padding: 5px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #0b1522;
             }
         """)
         # Mantenemos el modo de redimensionamiento original
@@ -246,9 +252,8 @@ class GestionInfraestructura(QWidget):
         label.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: #197fbc;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
 
         layout.addWidget(label)
@@ -258,53 +263,121 @@ class GestionInfraestructura(QWidget):
 
     def _estilo_boton(self, tipo):
         """Devuelve el estilo para los botones según su tipo"""
+        #estilos = {
+        #    "verde": """
+        #        QPushButton {
+        #            padding: 8px 15px;
+        #            background-color: #2ecc71;
+        #            color: white;
+        #            border: none;
+        #            border-radius: 4px;
+        #            min-width: 120px;
+        #        }
+        #        QPushButton:hover {
+        #            background-color: #27ae60;
+        #        }
+        #        QPushButton:disabled {
+        #            background-color: #95a5a6;
+        #        }
+        #    """,
+        #    "azul": """
+        #        QPushButton {
+        #            padding: 8px 15px;
+        #            background-color: #3498db;
+        #            color: white;
+        #            border: none;
+        #            border-radius: 4px;
+        #            min-width: 120px;
+        #        }
+        #        QPushButton:hover {
+        #            background-color: #2980b9;
+        #        }
+        #        QPushButton:disabled {
+        #            background-color: #95a5a6;
+        #        }
+        #    """,
+        #    "rojo": """
+        #        QPushButton {
+        #            padding: 8px 15px;
+        #            background-color: #e74c3c;
+        #            color: white;
+        #            border: none;
+        #            border-radius: 4px;
+        #            min-width: 120px;
+        #        }
+        #        QPushButton:hover {
+        #            background-color: #c0392b;
+        #        }
+        #        QPushButton:disabled {
+        #            background-color: #95a5a6;
+        #        }
+        #    """
+        #}
         estilos = {
             "verde": """
                 QPushButton {
-                    padding: 8px 15px;
                     background-color: #2ecc71;
                     color: white;
+                    padding: 8px 15px;
                     border: none;
                     border-radius: 4px;
                     min-width: 120px;
+                    font-weight: bold;
                 }
                 QPushButton:hover {
                     background-color: #27ae60;
                 }
+                QPushButton:pressed {
+                    background-color: #219653;
+                    padding: 9px 14px 7px 16px;  /* Efecto de profundidad */
+                }
                 QPushButton:disabled {
                     background-color: #95a5a6;
+                    color: #7f8c8d;
                 }
             """,
             "azul": """
                 QPushButton {
-                    padding: 8px 15px;
                     background-color: #3498db;
                     color: white;
+                    padding: 8px 15px;
                     border: none;
                     border-radius: 4px;
                     min-width: 120px;
+                    font-weight: bold;
                 }
                 QPushButton:hover {
                     background-color: #2980b9;
                 }
+                QPushButton:pressed {
+                    background-color: #2472a4;
+                    padding: 9px 14px 7px 16px;
+                }
                 QPushButton:disabled {
                     background-color: #95a5a6;
+                    color: #7f8c8d;
                 }
             """,
             "rojo": """
                 QPushButton {
-                    padding: 8px 15px;
                     background-color: #e74c3c;
                     color: white;
+                    padding: 8px 15px;
                     border: none;
                     border-radius: 4px;
                     min-width: 120px;
+                    font-weight: bold;
                 }
                 QPushButton:hover {
                     background-color: #c0392b;
                 }
+                QPushButton:pressed {
+                    background-color: #a93226;
+                    padding: 9px 14px 7px 16px;
+                }
                 QPushButton:disabled {
                     background-color: #95a5a6;
+                    color: #7f8c8d;
                 }
             """
         }
@@ -371,15 +444,15 @@ class GestionInfraestructura(QWidget):
         self.panel_estaciones2.cargar_datos(id_estacion, nombre)
         self.mostrar_panel(3)
 
-    def _con_titulo(self, titulo, widget):
-        contenedor = QVBoxLayout()
-        label = QLabel(titulo)
-        label.setStyleSheet("font-weight: bold; font-size: 16px;")
-        contenedor.addWidget(label)
-        contenedor.addWidget(widget)
-        widget_container = QWidget()
-        widget_container.setLayout(contenedor)
-        return widget_container
+    #def _con_titulo(self, titulo, widget):
+    #    contenedor = QVBoxLayout()
+    #    label = QLabel(titulo)
+    #    label.setStyleSheet("font-weight: bold; font-size: 16px;")
+    #    contenedor.addWidget(label)
+    #    contenedor.addWidget(widget)
+    #    widget_container = QWidget()
+    #    widget_container.setLayout(contenedor)
+    #    return widget_container
 
     def actualizar_datos(self):
         self.load_trenes_data()

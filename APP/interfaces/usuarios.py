@@ -27,8 +27,7 @@ class InterfazGestionUsuarios(QWidget):
             QLabel {
                 font-size: 24px;
                 font-weight: bold;
-                color: #2c3e50;
-                border-bottom: 2px solid #2980b9;
+                color: white;
                 padding-bottom: 10px;
             }
         """)
@@ -39,10 +38,33 @@ class InterfazGestionUsuarios(QWidget):
         self.tabla_usuarios.setColumnCount(4)
         self.tabla_usuarios.setHorizontalHeaderLabels(["ID Usuario", "Nombre", "Contraseña", "Registros en Historial"])
         self.tabla_usuarios.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tabla_usuarios.verticalHeader().setVisible(False)
+        #self.tabla_usuarios.setStyleSheet("""
+        #    QTableWidget {
+        #        border: 1px solid #ccc;
+        #        font-size: 14px;
+        #        background-color: #0c2032;
+        #    }
+        #""")
         self.tabla_usuarios.setStyleSheet("""
             QTableWidget {
-                border: 1px solid #ccc;
+                background-color: #0b1522;
+                border: 1px solid #0b1522;
                 font-size: 14px;
+                border-radius: 4px;
+            }
+            QHeaderView::section {
+                background-color: #121f30ff;
+                color: #55a2e7;
+                padding: 8px;
+                font-weight: bold;
+                border: 1px solid #55a2e7;
+            }
+            QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
+                padding: 6px;
+                border-bottom: 1px solid #0b1522;
             }
         """)
         # Selección por fila completa y solo una fila a la vez
@@ -62,56 +84,125 @@ class InterfazGestionUsuarios(QWidget):
         self.btn_modificar.setEnabled(False)
         self.btn_eliminar.setEnabled(False)
 
+        #self.btn_agregar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        font-size: 14px;
+        #        font-weight: bold;
+        #        min-width: 200px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }QPushButton:disabled {
+        #        background-color: #95a5a6;
+        #    }
+        #""")
         self.btn_agregar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
+                min-width: 200px;
                 font-size: 14px;
                 font-weight: bold;
-                min-width: 200px;
             }
             QPushButton:hover {
                 background-color: #27ae60;
-            }QPushButton:disabled {
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px; 
+            }
+            QPushButton:disabled {
                 background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
+        #self.btn_modificar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        font-size: 14px;
+        #        font-weight: bold;
+        #        min-width: 200px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }QPushButton:disabled {
+        #        background-color: #95a5a6;
+        #    }
+        #""")
         self.btn_modificar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
-                font-size: 14px;
-                font-weight: bold;
                 min-width: 200px;
+                font-weight: bold;
+                font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
-            }QPushButton:disabled {
+            }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
                 background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
+        #self.btn_eliminar.setStyleSheet("""
+        #    QPushButton {
+        #    padding: 10px 20px;
+        #    background-color: #e74c3c;
+        #    color: white;
+        #    border: none;
+        #    border-radius: 4px;
+        #    font-size: 14px;
+        #    font-weight: bold;
+        #    min-width: 200px;
+        #}
+        #QPushButton:hover {
+        #    background-color: #c0392b;
+        #}QPushButton:disabled {
+        #    background-color: #95a5a6;
+        #}
+        #""")
         self.btn_eliminar.setStyleSheet("""
             QPushButton {
-            padding: 10px 20px;
-            background-color: #e74c3c;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            font-size: 14px;
-            font-weight: bold;
-            min-width: 200px;
-        }
-        QPushButton:hover {
-            background-color: #c0392b;
-        }QPushButton:disabled {
-            background-color: #95a5a6;
-        }
+                background-color: #e74c3c;
+                color: white;
+                padding: 10px 20px;
+                border: none;
+                border-radius: 4px;
+                min-width: 200px;
+                font-weight: bold;
+                font-size: 14px;
+            }
+            QPushButton:hover {
+                background-color: #c0392b;
+            }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
         botones_layout.addWidget(self.btn_agregar)
         botones_layout.addWidget(self.btn_modificar)
@@ -139,6 +230,8 @@ class InterfazGestionUsuarios(QWidget):
         self.btn_modificar.clicked.connect(self.abrir_dialogo_modificar_usuario)
         self.btn_eliminar.clicked.connect(self.eliminar_usuario)
         layout_principal.addWidget(self.btn_cerrar_sesion, alignment=Qt.AlignmentFlag.AlignRight)
+        # Color de fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
 
     def bloquear_botones(self):
         self.tabla_usuarios.clearSelection()
@@ -161,6 +254,7 @@ class InterfazGestionUsuarios(QWidget):
                 SELECT ID_USUARIO, NOMBRE, APELLIDO_PATERNO, APELLIDO_MATERNO,
                 CONTRASENA FROM USUARIO
                 WHERE ID_USUARIO <> 9999
+                ORDER BY 1
             """)
             resultados = cursor.fetchall()
 

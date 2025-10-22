@@ -1,4 +1,5 @@
-from PyQt6.QtCore import QTimer, QTime, QObject, pyqtSignal
+from PyQt6.QtCore import QTimer, QTime, QObject, pyqtSignal, QThreadPool
+from base_de_datos.db_worker import DbTask
 import random
 
 class Evento:
@@ -23,6 +24,13 @@ class EventManager(QObject):
         self.usuario_id = usuario_id  # ID del usuario actual
         self.eventos_pendientes = []  # Lista ordenada de eventos futuros
         self.current_timer = None
+        # Thread pool para ejecutar tareas de BD
+        self.thread_pool = QThreadPool.globalInstance()
+        try:
+            max_threads = getattr(self.db, 'pool_max', 5)
+            self.thread_pool.setMaxThreadCount(max_threads)
+        except Exception:
+            pass
         
         # Configurar timer de verificación periódica
         self.verification_timer = QTimer()
@@ -123,9 +131,15 @@ class EventManager(QObject):
             print(f"\n[Ejecutando evento {evento.tipo} para ASIGNACION {evento.asignacion_id}]")
             
             if evento.tipo == 'SALIDA':
-                self.manejar_salida(evento)
+                task = DbTask(self.db, self._task_manejar_salida, evento)
+                task.signals.result.connect(lambda res: print(f"[Worker] Salida result: {res}"))
+                task.signals.error.connect(lambda err: print(f"[Worker Error] {err}"))
+                self.thread_pool.start(task)
             else:
-                self.manejar_llegada(evento)
+                task = DbTask(self.db, self._task_manejar_llegada, evento)
+                task.signals.result.connect(lambda res: print(f"[Worker] Llegada result: {res}"))
+                task.signals.error.connect(lambda err: print(f"[Worker Error] {err}"))
+                self.thread_pool.start(task)
             
             # Eliminar el evento completado solo si hay elementos
             if self.eventos_pendientes:
@@ -214,53 +228,152 @@ class EventManager(QObject):
         
         # Registrar en historial
         self.registrar_historial(evento, hora_llegada)
-        
+
         self.db.connection.commit()
         self.update_triggered.emit()
 
-    def registrar_incidencia_retraso(self, evento, retraso_minutos):
+    # Worker task implementations that receive a DB connection
+    def _task_manejar_salida(self, conn, evento):
+        try:
+            hora_actual = QTime.currentTime()
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE ASIGNACION_TREN
+                    SET HORA_SALIDA_REAL = TO_DATE(:hora_actual, 'HH24:MI:SS')
+                    WHERE ID_ASIGNACION = :asignacion_id
+                    """,
+                    {'hora_actual': hora_actual.toString('HH:mm:ss'), 'asignacion_id': evento.asignacion_id}
+                )
+
+            # Registrar incidencia si es necesario (usar conn)
+            retraso_minutos = max(0, evento.hora_programada.msecsTo(hora_actual) / 60000)
+            if retraso_minutos > 5:
+                self.registrar_incidencia_retraso(evento, retraso_minutos, conn=conn)
+
+            # Registrar en historial usando la misma conexión
+            self.registrar_historial(evento, hora_actual, conn=conn)
+
+            try:
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
+            # Notificar UI
+            self.update_triggered.emit()
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print(f"[Error worker] manejar_salida: {e}")
+            return False
+
+    def _task_manejar_llegada(self, conn, evento):
+        try:
+            # Obtener hora de salida desde la misma conexión
+            with conn.cursor() as cur:
+                cur.execute(
+                    "SELECT TO_CHAR(HORA_SALIDA_REAL, 'HH24:MI:SS') FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :id",
+                    {'id': evento.asignacion_id}
+                )
+                row = cur.fetchone()
+
+            if not row or not row[0]:
+                print(f"[Error worker] HORA_SALIDA_REAL no encontrada para {evento.asignacion_id}")
+                return False
+
+            hora_salida = QTime.fromString(row[0], 'HH:mm:ss')
+            variacion = random.uniform(0.95, 1.10)
+            duracion_segundos = int(evento.duracion_estimada * 60 * variacion)
+            hora_llegada = hora_salida.addSecs(duracion_segundos)
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE ASIGNACION_TREN
+                    SET HORA_LLEGADA_REAL = TO_DATE(:hora_llegada, 'HH24:MI:SS')
+                    WHERE ID_ASIGNACION = :asignacion_id
+                    """,
+                    {'hora_llegada': hora_llegada.toString('HH:mm:ss'), 'asignacion_id': evento.asignacion_id}
+                )
+
+            # Registrar en historial usando la misma conexión
+            self.registrar_historial(evento, hora_llegada, conn=conn)
+
+            try:
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+
+            self.update_triggered.emit()
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            print(f"[Error worker] manejar_llegada: {e}")
+            return False
+
+    def registrar_incidencia_retraso(self, evento, retraso_minutos, conn=None):
         """Registra incidencia por retraso en salida"""
-        id_incidencia = self.db.fetch_one("SELECT NVL(MAX(ID_INCIDENCIA), 0) + 1 FROM INCIDENCIA")[0]
-        
+        descripcion = f"Retraso de {int(retraso_minutos)} minutos en salida del Tren {evento.tren_id} (Ruta {evento.ruta_id})"
         query = """
         INSERT INTO INCIDENCIA (
-            ID_INCIDENCIA, ID_ASIGNACION, TIPO, 
+            ID_INCIDENCIA, ID_ASIGNACION, TIPO,
             DESCRIPCION, FECHA_HORA, ESTADO
         ) VALUES (
-            :id_incidencia, :asignacion_id, 'RETRASO',
+            INCIDENCIA_SEQ.NEXTVAL, :asignacion_id, 'RETRASO',
             :descripcion, SYSDATE, 'NO RESUELTO'
         )
         """
-        
-        descripcion = f"Retraso de {int(retraso_minutos)} minutos en salida del Tren {evento.tren_id} (Ruta {evento.ruta_id})"
-        
-        if self.db.execute_query(query, {
-            'id_incidencia': id_incidencia,
-            'asignacion_id': evento.asignacion_id,
-            'descripcion': descripcion
-        }):
-            print(f"[✓] Incidencia registrada: {descripcion}")
+
+        if conn:
+            try:
+                with conn.cursor() as cur:
+                    cur.execute(query, {'asignacion_id': evento.asignacion_id, 'descripcion': descripcion})
+                return True
+            except Exception as e:
+                print(f"[Error worker] registrar_incidencia_retraso: {e}")
+                return False
         else:
-            print("[Error] No se pudo registrar incidencia")
+            if self.db.execute_query(query, {'asignacion_id': evento.asignacion_id, 'descripcion': descripcion}):
+                print(f"[✓] Incidencia registrada: {descripcion}")
+            else:
+                print("[Error] No se pudo registrar incidencia")
 
 
-    def registrar_historial(self, evento, hora_real):
+    def registrar_historial(self, evento, hora_real, conn=None):
         """Registra el evento en el historial"""
         try:
             # Obtener próximo ID de historial
-            resultado = self.db.fetch_one("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-            if not resultado:
-                print("[Error] No se pudo obtener el ID_HISTORIAL")
-                return False
-                
-            id_historial = resultado[0]
+            #resultado = self.db.fetch_one("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
+            #if not resultado:
+            #    print("[Error] No se pudo obtener el ID_HISTORIAL")
+            #    return False
+            #    
+            #id_historial = resultado[0]
             
             # Obtener hora de salida y llegada real
-            hora_salida_real = self.db.fetch_one("""
-                SELECT TO_CHAR(HORA_SALIDA_REAL, 'HH24:MI:SS') 
-                FROM ASIGNACION_TREN 
-                WHERE ID_ASIGNACION = :asignacion_id
-            """, {'asignacion_id': evento.asignacion_id})[0]
+            if conn:
+                with conn.cursor() as cur:
+                    cur.execute("SELECT TO_CHAR(HORA_SALIDA_REAL, 'HH24:MI:SS') FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :asignacion_id", {'asignacion_id': evento.asignacion_id})
+                    row = cur.fetchone()
+                    hora_salida_real = row[0] if row else None
+            else:
+                hora_salida_real = self.db.fetch_one("""
+                    SELECT TO_CHAR(HORA_SALIDA_REAL, 'HH24:MI:SS') 
+                    FROM ASIGNACION_TREN 
+                    WHERE ID_ASIGNACION = :asignacion_id
+                """, {'asignacion_id': evento.asignacion_id})[0]
             
             hora_llegada_real = hora_real.toString("HH:mm:ss")
             hora_real_str = f"{hora_salida_real}-{hora_llegada_real}"
@@ -270,12 +383,11 @@ class EventManager(QObject):
                 ID_HISTORIAL, FECHA_REGISTRO, ID_ASIGNACION,
                 ID_USUARIO, INFORMACION, HORA_REAL
             ) VALUES (
-                :id_historial, SYSDATE, :id_asignacion,
+                HISTORIAL_SEQ.NEXTVAL, SYSDATE, :id_asignacion,
                 :id_usuario, :informacion, :hora_real
             )
             """
             params = {
-                'id_historial': id_historial,
                 'id_asignacion': evento.asignacion_id,
                 'id_usuario': self.usuario_id,
                 'informacion': f"Llegada: {hora_llegada_real}",
@@ -283,16 +395,25 @@ class EventManager(QObject):
             }
 
             # Verificación adicional de parámetros
-            required_params = ['id_historial', 'id_usuario', 'informacion', 'id_asignacion', 'hora_real']
+            required_params = ['id_usuario', 'informacion', 'id_asignacion', 'hora_real']
             
             for param in required_params:
                 if param not in params:
                     print(f"[Error] Falta parámetro requerido: {param}")
                     return False
 
-            if not self.db.execute_query(query, params):
-                print("[Error] No se pudo registrar en historial")
-                return False
+            if conn:
+                try:
+                    with conn.cursor() as cur:
+                        cur.execute(query, params)
+                    return True
+                except Exception as e:
+                    print(f"[Error worker] registrar_historial: {e}")
+                    return False
+            else:
+                if not self.db.execute_query(query, params):
+                    print("[Error] No se pudo registrar en historial")
+                    return False
                 
             print(f"[Éxito] Registro en historial para {evento.tipo} de ASIGNACION {evento.asignacion_id}")
             return True

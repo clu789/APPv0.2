@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel,
                             QFrame, QSpacerItem, QSizePolicy)
-from PyQt6.QtCore import pyqtSignal, Qt, QPropertyAnimation, QEasingCurve
+from PyQt6.QtCore import pyqtSignal, Qt, QPropertyAnimation, QEasingCurve, QTimer
 from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QBrush
 from PyQt6.QtCore import QSize, QPoint
 
@@ -22,37 +22,40 @@ class MenuLateral(QWidget):
         self.db = db
         self.expanded_width = 150  # Ancho expandido
         self.collapsed_width = 50  # Ancho colapsado
-        self.is_expanded = False
-        self.setFixedWidth(self.collapsed_width)
+        # Comenzar expandido y "fijado" por defecto (sin autocierre por mouse)
+        self.is_expanded = True
+        self.is_pinned = True  # Cuando está fijado, no se colapsa al salir el mouse
+        # Usamos mínimos/máximos para que la animación de minimumWidth funcione correctamente
+        self.setMinimumWidth(self.expanded_width)
+        self.setMaximumWidth(self.expanded_width)
         
         # Configuración de colores
-        self.menu_color = QColor(52, 152, 219)  # Azul grajáceo
-        self.button_color = QColor(72, 101, 129)  # Color botones
-        self.text_color = QColor(0, 0, 0)  # Color texto
+        self.menu_color = QColor(11, 21, 34)
+        self.button_color = QColor(19, 34, 57, 1)  # Color botones
+        self.text_color = QColor(130, 202, 255)  # Color texto
         
         self.initUI()
 
     def initUI(self):
-        self.setStyleSheet(f"""
-            background-color: {self.menu_color.name()};
-            border-right: 1px solid #2d3e50;
-        """)
+        # Fondo base del widget (pintado también en paintEvent)
+        self.setStyleSheet(f"background-color: {self.menu_color.name()};")
         
         self.main_layout = QVBoxLayout()
         self.main_layout.setContentsMargins(0, 0, 0, 0)
         self.main_layout.setSpacing(0)
 
-        # 1. Contenedor fijo para el botón ☰ (siempre visible)
-        #self.btn_container = QFrame()
-        #self.btn_container.setFixedHeight(40)
-        #self.btn_container.setStyleSheet("background-color: transparent;")
-        
-        #btn_layout = QHBoxLayout(self.btn_container)
-        #btn_layout.setContentsMargins(0, 0, 0, 0)
-        
-    # Botón ☰ centrado y fijo
+        # 1. Encabezado con botones (☰ y 📌)
+        header_frame = QFrame()
+        header_frame.setFixedHeight(44)
+        header_frame.setStyleSheet("background-color: transparent;")
+        header_layout = QHBoxLayout(header_frame)
+        header_layout.setContentsMargins(2, 2, 2, 2)
+        header_layout.setSpacing(2)
+
+        # Botón ☰: abre/cierra el menú (no controla fijación)
         self.btn_toggle = QPushButton("☰")
         self.btn_toggle.setFixedSize(40, 40)  # Tamaño fijo
+        self.btn_toggle.setToolTip("Abrir/cerrar menú")
         self.btn_toggle.setStyleSheet(f"""
             QPushButton {{
                 background-color: transparent;
@@ -66,16 +69,41 @@ class MenuLateral(QWidget):
             }}
         """)
         self.btn_toggle.clicked.connect(self.toggle_menu)
-        
-        #btn_layout.addWidget(self.btn_toggle, alignment=Qt.AlignmentFlag.AlignCenter)
-        #self.main_layout.addWidget(self.btn_toggle)
+
+        # Toggle 📌: fija/libera el menú (controla autocierre por mouse)
+        self.pin_toggle = QPushButton("📌")
+        self.pin_toggle.setCheckable(True)
+        self.pin_toggle.setChecked(self.is_pinned)
+        self.pin_toggle.setFixedSize(40, 40)
+        self.pin_toggle.setToolTip("Fijar menú (desactiva autocierre)")
+        self.pin_toggle.setStyleSheet(f"""
+            QPushButton {{
+                background-color: transparent;
+                color: {self.text_color.name()};
+                font-size: 16px;
+                border: none;
+                padding: 0;
+            }}
+            QPushButton:hover {{
+                background-color: {self.button_color.name()};
+            }}
+            QPushButton:checked {{
+                color: #ffd166;  /* resalta cuando está fijado */
+            }}
+        """)
+        self.pin_toggle.toggled.connect(self.on_pin_toggled)
+
+        header_layout.addWidget(self.btn_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
+        header_layout.addWidget(self.pin_toggle, alignment=Qt.AlignmentFlag.AlignLeft)
+        header_layout.addStretch(1)
         
         # 2. Encabezado con usuario (oculto por defecto)
 
         self.user_frame = QFrame()
         self.user_frame.setFixedHeight(100)
-        self.user_frame.setStyleSheet(f"background-color: {self.menu_color.darker(120).name()};")
-        
+        # Hacemos el frame transparente para que el fondo del padre (y su highlight) se vea uniforme
+        self.user_frame.setStyleSheet("background-color: transparent;")
+
         user_layout = QVBoxLayout(self.user_frame)
         user_layout.setContentsMargins(5, 5, 5, 5)
         user_layout.setSpacing(5)
@@ -84,7 +112,7 @@ class MenuLateral(QWidget):
         
         # Icono de usuario (se ocultará cuando el menú esté colapsado)
         self.user_icon = QLabel()
-        self.user_icon.setPixmap(QIcon(obtener_ruta_recurso("APP/icons/usuario.png")).pixmap(32, 32))
+        self.user_icon.setPixmap(QIcon(obtener_ruta_recurso("APP/icons/user.png")).pixmap(32, 32))
         self.user_icon.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.user_icon.setStyleSheet("background-color: transparent;")
         
@@ -114,6 +142,7 @@ class MenuLateral(QWidget):
         #        background-color: {self.button_color.name()};
         #    }}
         #""")
+        self.button_logout.setStyleSheet("background-color: #197fbc; color: white;")
         self.button_logout.clicked.connect(self.cerrar_sesion.emit)
 
         user_layout.addWidget(self.user_icon, 0, Qt.AlignmentFlag.AlignCenter)
@@ -123,24 +152,25 @@ class MenuLateral(QWidget):
         # 3. Separador (oculto por defecto)
         self.separator1 = QFrame()
         self.separator1.setFrameShape(QFrame.Shape.HLine)
-        self.separator1.setStyleSheet("border: 1px solid #2d3e50;")
+        #self.separator1.setStyleSheet("border: 1px solid #2d3e50;")
         self.separator1.setFixedHeight(1)
         
         # 4. Botones del menú
         self.button_container = QWidget()
+        # Fondo transparente: dejamos que el padre pinte el fondo uniforme
         self.button_container.setStyleSheet("background-color: transparent;")
         self.button_layout = QVBoxLayout(self.button_container)
         self.button_layout.setContentsMargins(5, 5, 5, 5)
         self.button_layout.setSpacing(5)
         
         self.botones = [
-            ("Home", QIcon(obtener_ruta_recurso("APP/icons/home.png")), 0),
-            ("Horarios", QIcon(obtener_ruta_recurso("APP/icons/schedule.png")), 1),
-            ("Monitoreo", QIcon(obtener_ruta_recurso("APP/icons/monitor.png")), 2),
-            ("Incidencias", QIcon(obtener_ruta_recurso("APP/icons/alert.png")), 3),
-            ("Infraestructura", QIcon(obtener_ruta_recurso("APP/icons/infra.png")), 4),
-            ("Optimización", QIcon(obtener_ruta_recurso("APP/icons/optimize.png")), 5),
-            ("Mejora", QIcon(obtener_ruta_recurso("APP/icons/mejora.png")), 6)
+            ("Home", QIcon(obtener_ruta_recurso("APP/icons/casa.png")), 0),
+            ("Horarios", QIcon(obtener_ruta_recurso("APP/icons/reloj.png")), 1),
+            ("Monitoreo", QIcon(obtener_ruta_recurso("APP/icons/pantalla.png")), 2),
+            ("Incidencias", QIcon(obtener_ruta_recurso("APP/icons/exclamacion.png")), 3),
+            ("Infraestructura", QIcon(obtener_ruta_recurso("APP/icons/entrenar.png")), 4),
+            ("Optimización", QIcon(obtener_ruta_recurso("APP/icons/llave-inglesa.png")), 5),
+            ("Mejora", QIcon(obtener_ruta_recurso("APP/icons/mejorar.png")), 6)
         ]
         
         self.button_widgets = []
@@ -155,12 +185,13 @@ class MenuLateral(QWidget):
             btn.setStyleSheet(f"""
                 QPushButton {{
                     background-color: transparent;
-                    color: {self.text_color.name()};
+                    color: white;
                     padding: 8px 5px;
                     border: none;
                     text-align: left;
                     font-size: 11px;
                     border-radius: 4px;
+                    font-weight: bold;
                 }}
                 QPushButton:hover {{
                     background-color: {self.button_color.name()};
@@ -174,11 +205,12 @@ class MenuLateral(QWidget):
         # 5. Separador inferior (oculto por defecto)
         self.separator2 = QFrame()
         self.separator2.setFrameShape(QFrame.Shape.HLine)
-        self.separator2.setStyleSheet("border: 1px solid #2d3e50;")
+        #self.separator2.setStyleSheet("border: 1px solid #2d3e50;")
         self.separator2.setFixedHeight(1)
         
         # 6. Sección de reconocimientos (oculto por defecto)
         self.credits_frame = QFrame()
+        # Fondo transparente para coherencia con el padre
         self.credits_frame.setStyleSheet("background-color: transparent;")
         credits_layout = QVBoxLayout(self.credits_frame)
         credits_layout.setContentsMargins(5, 5, 5, 5)
@@ -197,7 +229,7 @@ class MenuLateral(QWidget):
         self.logo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.titulo = QLabel("TRACKSYNC")
         self.titulo.setStyleSheet(f"""
-            color: {self.text_color.name()};
+            color: #197fbc;
             font-size: 22px;
             font-style: italic;
         """)
@@ -205,31 +237,35 @@ class MenuLateral(QWidget):
         
         self.nombre1 = QLabel("Emiliano\nArista\nRodriguez")
         self.nombre1.setStyleSheet(f"""
-            color: {self.text_color.name()};
+            color: white;
             font-size: 10px;
             font-style: italic;
+            font-weight: bold;
         """)
         self.nombre1.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.nombre2 = QLabel("Milton\nFlorencio\nArzate")
         self.nombre2.setStyleSheet(f"""
-            color: {self.text_color.name()};
+            color: white;
             font-size: 10px;
             font-style: italic;
+            font-weight: bold;
         """)
         self.nombre2.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self.nombre3 = QLabel("Nery\nYael\nHernandez\nVillavicencio")
         self.nombre3.setStyleSheet(f"""
-            color: {self.text_color.name()};
+            color: white;
             font-size: 10px;
             font-style: italic;
+            font-weight: bold;
         """)
         self.nombre3.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
         self.nombre4 = QLabel("Jesus\nFidel\nVaca\nVilchiz")
         self.nombre4.setStyleSheet(f"""
-            color: {self.text_color.name()};
+            color: white;
             font-size: 10px;
             font-style: italic;
+            font-weight: bold;
         """)
         self.nombre4.setAlignment(Qt.AlignmentFlag.AlignCenter)
         
@@ -242,7 +278,7 @@ class MenuLateral(QWidget):
         credits_layout.addWidget(self.nombre4)
         
         # Ensamblar el layout principal
-        self.main_layout.addWidget(self.btn_toggle)
+        self.main_layout.addWidget(header_frame)
         self.main_layout.addWidget(self.user_frame)
         self.main_layout.addWidget(self.separator1)
         self.main_layout.addWidget(self.button_container)
@@ -252,7 +288,27 @@ class MenuLateral(QWidget):
         
         self.setLayout(self.main_layout)
         
-        # Inicialmente ocultamos los elementos que no son botones
+        # Inicialmente ajustamos visibilidad según estado expandido
+        self.update_visibility()
+        
+        # Truco de inicialización: forzar colapso y expansión en el siguiente ciclo
+        # del event loop para asentar correctamente la geometría y evitar "aplastamiento" inicial.
+        QTimer.singleShot(0, self._kickstart_layout)
+
+    def _kickstart_layout(self):
+        """Forzar un ciclo colapso/expansión rápido para estabilizar la geometría inicial sin animación."""
+        # Colapsamos sin animación
+        self.is_expanded = False
+        self.setMinimumWidth(self.collapsed_width)
+        self.setMaximumWidth(self.collapsed_width)
+        self.update_visibility()
+        # En el próximo tick expandimos de nuevo
+        QTimer.singleShot(0, self._kickstart_expand)
+
+    def _kickstart_expand(self):
+        self.is_expanded = True
+        self.setMinimumWidth(self.expanded_width)
+        self.setMaximumWidth(self.expanded_width)
         self.update_visibility()
 
     def toggle_menu(self):
@@ -273,7 +329,6 @@ class MenuLateral(QWidget):
             self.user_frame,
             self.user_icon,
             self.user_label,
-            self.user_icon,
             self.separator1,
             self.separator2,
             self.credits_frame,
@@ -289,6 +344,10 @@ class MenuLateral(QWidget):
                 btn.setText(btn.toolTip())
             else:
                 btn.setText("")
+        
+        # El botón de fijar sólo debe verse cuando el menú está expandido
+        if hasattr(self, 'pin_toggle'):
+            self.pin_toggle.setVisible(self.is_expanded)
 
     def animar_expansion(self):
         """Animación para expandir el menú"""
@@ -297,6 +356,7 @@ class MenuLateral(QWidget):
         self.animation.setStartValue(self.width())
         self.animation.setEndValue(self.expanded_width)
         self.animation.setEasingCurve(QEasingCurve.Type.OutQuad)
+        self.animation.finished.connect(self._on_expand_finished)
         self.animation.start()
 
     def animar_colapso(self):
@@ -306,14 +366,26 @@ class MenuLateral(QWidget):
         self.animation.setStartValue(self.width())
         self.animation.setEndValue(self.collapsed_width)
         self.animation.setEasingCurve(QEasingCurve.Type.InQuad)
+        self.animation.finished.connect(self._on_collapse_finished)
         self.animation.start()
 
+    def _on_expand_finished(self):
+        # Fijamos los límites al ancho expandido, evitando que el layout lo aplaste
+        self.setMinimumWidth(self.expanded_width)
+        self.setMaximumWidth(self.expanded_width)
+
+    def _on_collapse_finished(self):
+        # Fijamos los límites al ancho colapsado para que el header no impida cerrar del todo
+        self.setMinimumWidth(self.collapsed_width)
+        self.setMaximumWidth(self.collapsed_width)
+
     def leaveEvent(self, event):
-        """Colapsar el menú cuando el cursor sale"""
-        if self.is_expanded:
+        """Colapsar el menú cuando el cursor sale (solo si no está fijado)"""
+        if self.is_expanded and not getattr(self, 'is_pinned', False):
             self.is_expanded = False
             self.animar_colapso()
             self.update_visibility()
+        super().leaveEvent(event)
  
     def paintEvent(self, event):
         painter = QPainter(self)
@@ -323,12 +395,8 @@ class MenuLateral(QWidget):
         painter.setBrush(QBrush(self.menu_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRect(self.rect())
-
-        # Efecto de iluminación cuando está expandido
-        if self.width() > self.collapsed_width:
-            highlight = QColor(255, 255, 255, 20)
-            painter.setBrush(QBrush(highlight))
-            painter.drawRect(self.rect())
+        # No dibujamos overlay extra: queremos que el menú expandido tenga
+        # exactamente el mismo color que el colapsado.
     
     def load_user_name(self):
         print(self.username)
@@ -338,3 +406,11 @@ class MenuLateral(QWidget):
         if result:
             nombre_usuario = result[0][0]
             self.user_label.setText(f"{nombre_usuario}")
+
+    def on_pin_toggled(self, checked: bool):
+        """Maneja el cambio de estado fijado/no fijado del menú."""
+        self.is_pinned = checked
+        if checked:
+            self.pin_toggle.setToolTip("Menú fijado: no se autocierra al salir el mouse")
+        else:
+            self.pin_toggle.setToolTip("Menú libre: se autocierra al salir el mouse")

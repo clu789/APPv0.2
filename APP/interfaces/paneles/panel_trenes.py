@@ -19,9 +19,8 @@ class InterfazAgregarTren(QWidget):
         titulo.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: white;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
         layout.addWidget(titulo)
 
@@ -33,13 +32,15 @@ class InterfazAgregarTren(QWidget):
 
         # Campo: Nombre
         lbl_nombre = QLabel("Nombre del Tren:")
-        lbl_nombre.setStyleSheet("font-weight: bold;")
+        lbl_nombre.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_nombre = QLineEdit()
         self.input_nombre.setStyleSheet("""
             QLineEdit {
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(lbl_nombre)
@@ -47,13 +48,15 @@ class InterfazAgregarTren(QWidget):
 
         # Campo: Capacidad
         lbl_capacidad = QLabel("Capacidad:")
-        lbl_capacidad.setStyleSheet("font-weight: bold;")
+        lbl_capacidad.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_capacidad = QLineEdit()
         self.input_capacidad.setStyleSheet("""
             QLineEdit {
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(lbl_capacidad)
@@ -61,7 +64,7 @@ class InterfazAgregarTren(QWidget):
 
         # Campo: Estado
         lbl_estado = QLabel("Estado:")
-        lbl_estado.setStyleSheet("font-weight: bold;")
+        lbl_estado.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["Activo", "En mantenimiento", "Fuera de servicio"])
         self.estado_combo.setStyleSheet("""
@@ -69,6 +72,8 @@ class InterfazAgregarTren(QWidget):
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(lbl_estado)
@@ -84,47 +89,113 @@ class InterfazAgregarTren(QWidget):
 
         # Botones con estilos
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #3498db;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         self.btn_confirmar = QPushButton("Confirmar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
 
@@ -209,9 +280,8 @@ class InterfazEditarTren(QWidget):
         titulo.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: white;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
         layout.addWidget(titulo)
     
@@ -223,13 +293,15 @@ class InterfazEditarTren(QWidget):
     
         # Campo: Nombre
         lbl_nombre = QLabel("Nombre del Tren:")
-        lbl_nombre.setStyleSheet("font-weight: bold;")
+        lbl_nombre.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_nombre = QLineEdit()
         self.input_nombre.setStyleSheet("""
             QLineEdit {
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(lbl_nombre)
@@ -237,13 +309,15 @@ class InterfazEditarTren(QWidget):
     
         # Campo: Capacidad
         lbl_capacidad = QLabel("Capacidad:")
-        lbl_capacidad.setStyleSheet("font-weight: bold;")
+        lbl_capacidad.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_capacidad = QLineEdit()
         self.input_capacidad.setStyleSheet("""
             QLineEdit {
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(lbl_capacidad)
@@ -251,7 +325,7 @@ class InterfazEditarTren(QWidget):
     
         # Campo: Estado
         lbl_estado = QLabel("Estado:")
-        lbl_estado.setStyleSheet("font-weight: bold;")
+        lbl_estado.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.estado_combo = QComboBox()
         self.estado_combo.addItems(["Activo", "En mantenimiento", "Fuera de servicio"])
         self.estado_combo.setStyleSheet("""
@@ -259,6 +333,8 @@ class InterfazEditarTren(QWidget):
                 padding: 8px;
                 border: 1px solid #ddd;
                 border-radius: 4px;
+                font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(lbl_estado)
@@ -274,47 +350,113 @@ class InterfazEditarTren(QWidget):
     
         # Botones con estilos consistentes
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
     
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #3498db;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
     
         self.btn_confirmar = QPushButton("Confirmar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 8px 15px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 8px 15px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
     

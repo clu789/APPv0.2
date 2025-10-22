@@ -35,9 +35,8 @@ class InterfazAgregarRuta(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding: 5px 0;
-                border-bottom: 2px solid #3498db;
                 margin-bottom: 10px;
             }
         """)
@@ -51,7 +50,7 @@ class InterfazAgregarRuta(QWidget):
 
         # Campo Duración estimada
         self.lbl_duracion = QLabel("Duración estimada (en minutos):")
-        self.lbl_duracion.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_duracion.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_duracion = QLineEdit()
         self.input_duracion.setStyleSheet("""
             QLineEdit {
@@ -59,20 +58,21 @@ class InterfazAgregarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(self.lbl_duracion)
         form_layout.addWidget(self.input_duracion)
 
         # Separador
-        separador1 = QFrame()
-        separador1.setFrameShape(QFrame.Shape.HLine)
-        separador1.setStyleSheet("color: #eee;")
-        form_layout.addWidget(separador1)
+        #separador1 = QFrame()
+        #separador1.setFrameShape(QFrame.Shape.HLine)
+        #separador1.setStyleSheet("color: #eee;")
+        #form_layout.addWidget(separador1)
 
         # Selección de estaciones
         self.lbl_estaciones = QLabel("Seleccionar estación:")
-        self.lbl_estaciones.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_estaciones.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
 
         self.combo_estaciones = QComboBox()
         self.combo_estaciones.setStyleSheet("""
@@ -81,6 +81,7 @@ class InterfazAgregarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
 
@@ -107,7 +108,9 @@ class InterfazAgregarRuta(QWidget):
         form_layout.addLayout(estaciones_layout)
 
         # Lista de estaciones agregadas
-        form_layout.addWidget(QLabel("Estaciones en orden:"))
+        self.lbl_estaciones_orden = QLabel("Estaciones en orden:")
+        self.lbl_estaciones_orden.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
+        form_layout.addWidget(self.lbl_estaciones_orden)
 
         self.lista_estaciones = QListWidget()
         self.lista_estaciones.setStyleSheet("""
@@ -116,6 +119,7 @@ class InterfazAgregarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.lista_estaciones.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
@@ -140,10 +144,10 @@ class InterfazAgregarRuta(QWidget):
         form_layout.addWidget(self.btn_eliminar_estacion)
 
         # Separador
-        separador2 = QFrame()
-        separador2.setFrameShape(QFrame.Shape.HLine)
-        separador2.setStyleSheet("color: #eee;")
-        form_layout.addWidget(separador2)
+        #separador2 = QFrame()
+        #separador2.setFrameShape(QFrame.Shape.HLine)
+        #separador2.setStyleSheet("color: #eee;")
+        #form_layout.addWidget(separador2)
 
         # Imagen de la ruta
         self.btn_seleccionar_imagen = QPushButton("Seleccionar imagen")
@@ -163,7 +167,7 @@ class InterfazAgregarRuta(QWidget):
         self.btn_seleccionar_imagen.clicked.connect(self.seleccionar_imagen)
 
         self.lbl_imagen_ruta = QLabel("No se ha seleccionado imagen")
-        self.lbl_imagen_ruta.setStyleSheet("font-size: 13px; color: #7f8c8d;")
+        self.lbl_imagen_ruta.setStyleSheet("font-size: 13px; color: white;")
         form_layout.addWidget(self.btn_seleccionar_imagen)
         form_layout.addWidget(self.lbl_imagen_ruta)
 
@@ -173,8 +177,10 @@ class InterfazAgregarRuta(QWidget):
         separador3.setStyleSheet("color: #eee;")
         form_layout.addWidget(separador3)
 
-        # Crear nueva estación
-        form_layout.addWidget(QLabel("Crear nueva estación:"))
+        # Crear nueva estacion
+        self.lbl_crear_estacion = QLabel("Crear nueva estación:")
+        self.lbl_crear_estacion.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
+        form_layout.addWidget(self.lbl_crear_estacion)
 
         self.input_nueva_estacion = QLineEdit()
         self.input_nueva_estacion.setStyleSheet("""
@@ -183,6 +189,7 @@ class InterfazAgregarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
 
@@ -217,11 +224,25 @@ class InterfazAgregarRuta(QWidget):
 
         # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -230,15 +251,37 @@ class InterfazAgregarRuta(QWidget):
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         # Botón Consultar
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -247,15 +290,37 @@ class InterfazAgregarRuta(QWidget):
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         # Botón Confirmar
         self.btn_confirmar = QPushButton("Confirmar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -263,6 +328,14 @@ class InterfazAgregarRuta(QWidget):
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
 
@@ -509,9 +582,8 @@ class InterfazEditarRuta(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding: 5px 0;
-                border-bottom: 2px solid #3498db;
                 margin-bottom: 10px;
             }
         """)
@@ -519,7 +591,7 @@ class InterfazEditarRuta(QWidget):
 
         # Mensaje informativo
         self.lbl_info = QLabel("Selecciona la ruta a editar de la lista superior.")
-        self.lbl_info.setStyleSheet("font-size: 14px; color: #7f8c8d;")
+        self.lbl_info.setStyleSheet("font-size: 14px; color: white;")
         layout.addWidget(self.lbl_info)
 
         # Contenedor para el formulario
@@ -530,7 +602,7 @@ class InterfazEditarRuta(QWidget):
 
         # Campo Duración estimada
         self.lbl_duracion = QLabel("Duración estimada (en minutos):")
-        self.lbl_duracion.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_duracion.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_duracion = QLineEdit()
         self.input_duracion.setStyleSheet("""
             QLineEdit {
@@ -538,20 +610,21 @@ class InterfazEditarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         form_layout.addWidget(self.lbl_duracion)
         form_layout.addWidget(self.input_duracion)
 
         # Separador
-        separador1 = QFrame()
-        separador1.setFrameShape(QFrame.Shape.HLine)
-        separador1.setStyleSheet("color: #eee;")
-        form_layout.addWidget(separador1)
+        #separador1 = QFrame()
+        #separador1.setFrameShape(QFrame.Shape.HLine)
+        #separador1.setStyleSheet("color: #eee;")
+        #form_layout.addWidget(separador1)
 
         # Selección de estaciones
         self.lbl_estaciones = QLabel("Seleccionar estación:")
-        self.lbl_estaciones.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_estaciones.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
 
         self.combo_estaciones = QComboBox()
         self.combo_estaciones.setStyleSheet("""
@@ -560,6 +633,7 @@ class InterfazEditarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
 
@@ -586,7 +660,9 @@ class InterfazEditarRuta(QWidget):
         form_layout.addLayout(estaciones_layout)
 
         # Lista de estaciones agregadas
-        form_layout.addWidget(QLabel("Estaciones en orden:"))
+        self.lbl_estaciones_orden = QLabel("Estaciones en orden:")
+        self.lbl_estaciones_orden.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
+        form_layout.addWidget(self.lbl_estaciones_orden)
 
         self.lista_estaciones = QListWidget()
         self.lista_estaciones.setStyleSheet("""
@@ -595,6 +671,7 @@ class InterfazEditarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.lista_estaciones.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
@@ -619,10 +696,10 @@ class InterfazEditarRuta(QWidget):
         form_layout.addWidget(self.btn_eliminar_estacion)
 
         # Separador
-        separador2 = QFrame()
-        separador2.setFrameShape(QFrame.Shape.HLine)
-        separador2.setStyleSheet("color: #eee;")
-        form_layout.addWidget(separador2)
+        #separador2 = QFrame()
+        #separador2.setFrameShape(QFrame.Shape.HLine)
+        #separador2.setStyleSheet("color: #eee;")
+        #form_layout.addWidget(separador2)
 
         # Imagen de la ruta
         self.btn_seleccionar_imagen = QPushButton("Seleccionar imagen")
@@ -642,7 +719,7 @@ class InterfazEditarRuta(QWidget):
         self.btn_seleccionar_imagen.clicked.connect(self.seleccionar_imagen)
 
         self.lbl_imagen_ruta = QLabel("No se ha seleccionado imagen")
-        self.lbl_imagen_ruta.setStyleSheet("font-size: 13px; color: #7f8c8d;")
+        self.lbl_imagen_ruta.setStyleSheet("font-size: 13px; color: white;")
         form_layout.addWidget(self.btn_seleccionar_imagen)
         form_layout.addWidget(self.lbl_imagen_ruta)
 
@@ -652,8 +729,10 @@ class InterfazEditarRuta(QWidget):
         separador3.setStyleSheet("color: #eee;")
         form_layout.addWidget(separador3)
 
-        # Crear nueva estación
-        form_layout.addWidget(QLabel("Crear nueva estación:"))
+        # Crear nueva estacion
+        self.lbl_crear_estacion = QLabel("Crear nueva estación:")
+        self.lbl_crear_estacion.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
+        form_layout.addWidget(self.lbl_crear_estacion)
 
         self.input_nueva_estacion = QLineEdit()
         self.input_nueva_estacion.setStyleSheet("""
@@ -662,6 +741,7 @@ class InterfazEditarRuta(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
 
@@ -696,11 +776,25 @@ class InterfazEditarRuta(QWidget):
 
         # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -709,15 +803,37 @@ class InterfazEditarRuta(QWidget):
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         # Botón Consultar
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -726,15 +842,37 @@ class InterfazEditarRuta(QWidget):
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         # Botón Actualizar (en lugar de Confirmar)
         self.btn_confirmar = QPushButton("Actualizar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -742,6 +880,14 @@ class InterfazEditarRuta(QWidget):
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
 

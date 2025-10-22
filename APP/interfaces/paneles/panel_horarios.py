@@ -24,10 +24,9 @@ class InterfazAgregarHorario(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
                 padding: 5px 0;
-                border-bottom: 2px solid #3498db;
                 margin-bottom: 10px;
+                color: white;
             }
         """)
         layout.addWidget(titulo)
@@ -40,7 +39,7 @@ class InterfazAgregarHorario(QWidget):
     
         # Campo Hora de Salida
         self.lbl_salida = QLabel("Hora de salida programada (HH:MM):")
-        self.lbl_salida.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_salida.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc")
         self.input_salida = QLineEdit()
         self.input_salida.setStyleSheet("""
             QLineEdit {
@@ -48,6 +47,7 @@ class InterfazAgregarHorario(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.input_salida.setPlaceholderText("Ejemplo: 08:30")
@@ -56,7 +56,7 @@ class InterfazAgregarHorario(QWidget):
     
         # Campo Hora de Llegada
         self.lbl_llegada = QLabel("Hora de llegada programada (HH:MM):")
-        self.lbl_llegada.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_llegada.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_llegada = QLineEdit()
         self.input_llegada.setStyleSheet("""
             QLineEdit {
@@ -64,6 +64,7 @@ class InterfazAgregarHorario(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.input_llegada.setPlaceholderText("Ejemplo: 10:15")
@@ -80,11 +81,25 @@ class InterfazAgregarHorario(QWidget):
     
         # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -93,15 +108,37 @@ class InterfazAgregarHorario(QWidget):
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
     
         # Botón Consultar
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -110,15 +147,37 @@ class InterfazAgregarHorario(QWidget):
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
     
         # Botón Confirmar
         self.btn_confirmar = QPushButton("Confirmar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -126,6 +185,14 @@ class InterfazAgregarHorario(QWidget):
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
     
@@ -260,10 +327,9 @@ class InterfazEditarHorario(QWidget):
             QLabel {
                 font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
                 padding: 5px 0;
-                border-bottom: 2px solid #3498db;
                 margin-bottom: 10px;
+                color: white;
             }
         """)
         layout.addWidget(titulo)
@@ -273,9 +339,8 @@ class InterfazEditarHorario(QWidget):
         self.lbl_info.setStyleSheet("""
             QLabel {
                 font-size: 14px;
-                color: #7f8c8d;
+                color: white;
                 padding: 5px;
-                background-color: #f8f9fa;
                 border-radius: 4px;
             }
         """)
@@ -289,7 +354,7 @@ class InterfazEditarHorario(QWidget):
 
         # Campo Hora de Salida
         self.lbl_salida = QLabel("Hora de salida programada (HH:MM):")
-        self.lbl_salida.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_salida.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc")
         self.input_salida = QLineEdit()
         self.input_salida.setStyleSheet("""
             QLineEdit {
@@ -297,6 +362,7 @@ class InterfazEditarHorario(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.input_salida.setPlaceholderText("Ejemplo: 08:30")
@@ -305,7 +371,7 @@ class InterfazEditarHorario(QWidget):
 
         # Campo Hora de Llegada
         self.lbl_llegada = QLabel("Hora de llegada programada (HH:MM):")
-        self.lbl_llegada.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.lbl_llegada.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_llegada = QLineEdit()
         self.input_llegada.setStyleSheet("""
             QLineEdit {
@@ -313,6 +379,7 @@ class InterfazEditarHorario(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.input_llegada.setPlaceholderText("Ejemplo: 10:15")
@@ -329,11 +396,25 @@ class InterfazEditarHorario(QWidget):
 
         # Botón Cancelar
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -342,15 +423,37 @@ class InterfazEditarHorario(QWidget):
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         # Botón Consultar
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -359,15 +462,37 @@ class InterfazEditarHorario(QWidget):
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         # Botón Actualizar (en lugar de Confirmar)
         self.btn_confirmar = QPushButton("Actualizar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 100px;
+        #        font-weight: bold;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 100px;
@@ -375,6 +500,14 @@ class InterfazEditarHorario(QWidget):
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
 

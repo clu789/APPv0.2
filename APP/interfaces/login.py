@@ -52,9 +52,8 @@ class LoginInterface(QWidget):
             QLabel {
                 font-size: 28px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #197fbc;
                 padding-bottom: 10px;
-                border-bottom: 2px solid #3498db;
             }
         """)
         titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -62,7 +61,7 @@ class LoginInterface(QWidget):
 
         # Campo de usuario
         self.label_usuario = QLabel("Usuario:")
-        self.label_usuario.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.label_usuario.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
 
         self.input_usuario = LineEditSeleccion()
         self.input_usuario.setStyleSheet("""
@@ -72,6 +71,7 @@ class LoginInterface(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 40px;
+                color: #82caff;
             }
         """)
         form_layout.addWidget(self.label_usuario)
@@ -79,7 +79,7 @@ class LoginInterface(QWidget):
 
         # Campo de contraseña
         self.label_contrasena = QLabel("Contraseña:")
-        self.label_contrasena.setStyleSheet("font-weight: bold; font-size: 14px;")
+        self.label_contrasena.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc")
 
         self.input_contrasena = LineEditSeleccion()
         self.input_contrasena.setStyleSheet("""
@@ -89,6 +89,7 @@ class LoginInterface(QWidget):
                 border-radius: 4px;
                 font-size: 14px;
                 min-height: 40px;
+                color: #82caff;
             }
         """)
         self.input_contrasena.setEchoMode(QLineEdit.EchoMode.Password)
@@ -97,25 +98,45 @@ class LoginInterface(QWidget):
 
         # Botón de login con el mismo estilo que editar estación
         self.boton_login = QPushButton("Iniciar sesión")
+        #self.boton_login.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 12px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        font-size: 14px;
+        #        font-weight: bold;
+        #        min-height: 45px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.boton_login.setStyleSheet("""
             QPushButton {
-                padding: 12px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 8px 15px;
                 border: none;
                 border-radius: 4px;
-                font-size: 14px;
-                font-weight: bold;
                 min-height: 45px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;  /* Efecto de profundidad */
             }
         """)
         form_layout.addWidget(self.boton_login)
 
         layout_principal.addWidget(form_container, 0, Qt.AlignmentFlag.AlignCenter)
         self.setLayout(layout_principal)
+        # Color de fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
 
         # Conexiones se mantienen exactamente igual
         self.intentos_login = 0

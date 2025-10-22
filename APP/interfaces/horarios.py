@@ -48,9 +48,8 @@ class GestionHorariosRutas(QWidget):
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding: 5px 0;
-                border-bottom: 2px solid #3498db;
             }
         """)
         header_layout.addWidget(label)
@@ -73,6 +72,7 @@ class GestionHorariosRutas(QWidget):
         self.titulo.setStyleSheet("""
             font-size: 22px;
             font-style: italic;
+            color: #197fbc;
         """)
         self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_layout.addWidget(self.titulo)
@@ -83,9 +83,9 @@ class GestionHorariosRutas(QWidget):
         
         self.main_layout.addLayout(header_layout)
 
-        # Contenedor para el contenido principal (ahora más ancho)
+        # Contenedor para el contenido principal (usar todo el ancho disponible)
         self.content_container = QWidget()
-        self.content_container.setFixedWidth(1100)  # Aumentado de 900 a 1100
+        self.content_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout(self.content_container)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(15)
@@ -100,7 +100,7 @@ class GestionHorariosRutas(QWidget):
         # Tabla de rutas (ahora más ancha)
         routes_container = QVBoxLayout()
         routes_label = QLabel("Rutas")
-        routes_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        routes_label.setStyleSheet("font-weight: bold; font-size: 18px; color: #197fbc;")
         self.tabla_rutas = QTableWidget()
         self.tabla_rutas.setColumnCount(3)
         self.tabla_rutas.setHorizontalHeaderLabels(["ID Ruta", "Duración", "Estaciones"])
@@ -250,9 +250,10 @@ class GestionHorariosRutas(QWidget):
                 background-color: white;
             }
         """)
-        self.img_ruta.setFixedSize(700, 400)
+        # Hacer la imagen responsiva al tamaño disponible
+        self.img_ruta.setMinimumSize(400, 300)
+        self.img_ruta.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.img_ruta.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.img_ruta.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         # Configurar el scroll area
         img_scroll.setWidget(self.img_ruta)
         top_section.addWidget(img_scroll, stretch=2)
@@ -269,7 +270,7 @@ class GestionHorariosRutas(QWidget):
         # Tabla de horarios
         schedules_container = QVBoxLayout()
         schedules_label = QLabel("Horarios")
-        schedules_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        schedules_label.setStyleSheet("font-weight: bold; font-size: 18px; color: #197fbc;")
         self.tabla_horarios = QTableWidget()
         self.tabla_horarios.setColumnCount(3)
         self.tabla_horarios.setHorizontalHeaderLabels(["ID Horario", "Salida", "Llegada"])
@@ -318,7 +319,7 @@ class GestionHorariosRutas(QWidget):
         # Tabla de disponibilidad de trenes
         availability_container = QVBoxLayout()
         availability_label = QLabel("Disponibilidad de Trenes")
-        availability_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        availability_label.setStyleSheet("font-weight: bold; font-size: 18px; color: #197fbc;")
         self.tabla_trenes = QTableWidget()
         self.tabla_trenes.setColumnCount(3)
         self.tabla_trenes.setHorizontalHeaderLabels(["ID Tren", "Nombre", "Estado"])
@@ -335,7 +336,7 @@ class GestionHorariosRutas(QWidget):
         # Tabla de asignaciones (ahora en la sección media)
         asignaciones_container = QVBoxLayout()
         asignaciones_label = QLabel("Asignaciones de Trenes")
-        asignaciones_label.setStyleSheet("font-weight: bold; font-size: 14px;")
+        asignaciones_label.setStyleSheet("font-weight: bold; font-size: 18px; color: #197fbc;")
         self.tabla_asignaciones = QTableWidget()
         self.tabla_asignaciones.setColumnCount(5)
         self.tabla_asignaciones.setHorizontalHeaderLabels(["ID Asignación", "Tren", "Ruta", "Horario", "Estado"])
@@ -540,6 +541,9 @@ class GestionHorariosRutas(QWidget):
         self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.scroll_area.setWidgetResizable(True)
+        
+        # Color del fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
 
     def toggle_ruta_buttons(self):
         """Alterna entre mostrar solo editar o mostrar modificar/eliminar"""
@@ -567,7 +571,7 @@ class GestionHorariosRutas(QWidget):
             self.btn_modificar_horario.hide()
             self.btn_eliminar_horario.hide()
             self.btn_agregar_horario.show()
-            self.bloquear_botones_horario
+            self.bloquear_botones_horario()
 
     def toggle_asignacion_buttons(self):
         """Alterna botones de asignación"""
@@ -584,10 +588,23 @@ class GestionHorariosRutas(QWidget):
             self.bloquear_botones_asignacion()
 
     def resizeEvent(self, event):
-        """Ajustar el ancho del contenido cuando cambia el tamaño de la ventana"""
-        new_width = min(1250, self.width() - 100)  # 100px de margen
-        self.content_container.setFixedWidth(new_width)
-        super().resizeEvent(event)
+        """Reescala la imagen de la ruta al cambiar el tamaño de la ventana"""
+        # Reescalar la imagen manteniendo proporción si existe
+        try:
+            if hasattr(self, "_ruta_pixmap_orig") and self._ruta_pixmap_orig is not None and not self._ruta_pixmap_orig.isNull():
+                self._scale_route_image()
+        finally:
+            super().resizeEvent(event)
+
+    def _scale_route_image(self):
+        """Escala la imagen original de la ruta al tamaño del QLabel, manteniendo el aspecto"""
+        if self.img_ruta.width() > 0 and self.img_ruta.height() > 0:
+            scaled = self._ruta_pixmap_orig.scaled(
+                self.img_ruta.size(),
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+            self.img_ruta.setPixmap(scaled)
 
     def mostrar_panel(self, panel_type):
         """Muestra el panel correspondiente y ajusta el scroll"""
@@ -641,23 +658,27 @@ class GestionHorariosRutas(QWidget):
         tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         tabla.setStyleSheet("""
             QTableWidget {
-                background-color: white;
-                border: 1px solid #ddd;
+                background-color: #0b1522;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
+                background-color: #121f30ff;
+                color: #55a2e7;
                 padding: 8px;
                 font-weight: bold;
-                border: none;
+                border: 1px solid #55a2e7;
             }
             QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
                 padding: 6px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #0b1522;
             }
         """)
-        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        tabla.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
     def bloquear_botones_horario(self):
         self.tabla_horarios.clearSelection()
@@ -757,16 +778,33 @@ class GestionHorariosRutas(QWidget):
         """
         routes = self.db.fetch_all(query)
 
+        # Configurar para permitir scrollbar horizontal y ver texto completo
+        self.tabla_rutas.setWordWrap(False)  # una sola línea por celda
+        self.tabla_rutas.setTextElideMode(Qt.TextElideMode.ElideNone)
+        header = self.tabla_rutas.horizontalHeader()
+        header.setStretchLastSection(False)
+        header.setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
+        self.tabla_rutas.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_rutas.setHorizontalScrollMode(QAbstractItemView.ScrollMode.ScrollPerPixel)
+
         self.tabla_rutas.setRowCount(len(routes))
         for i, route in enumerate(routes):
             self.tabla_rutas.setItem(i, 0, QTableWidgetItem(str(route[0])))
             self.tabla_rutas.setItem(i, 1, QTableWidgetItem(str(route[1])))
-            self.tabla_rutas.setItem(i, 2, QTableWidgetItem(route[2]))
+            estaciones_item = QTableWidgetItem(route[2])
+            estaciones_item.setToolTip(route[2])  # Tooltip con el texto completo
+            self.tabla_rutas.setItem(i, 2, estaciones_item)
 
         self.tabla_rutas.resizeColumnsToContents()
         self.tabla_rutas.resizeRowsToContents()
 
-        # Conectar la selección de una ruta con la carga de la imagen
+        # Conectar la selección de una ruta con la carga de la imagen (evitar duplicados)
+        try:
+            self.tabla_rutas.selectionModel().selectionChanged.disconnect(self.on_route_selected)
+        except Exception:
+            pass
         self.tabla_rutas.selectionModel().selectionChanged.connect(self.on_route_selected)
 
         # Cargar automáticamente la imagen de la primera ruta (si existe)
@@ -824,22 +862,45 @@ class GestionHorariosRutas(QWidget):
         image_data = self.db.fetch_all(query, (id_ruta,))  # Ahora se usa fetch_all
 
         if image_data and image_data[0][0]:
-            # Obtener el LOB
-            image_lob = image_data[0][0]
+            raw = image_data[0][0]
+            image_bytes = None
 
-            # Leer el LOB completo en memoria
-            image_bytes = image_lob.read()  # Leer el contenido del LOB
+            # Compatibilidad: cx_Oracle puede devolver un LOB con .read(), o bytes/memoryview directamente
+            try:
+                if hasattr(raw, 'read') and callable(raw.read):
+                    image_bytes = raw.read()
+                elif isinstance(raw, (bytes, bytearray)):
+                    image_bytes = bytes(raw)
+                elif isinstance(raw, memoryview):
+                    image_bytes = raw.tobytes()
+                else:
+                    # Último intento: convertir a bytes si es posible
+                    image_bytes = bytes(raw)
+            except Exception:
+                image_bytes = None
 
-            # Convertir los bytes a un QPixmap
-            pixmap = QPixmap()
-            pixmap.loadFromData(image_bytes)  # Cargar la imagen desde los bytes
-
-            # Ajustar el tamaño de la imagen para que no distorsione el layout
-            pixmap = pixmap.scaled(700, 400, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
-
-            self.img_ruta.setPixmap(pixmap)  # Establecer la imagen en el QLabel
+            if image_bytes:
+                pixmap = QPixmap()
+                if pixmap.loadFromData(image_bytes):
+                    # Guardar pixmap original y escalar a tamaño del label
+                    self._ruta_pixmap_orig = pixmap
+                    self._scale_route_image()
+                    self.img_ruta.setText("")  # Asegura que no quede texto sobre la imagen
+                else:
+                    # Datos no representaban una imagen válida
+                    self._ruta_pixmap_orig = None
+                    self.img_ruta.clear()
+                    self.img_ruta.setText("Imagen inválida")
+            else:
+                # No se pudieron obtener bytes válidos
+                self._ruta_pixmap_orig = None
+                self.img_ruta.clear()
+                self.img_ruta.setText("Imagen no disponible")
         else:
-            self.img_ruta.setText("No disponible")  # Si no hay imagen disponible, mostrar mensaje
+            # Si no hay imagen disponible, mostrar mensaje y limpiar pixmap previo
+            self._ruta_pixmap_orig = None
+            self.img_ruta.clear()
+            self.img_ruta.setText("No disponible")
 
     def cargar_datos(self):
         """Recarga los datos de la interfaz de gestión de horarios y rutas"""

@@ -1,4 +1,5 @@
 from PyQt6.QtWidgets import QApplication, QMainWindow, QHBoxLayout, QWidget, QSplitter, QMessageBox
+from PyQt6.QtGui import QIcon
 from base_de_datos.db import DatabaseConnection  # Importar la clase de conexión a la base de datos
 from interfaces.login import LoginInterface
 from interfaces.menu_lateral import MenuLateral
@@ -11,10 +12,28 @@ from interfaces.optimizacion import OptimizacionDinamica
 from interfaces.asignacion import InterfazAsignacion
 from PyQt6.QtWidgets import QStackedWidget
 import sys
+import os
 from PyQt6.QtCore import pyqtSignal
 from base_de_datos.event_manager import EventManager
 from interfaces.mejora import MejoraContinua
 from interfaces.usuarios import InterfazGestionUsuarios
+
+def _resource_path(*path_parts: str) -> str:
+    """Obtiene la ruta absoluta a un recurso, compatible con ejecución normal y empaquetada (PyInstaller)."""
+    base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(base_path, *path_parts)
+
+def _set_windows_app_id(app_id: str) -> None:
+    """Establece un AppUserModelID explícito para que Windows muestre el ícono correcto en la barra de tareas.
+    Debe llamarse antes de crear ventanas.
+    """
+    if sys.platform == "win32":
+        try:
+            import ctypes  # import aquí para evitar import innecesario en otros SO
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
+        except Exception:
+            # Si falla, continuamos sin bloquear la app
+            pass
 
 class MainWindow(QMainWindow):
     cerrar_sesion_signal = pyqtSignal()
@@ -24,6 +43,10 @@ class MainWindow(QMainWindow):
         #self.id_usuario = id_usuario # Aqui se guarda el ID del usuario logueado
         
         self.setWindowTitle('Sistema de Control de Trenes')
+        # Establecer ícono de la ventana (esquina superior izquierda)
+        icon_path = _resource_path('icons', 'TRACKSYNC.ico')
+        if os.path.exists(icon_path):
+            self.setWindowIcon(QIcon(icon_path))
 
         # Configurar conexión a BD
         self.db = db
@@ -99,7 +122,15 @@ class MainWindow(QMainWindow):
                 interface.cargar_datos()
 
 def main():
+    # Asegura que Windows use el ícono de la app en la barra de tareas
+    _set_windows_app_id("APPv0.2.ControlTrenes")
+
     app = QApplication([])
+
+    # Ícono global de la aplicación
+    app_icon_path = _resource_path('icons', 'TRACKSYNC.ico')
+    if os.path.exists(app_icon_path):
+        app.setWindowIcon(QIcon(app_icon_path))
 
     # Conexión a base de datos
     #db = DatabaseConnection("PROYECTO_IS", "123", "localhost", 1521, "XE")

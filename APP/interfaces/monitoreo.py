@@ -48,7 +48,7 @@ class MonitoreoInterface(QWidget):
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding: 5px 0;
             }
         """)
@@ -74,6 +74,7 @@ class MonitoreoInterface(QWidget):
         self.titulo.setStyleSheet("""
             font-size: 22px;
             font-style: italic;
+            color: #197fbc;
         """)
         self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_layout.addWidget(self.titulo)
@@ -83,11 +84,12 @@ class MonitoreoInterface(QWidget):
 
         # Sección de tabla de asignaciones
         label_estado = QLabel("Asignaciones de Trenes")
+        # fon size estaba en 20 xd
         label_estado.setStyleSheet("""
             QLabel {
-                font-size: 20px;
+                font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #197fbc;
                 padding-bottom: 5px;
             }
         """)
@@ -97,21 +99,22 @@ class MonitoreoInterface(QWidget):
         self.tabla_trenes = QTableWidget()
         self.tabla_trenes.setStyleSheet("""
             QTableWidget {
-                border: 1px solid #ddd;
+                border: 1px solid #0b1522;
                 border-radius: 4px;
-                background-color: white;
-                alternate-background-color: #f8f9fa;
+                background-color: #0b1522;
             }
             QHeaderView::section {
-                background-color: #3498db;
-                color: white;
+                background-color: #121f30ff;
+                color: #55a2e7;
                 padding: 8px;
                 font-weight: bold;
-                border: none;
+                border: 1px solid #55a2e7;
             }
             QTableWidget::item {
+                background-color: #2a4254ff;
+                color: white;
                 padding: 6px;
-                border-bottom: 1px solid #eee;
+                border-bottom: 1px solid #0b1522;
             }
         """)
 
@@ -142,9 +145,9 @@ class MonitoreoInterface(QWidget):
         self.detalle_panel = QFrame()
         self.detalle_panel.setStyleSheet("""
             QFrame {
-                background-color: white;
-                border: 1px solid #ddd;
-                border-radius: 4px;
+                background-color: #0b1522;
+                border: 1px solid #1f3a56;
+                border-radius: 8px;
             }
         """)
         self.detalle_panel.setFixedHeight(400)  # Altura reducida pero funcional
@@ -168,18 +171,6 @@ class MonitoreoInterface(QWidget):
         panel_layout.setContentsMargins(0, 0, 0, 0)
         panel_layout.addWidget(self.detalle_scroll)
 
-        # Título del panel de detalles
-        detalle_titulo = QLabel("Detalles de Asignación")
-        detalle_titulo.setStyleSheet("""
-            QLabel {
-                font-size: 16px;
-                font-weight: bold;
-                color: #2c3e50;
-                padding-bottom: 5px;
-            }
-        """)
-        self.detalle_layout.addWidget(detalle_titulo)
-
         self.main_layout.addWidget(self.detalle_panel)
         self.detalle_panel.setVisible(False)
 
@@ -187,6 +178,9 @@ class MonitoreoInterface(QWidget):
         self.tabla_trenes.cellClicked.connect(self.on_row_selected)
         self.timer_progreso = QTimer()
         self.timer_progreso.timeout.connect(self.actualizar_barra_tiempo_real)
+        
+        # Color del fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
@@ -315,16 +309,87 @@ class MonitoreoInterface(QWidget):
         estacion_origen = datos[12] if len(datos) > 12 and datos[12] else "Desconocido"
         estacion_destino = datos[13] if len(datos) > 13 and datos[13] else "Desconocido"
 
+        # Encabezado dinámico con estado (badge)
+        header = QHBoxLayout()
+        header.setContentsMargins(0, 0, 0, 0)
+
+        header_texts = QVBoxLayout()
+        titulo = QLabel(f"{datos[2]}")
+        titulo.setStyleSheet("""
+            QLabel { font-size: 18px; font-weight: 700; color: #eaf3ff; }
+        """)
+        subtitulo = QLabel(f"Asignación #{id_asignacion} • Ruta {datos[5]} • Horario {datos[7]}")
+        subtitulo.setStyleSheet("""
+            QLabel { font-size: 12px; color: #9fb3c8; }
+        """)
+        header_texts.addWidget(titulo)
+        header_texts.addWidget(subtitulo)
+
+        estado = self.determinar_estado_horario(datos[8], datos[9])
+        estado_badge = QLabel(estado)
+        estado_bg, estado_fg = self._colores_estado(estado)
+        estado_badge.setStyleSheet(f"""
+            QLabel {{
+                background-color: {estado_bg};
+                color: {estado_fg};
+                border: 1px solid #1f3a56;
+                border-radius: 12px;
+                padding: 4px 10px;
+                font-weight: 600;
+            }}
+        """)
+        header.addLayout(header_texts)
+        header.addStretch()
+        header.addWidget(estado_badge)
+
+        # Botón cerrar panel
+        btn_close = QPushButton("✕")
+        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close.setFixedSize(28, 28)
+        btn_close.setToolTip("Cerrar detalles")
+        btn_close.setStyleSheet("""
+            QPushButton {
+                color: #cfd8e3; background-color: #0e1a26; border: 1px solid #1f3a56;
+                border-radius: 14px; font-weight: bold;
+            }
+            QPushButton:hover { background-color: #122335; color: #ffffff; }
+            QPushButton:pressed { background-color: #091521; }
+        """)
+        btn_close.clicked.connect(self.cerrar_panel_detalles)
+        header.addSpacing(6)
+        header.addWidget(btn_close)
+
+        self.detalle_layout.addLayout(header)
+
+        # Separador
+        sep = QFrame()
+        sep.setFrameShape(QFrame.Shape.HLine)
+        sep.setFrameShadow(QFrame.Shadow.Sunken)
+        sep.setStyleSheet("color: #1f3a56;")
+        self.detalle_layout.addWidget(sep)
+
         # Barra de progreso visual
         barra_layout = QVBoxLayout()
+        barra_layout.setContentsMargins(0, 0, 0, 0)
+
         barra_superior = QHBoxLayout()
 
-        label_inicio = QLabel(estacion_origen) 
-        label_inicio.setFont(QFont('Arial', 10, QFont.Weight.Bold))
+        label_inicio = QLabel(estacion_origen)
+        label_inicio.setStyleSheet("""
+            QLabel {
+                color: #eaf3ff; background-color: #0e1a26; border: 1px solid #1f3a56;
+                border-radius: 10px; padding: 4px 8px; font-weight: 600;
+            }
+        """)
         label_inicio.setAlignment(Qt.AlignmentFlag.AlignLeft)
-        
-        label_fin = QLabel(estacion_destino)   
-        label_fin.setFont(QFont('Arial', 10, QFont.Weight.Bold))
+
+        label_fin = QLabel(estacion_destino)
+        label_fin.setStyleSheet("""
+            QLabel {
+                color: #eaf3ff; background-color: #0e1a26; border: 1px solid #1f3a56;
+                border-radius: 10px; padding: 4px 8px; font-weight: 600;
+            }
+        """)
         label_fin.setAlignment(Qt.AlignmentFlag.AlignRight)
 
         barra_superior.addWidget(label_inicio)
@@ -337,9 +402,30 @@ class MonitoreoInterface(QWidget):
         self.progress_bar.setTextVisible(True)
         self.progress_bar.setFormat("%p% completado")
         self.progress_bar.setValue(0)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                background-color: #0e1a26; color: #ffffff; border: 1px solid #1f3a56;
+                border-radius: 8px; text-align: center; height: 14px;
+            }
+            QProgressBar::chunk {
+                background-color: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                                  stop:0 #197fbc, stop:1 #55a2e7);
+                border-radius: 8px;
+            }
+        """)
+
+        barra_inferior = QHBoxLayout()
+        hora_salida_lbl = QLabel(f"Salida {self.hora_salida}")
+        hora_salida_lbl.setStyleSheet("QLabel { color: #9fb3c8; font-family: Consolas, 'Courier New', monospace; }")
+        hora_llegada_lbl = QLabel(f"Llegada {self.hora_llegada}")
+        hora_llegada_lbl.setStyleSheet("QLabel { color: #9fb3c8; font-family: Consolas, 'Courier New', monospace; }")
+        barra_inferior.addWidget(hora_salida_lbl)
+        barra_inferior.addStretch()
+        barra_inferior.addWidget(hora_llegada_lbl)
 
         barra_layout.addLayout(barra_superior)
         barra_layout.addWidget(self.progress_bar)
+        barra_layout.addLayout(barra_inferior)
         self.detalle_layout.addLayout(barra_layout)
 
         # Detalles en un grid layout
@@ -348,50 +434,80 @@ class MonitoreoInterface(QWidget):
         grid_layout.setVerticalSpacing(10)
 
         # Información del tren
-        grid_layout.addWidget(QLabel("ID Tren:"), 0, 0)
-        grid_layout.addWidget(QLabel(str(datos[1])), 0, 1)
+        grid_layout.addWidget(self._kv_label("ID Tren:"), 0, 0)
+        grid_layout.addWidget(self._value_label(str(datos[1])), 0, 1)
         
-        grid_layout.addWidget(QLabel("Nombre Tren:"), 1, 0)
-        grid_layout.addWidget(QLabel(datos[2]), 1, 1)
+        grid_layout.addWidget(self._kv_label("Nombre Tren:"), 1, 0)
+        grid_layout.addWidget(self._value_label(datos[2]), 1, 1)
         
-        grid_layout.addWidget(QLabel("Capacidad:"), 2, 0)
-        grid_layout.addWidget(QLabel(f"{datos[3]} pax"), 2, 1)
+        grid_layout.addWidget(self._kv_label("Capacidad:"), 2, 0)
+        grid_layout.addWidget(self._value_label(f"{datos[3]} pax"), 2, 1)
         
-        grid_layout.addWidget(QLabel("Estado:"), 3, 0)
-        grid_layout.addWidget(QLabel(datos[4]), 3, 1)
+        grid_layout.addWidget(self._kv_label("Estado del Tren:"), 3, 0)
+        grid_layout.addWidget(self._value_label(datos[4]), 3, 1)
 
         # Información de la ruta
-        grid_layout.addWidget(QLabel("ID Ruta:"), 0, 2)
-        grid_layout.addWidget(QLabel(str(datos[5])), 0, 3)
+        grid_layout.addWidget(self._kv_label("ID Ruta:"), 0, 2)
+        grid_layout.addWidget(self._value_label(str(datos[5])), 0, 3)
         
-        grid_layout.addWidget(QLabel("Duración Estimada:"), 1, 2)
-        grid_layout.addWidget(QLabel(f"{datos[6]} min"), 1, 3)
+        grid_layout.addWidget(self._kv_label("Duración Estimada:"), 1, 2)
+        grid_layout.addWidget(self._value_label(f"{datos[6]} min"), 1, 3)
         
-        grid_layout.addWidget(QLabel("ID Horario:"), 2, 2)
-        grid_layout.addWidget(QLabel(str(datos[7])), 2, 3)
+        grid_layout.addWidget(self._kv_label("ID Horario:"), 2, 2)
+        grid_layout.addWidget(self._value_label(str(datos[7])), 2, 3)
 
         # Horarios programados
-        grid_layout.addWidget(QLabel("Salida Programada:"), 4, 0)
-        grid_layout.addWidget(QLabel(datos[8]), 4, 1)
+        grid_layout.addWidget(self._kv_label("Salida Programada:"), 4, 0)
+        grid_layout.addWidget(self._mono_value_label(datos[8]), 4, 1)
         
-        grid_layout.addWidget(QLabel("Llegada Programada:"), 5, 0)
-        grid_layout.addWidget(QLabel(datos[9]), 5, 1)
+        grid_layout.addWidget(self._kv_label("Llegada Programada:"), 5, 0)
+        grid_layout.addWidget(self._mono_value_label(datos[9]), 5, 1)
 
         # Horarios reales (si existen)
         if datos[10]:
-            grid_layout.addWidget(QLabel("Salida Real:"), 4, 2)
-            grid_layout.addWidget(QLabel(datos[10]), 4, 3)
+            grid_layout.addWidget(self._kv_label("Salida Real:"), 4, 2)
+            grid_layout.addWidget(self._mono_value_label(datos[10]), 4, 3)
         
         if datos[11]:
-            grid_layout.addWidget(QLabel("Llegada Real:"), 5, 2)
-            grid_layout.addWidget(QLabel(datos[11]), 5, 3)
-
-        # Estado del viaje
-        estado = self.determinar_estado_horario(datos[8], datos[9])
-        grid_layout.addWidget(QLabel("Estado del Viaje:"), 6, 0)
-        grid_layout.addWidget(QLabel(estado), 6, 1)
+            grid_layout.addWidget(self._kv_label("Llegada Real:"), 5, 2)
+            grid_layout.addWidget(self._mono_value_label(datos[11]), 5, 3)
 
         self.detalle_layout.addLayout(grid_layout)
+
+    def cerrar_panel_detalles(self):
+        """Oculta el panel de detalles y detiene actualizaciones en tiempo real."""
+        try:
+            if hasattr(self, 'timer_progreso'):
+                self.timer_progreso.stop()
+        except Exception:
+            pass
+        self.limpiar_panel_detalles()
+        self.detalle_panel.setVisible(False)
+
+    def _kv_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet("QLabel { color: #197fbc; font-weight: 600; }")
+        return lbl
+
+    def _value_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet("QLabel { color: #eaf3ff; }")
+        return lbl
+
+    def _mono_value_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet("QLabel { color: #eaf3ff; font-family: Consolas, 'Courier New', monospace; }")
+        return lbl
+
+    def _colores_estado(self, estado: str):
+        estado = (estado or '').lower()
+        if 'curso' in estado:      # En curso
+            return ("#114d2e", "#9ff2bd")
+        if 'próxim' in estado or 'proxim' in estado:  # Próximamente
+            return ("#5a3a13", "#ffd79a")
+        if 'finaliz' in estado:    # Finalizado
+            return ("#2c2f33", "#c7d1db")
+        return ("#1f3a56", "#eaf3ff")
 
     def actualizar_barra_tiempo_real(self):
         if not hasattr(self, 'hora_salida') or not hasattr(self, 'hora_llegada'):

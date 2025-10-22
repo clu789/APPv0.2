@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
                              QTableWidgetItem, QPushButton, QMessageBox, QScrollArea, QFrame,
-                             QHeaderView, QAbstractItemView)
+                             QHeaderView, QAbstractItemView, QSizePolicy)
 from PyQt6.QtCore import Qt
 from base_de_datos.db import DatabaseConnection
 from PyQt6.QtGui import QPixmap
@@ -11,9 +11,11 @@ class MejoraContinua(QWidget):
         super().__init__()
         self.main_window = main_window
         self.db = db
-
+        
         self.setWindowTitle("Análisis y Mejora Continua")
-        self.setGeometry(100, 100, 1200, 600)
+        # Aumentar altura inicial y mínima para más espacio vertical
+        self.setGeometry(100, 100, 1200, 800)
+        self.setMinimumSize(1200, 800)
         self.initUI()
         self.cargar_datos()
         
@@ -23,9 +25,10 @@ class MejoraContinua(QWidget):
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
         
-        # Widget contenedor principal
+        # Widget contenedor principal (usar todo el ancho disponible)
         self.main_container = QWidget()
-        self.main_container.setFixedWidth(1400)
+        # Expandir también verticalmente para aprovechar más espacio
+        self.main_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.main_layout = QVBoxLayout(self.main_container)
         self.main_layout.setContentsMargins(20, 20, 20, 20)
         self.main_layout.setSpacing(20)
@@ -46,7 +49,7 @@ class MejoraContinua(QWidget):
             QLabel {
                 font-size: 20px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: white;
                 padding: 5px 0;
             }
         """)
@@ -72,6 +75,7 @@ class MejoraContinua(QWidget):
         self.titulo.setStyleSheet("""
             font-size: 22px;
             font-style: italic;
+            color: #197fbc;
         """)
         self.titulo.setAlignment(Qt.AlignmentFlag.AlignCenter)
         logo_layout.addWidget(self.titulo)
@@ -91,26 +95,31 @@ class MejoraContinua(QWidget):
             tabla.setHorizontalHeaderLabels(headers)
             tabla.setStyleSheet("""
                 QTableWidget {
-                    background-color: white;
-                    border: 1px solid #ddd;
+                    background-color: #0b1522;
+                    border: 1px solid #0b1522;
                     border-radius: 4px;
                 }
                 QHeaderView::section {
-                    background-color: #3498db;
-                    color: white;
+                    background-color: #121f30ff;
+                    color: #55a2e7;
                     padding: 8px;
                     font-weight: bold;
-                    border: none;
+                    border: 1px solid #55a2e7;
                 }
                 QTableWidget::item {
+                    background-color: #2a4254ff;
+                    color: white;
                     padding: 6px;
-                    border-bottom: 1px solid #eee;
+                    border-bottom: 1px solid #0b1522;
                 }
             """)
             tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
             tabla.verticalHeader().setVisible(False)
             tabla.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
             tabla.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+            # Alinear comportamiento con interfaz de horarios para mejor visualización
+            tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+            tabla.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
     
         # Función para crear sección de tabla con título (solo para las 3 primeras tablas)
         def crear_seccion_tabla_horizontal(titulo, tabla, stretch=1):
@@ -122,9 +131,9 @@ class MejoraContinua(QWidget):
             label = QLabel(titulo)
             label.setStyleSheet("""
                 QLabel {
-                    font-size: 16px;
+                    font-size: 18px;
                     font-weight: bold;
-                    color: #2c3e50;
+                    color: #197fbc;
                     padding-bottom: 5px;
                 }
             """)
@@ -137,26 +146,38 @@ class MejoraContinua(QWidget):
         self.tabla_horarios = QTableWidget()
         configurar_tabla(self.tabla_horarios, ["ID Horario", "Información", "Fecha Registro"])
         crear_seccion_tabla_horizontal("Historial de Horarios:", self.tabla_horarios, 1)
+        # Dar más altura mínima a la tabla para evitar vista "apretada"
+        self.tabla_horarios.setMinimumHeight(220)
+        self.tabla_horarios.setSortingEnabled(True)
     
         # Tabla 2: Reporte de Rutas
         self.tabla_reporte_rutas = QTableWidget()
         configurar_tabla(self.tabla_reporte_rutas, ["ID Ruta", "Asignaciones", "Retraso Promedio", "Incidencias"])
         crear_seccion_tabla_horizontal("Reporte de Rutas:", self.tabla_reporte_rutas, 1)
+        self.tabla_reporte_rutas.setMinimumHeight(200)
+        # Evitar que el encabezado "Retraso Promedio" se corte
+        self.tabla_reporte_rutas.horizontalHeader().setMinimumSectionSize(60)
+        self.tabla_reporte_rutas.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
     
         # Tabla 3: Reporte de Trenes
         self.tabla_reporte_trenes = QTableWidget()
         configurar_tabla(self.tabla_reporte_trenes, ["ID Tren", "Asignaciones", "Retraso Promedio", "Incidencias"])
         crear_seccion_tabla_horizontal("Reporte de Trenes:", self.tabla_reporte_trenes, 1)
+        self.tabla_reporte_trenes.setMinimumHeight(200)
+        # Evitar corte del encabezado "Retraso Promedio"
+        self.tabla_reporte_trenes.horizontalHeader().setMinimumSectionSize(60)
+        self.tabla_reporte_trenes.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
     
-        self.main_layout.addWidget(tablas_superiores_container)
+        # Dar un poco de espacio, pero priorizar tablas inferiores
+        self.main_layout.addWidget(tablas_superiores_container, 1)
     
         # --- Segunda fila: Historial de Rutas ---
         rutas_label = QLabel("Historial de Rutas:")
         rutas_label.setStyleSheet("""
             QLabel {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #197fbc;
                 padding-bottom: 5px;
             }
         """)
@@ -164,15 +185,22 @@ class MejoraContinua(QWidget):
         
         self.tabla_rutas = QTableWidget()
         configurar_tabla(self.tabla_rutas, ["ID Ruta", "Información", "Fecha Registro"])
-        self.main_layout.addWidget(self.tabla_rutas)
+        # Copiar comportamiento de tabla de rutas en Horarios: columnas en modo Stretch
+        self.tabla_rutas.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_rutas.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        # Más altura para que se vea mejor con pocos datos
+        self.tabla_rutas.setMinimumHeight(320)
+        # Priorizar más espacio vertical para esta tabla
+        self.main_layout.addWidget(self.tabla_rutas, 2)
+        self.tabla_rutas.setSortingEnabled(True)
     
         # --- Tercera fila: Historial de Asignaciones ---
         asignaciones_label = QLabel("Historial de Asignaciones:")
         asignaciones_label.setStyleSheet("""
             QLabel {
-                font-size: 16px;
+                font-size: 18px;
                 font-weight: bold;
-                color: #2c3e50;
+                color: #197fbc;
                 padding-bottom: 5px;
             }
         """)
@@ -180,23 +208,52 @@ class MejoraContinua(QWidget):
         
         self.tabla_asignaciones = QTableWidget()
         configurar_tabla(self.tabla_asignaciones, ["ID Asignación", "Información", "Fecha Registro"])
-        self.main_layout.addWidget(self.tabla_asignaciones)
+        # Mismo comportamiento que Historial de Rutas: columnas en modo Stretch
+        self.tabla_asignaciones.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        # Más altura para que se vea mejor con pocos datos
+        self.tabla_asignaciones.setMinimumHeight(320)
+        # Priorizar más espacio vertical para esta tabla
+        self.main_layout.addWidget(self.tabla_asignaciones, 2)
+        self.tabla_asignaciones.setSortingEnabled(True)
     
         # Botón para actualizar con estilo
         btn_actualizar = QPushButton("Actualizar Datos")
+        #btn_actualizar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        font-size: 14px;
+        #        font-weight: bold;
+        #        min-width: 200px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         btn_actualizar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
-                font-size: 14px;
-                font-weight: bold;
                 min-width: 200px;
+                font-weight: bold;
             }
             QPushButton:hover {
                 background-color: #2980b9;
+            }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
         btn_actualizar.clicked.connect(self.cargar_datos)
@@ -209,6 +266,13 @@ class MejoraContinua(QWidget):
         btn_layout.addStretch()
         
         self.main_layout.addWidget(btn_container)
+        
+        # Color del fondo de la ventana
+        self.setStyleSheet("background-color: #0b1522;")
+        # Políticas de scroll como en la interfaz de horarios
+        self.scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.scroll_area.setWidgetResizable(True)
 
     def cargar_datos(self):
         self.cargar_historial_horarios()
@@ -216,6 +280,8 @@ class MejoraContinua(QWidget):
         self.cargar_historial_asignaciones()
         self.generar_reporte_rutas()
         self.generar_reporte_trenes()
+
+    # Ya no se requiere resizeEvent personalizado ni ajustador de ancho: con Stretch se adapta solo
 
     def actualizar_datos(self):
         self.cargar_datos()
@@ -276,10 +342,9 @@ class MejoraContinua(QWidget):
                         self.tabla_horarios.setItem(fila, 2, QTableWidgetItem(""))
                         fila += 1
 
-            # 5. Ajustes finales
-            self.tabla_horarios.setSortingEnabled(True)
-            self.tabla_horarios.sortItems(0, Qt.SortOrder.AscendingOrder)
+            # 5. Ajustes finales (sin ordenamiento)
             self.tabla_horarios.resizeColumnsToContents()
+            self.tabla_horarios.sortItems(0, Qt.SortOrder.AscendingOrder)
 
         except Exception as e:
             print(f"Error en cargar_historial_horarios: {str(e)}")
@@ -352,10 +417,10 @@ class MejoraContinua(QWidget):
                         fila += 1
 
             # 5. Ajustes finales
-            self.tabla_rutas.setSortingEnabled(True)
-            self.tabla_rutas.sortItems(0, Qt.SortOrder.AscendingOrder)
-            self.tabla_rutas.resizeColumnsToContents()
+            # Con modo Stretch no es necesario ajustar columnas al contenido
             self.tabla_rutas.resizeRowsToContents()
+            self.tabla_rutas.sortItems(0, Qt.SortOrder.AscendingOrder)
+            
 
         except Exception as e:
             print(f"Error en cargar_historial_rutas: {str(e)}")
@@ -461,11 +526,9 @@ class MejoraContinua(QWidget):
                         self.tabla_asignaciones.setItem(fila, 2, QTableWidgetItem(""))
                         fila += 1
     
-            # 5. Ajustes finales
-            self.tabla_asignaciones.setSortingEnabled(True)
-            self.tabla_asignaciones.sortItems(0, Qt.SortOrder.AscendingOrder)
-            self.tabla_asignaciones.resizeColumnsToContents()
+            # 5. Ajustes finales (con Stretch no hace falta ajustar columnas al contenido)
             self.tabla_asignaciones.resizeRowsToContents()
+            self.tabla_asignaciones.sortItems(0, Qt.SortOrder.AscendingOrder)
             
         except Exception as e:
             print(f"Error en cargar_historial_asignaciones: {str(e)}")
@@ -636,7 +699,7 @@ class MejoraContinua(QWidget):
                 num_incidencias = incidencias[0] if incidencias else 0
 
                 # Insertar datos en la tabla
-                self.tabla_reporte_trenes.setItem(i, 0, QTableWidgetItem(f"{id_tren} ({nombre_tren})"))
+                self.tabla_reporte_trenes.setItem(i, 0, QTableWidgetItem(f"{id_tren}"))
                 self.tabla_reporte_trenes.setItem(i, 1, QTableWidgetItem(str(num_asignaciones)))
                 self.tabla_reporte_trenes.setItem(i, 2, QTableWidgetItem(f"{retraso_promedio:.1f} min" if retraso_promedio is not None else "N/A"))
                 self.tabla_reporte_trenes.setItem(i, 3, QTableWidgetItem(str(num_incidencias)))

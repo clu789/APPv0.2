@@ -18,9 +18,8 @@ class InterfazAgregarEstacion(QWidget):
         titulo.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: white;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
         layout.addWidget(titulo)
 
@@ -32,7 +31,7 @@ class InterfazAgregarEstacion(QWidget):
 
         # Campo: Nombre
         lbl_nombre = QLabel("Nombre de la Estación:")
-        lbl_nombre.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_nombre.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_nombre = QLineEdit()
         self.input_nombre.setStyleSheet("""
             QLineEdit {
@@ -40,6 +39,7 @@ class InterfazAgregarEstacion(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.input_nombre.setMinimumHeight(35)  # Altura aumentada
@@ -56,50 +56,119 @@ class InterfazAgregarEstacion(QWidget):
 
         # Botones con estilos consistentes
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #        font-size: 14px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #        font-size: 14px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
 
         self.btn_confirmar = QPushButton("Confirmar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #        font-size: 14px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
 
@@ -172,9 +241,8 @@ class InterfazEditarEstacion(QWidget):
         titulo.setStyleSheet("""
             font-size: 18px;
             font-weight: bold;
-            color: #2c3e50;
+            color: white;
             padding: 5px;
-            border-bottom: 2px solid #3498db;
         """)
         layout.addWidget(titulo)
     
@@ -186,7 +254,7 @@ class InterfazEditarEstacion(QWidget):
     
         # Campo: Nombre
         lbl_nombre = QLabel("Nombre de la Estación:")
-        lbl_nombre.setStyleSheet("font-weight: bold; font-size: 14px;")
+        lbl_nombre.setStyleSheet("font-weight: bold; font-size: 14px; color: #197fbc;")
         self.input_nombre = QLineEdit()
         self.input_nombre.setStyleSheet("""
             QLineEdit {
@@ -194,6 +262,7 @@ class InterfazEditarEstacion(QWidget):
                 border: 1px solid #ddd;
                 border-radius: 4px;
                 font-size: 14px;
+                color: white;
             }
         """)
         self.input_nombre.setMinimumHeight(35)  # Altura aumentada
@@ -210,50 +279,119 @@ class InterfazEditarEstacion(QWidget):
     
         # Botones con estilos consistentes
         self.btn_cancelar = QPushButton("Cancelar")
+        #self.btn_cancelar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #e74c3c;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #        font-size: 14px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #c0392b;
+        #    }
+        #""")
         self.btn_cancelar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #e74c3c;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #c0392b;
             }
+            QPushButton:pressed {
+                background-color: #a93226;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
     
         self.btn_consultar = QPushButton("Consultar")
+        #self.btn_consultar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #3498db;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #        font-size: 14px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #2980b9;
+        #    }
+        #""")
         self.btn_consultar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #3498db;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #2980b9;
             }
+            QPushButton:pressed {
+                background-color: #2472a4;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
+            }
         """)
     
         self.btn_confirmar = QPushButton("Confirmar")
+        #self.btn_confirmar.setStyleSheet("""
+        #    QPushButton {
+        #        padding: 10px 20px;
+        #        background-color: #2ecc71;
+        #        color: white;
+        #        border: none;
+        #        border-radius: 4px;
+        #        min-width: 120px;
+        #        font-size: 14px;
+        #    }
+        #    QPushButton:hover {
+        #        background-color: #27ae60;
+        #    }
+        #""")
         self.btn_confirmar.setStyleSheet("""
             QPushButton {
-                padding: 10px 20px;
                 background-color: #2ecc71;
                 color: white;
+                padding: 10px 20px;
                 border: none;
                 border-radius: 4px;
                 min-width: 120px;
+                font-weight: bold;
                 font-size: 14px;
             }
             QPushButton:hover {
                 background-color: #27ae60;
+            }
+            QPushButton:pressed {
+                background-color: #219653;
+                padding: 9px 14px 7px 16px;
+            }
+            QPushButton:disabled {
+                background-color: #95a5a6;
+                color: #7f8c8d;
             }
         """)
     
