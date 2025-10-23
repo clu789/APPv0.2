@@ -127,6 +127,15 @@ def main():
 
     app = QApplication([])
 
+    # Estilo global para QMessageBox: fondo consistente y texto blanco
+    # Esto aplica a TODOS los QMessageBox de la aplicación sin modificar cada llamada individual.
+    app.setStyleSheet(
+        """
+        QMessageBox { background-color: #0b1522; }
+        QMessageBox QLabel, QMessageBox QPushButton { color: white; background-color: #0b1522;}
+        """
+    )
+
     # Ícono global de la aplicación
     app_icon_path = _resource_path('icons', 'TRACKSYNC.ico')
     if os.path.exists(app_icon_path):

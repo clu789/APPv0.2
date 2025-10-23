@@ -149,7 +149,13 @@ class LoginInterface(QWidget):
         contrasena = self.input_contrasena.text()
 
         if not usuario or not contrasena:
-            QMessageBox.warning(self, "Campos vacíos", "Por favor ingresa usuario y contraseña.")
+            msg = QMessageBox(self)
+            msg.setWindowTitle("Campos vacíos")
+            msg.setText("Por favor ingresa usuario y contraseña.")
+            msg.setIcon(QMessageBox.Icon.Warning)
+            # Cambia el color del texto (mensaje y botones) a blanco
+            msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
+            msg.exec()
             return
 
         query = "SELECT COUNT(*) FROM USUARIO WHERE ID_USUARIO = :1 AND CONTRASENA = :2"
@@ -173,10 +179,22 @@ class LoginInterface(QWidget):
         else:
             self.intentos_login += 1
             if self.intentos_login >= 3:
-                QMessageBox.critical(self, "Acceso denegado", "Has excedido el número de intentos permitidos. El programa se cerrará.")
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Acceso denegado")
+                msg.setText("Has excedido el número de intentos permitidos. El programa se cerrará.")
+                msg.setIcon(QMessageBox.Icon.Critical)
+                # Cambia el color del texto (mensaje y botones) a blanco
+                msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
+                msg.exec()
                 import sys
                 sys.exit()
             else:
-                QMessageBox.critical(self, "Error", "Usuario o contraseña incorrectos.")
+                msg = QMessageBox(self)
+                msg.setWindowTitle("Error")
+                msg.setText("Usuario o contraseña incorrectos.")
+                msg.setIcon(QMessageBox.Icon.Critical)
+                # Cambia el color del texto (mensaje y botones) a blanco
+                msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
+                msg.exec()
                 self.input_contrasena.clear()
                 self.input_contrasena.setFocus()

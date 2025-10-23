@@ -653,6 +653,14 @@ class OptimizacionDinamica(QWidget):
         # Crear diálogo de edición
         dialog = QDialog(self)
         dialog.setWindowTitle(f"Editar Sugerencia - {tipo_incidencia}")
+        # Forzar texto blanco en el diálogo: etiquetas, entradas y botones
+        dialog.setStyleSheet(
+            """
+            QLabel { color: white; }
+            QLineEdit { color: white; }
+            QPushButton { color: white; }
+            """
+        )
         layout = QVBoxLayout()
 
         if tipo_incidencia == 'RETRASO':
