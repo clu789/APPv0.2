@@ -13,7 +13,9 @@ from interfaces.asignacion import InterfazAsignacion
 from PyQt6.QtWidgets import QStackedWidget
 import sys
 import os
-from PyQt6.QtCore import pyqtSignal
+import logging
+import time
+from PyQt6.QtCore import pyqtSignal, QTimer, Qt
 from base_de_datos.event_manager import EventManager
 from interfaces.mejora import MejoraContinua
 from interfaces.usuarios import InterfazGestionUsuarios
@@ -39,7 +41,9 @@ class MainWindow(QMainWindow):
     cerrar_sesion_signal = pyqtSignal()
     def __init__(self, db, id_usuario):
         super().__init__()
-        
+        self._logger = logging.getLogger(__name__)
+        t0 = time.perf_counter()
+
         #self.id_usuario = id_usuario # Aqui se guarda el ID del usuario logueado
         
         self.setWindowTitle('Sistema de Control de Trenes')
@@ -50,9 +54,23 @@ class MainWindow(QMainWindow):
 
         # Configurar conexión a BD
         self.db = db
-        
-        # Conectar la señal de actualización de eventos
-        self.db.event_manager.update_triggered.connect(self.actualizar_interfaz)
+
+        # Estado para manejo de actualizaciones diferidas/coalescidas
+        self._update_timer = QTimer(self)
+        self._update_timer.setSingleShot(True)
+        self._update_timer.setInterval(150)  # ms
+        self._update_timer.timeout.connect(self._procesar_actualizacion)
+        self._dirty_indices = set()  # vistas que requieren refresh al mostrarse
+
+        # Conectar la señal de actualización de eventos (entrega encolada para no bloquear)
+        try:
+            self.db.event_manager.update_triggered.connect(
+                self._programar_actualizacion,
+                Qt.ConnectionType.QueuedConnection,
+            )
+        except Exception:
+            # fallback si la firma de connect no admite el tipo (según versión)
+            self.db.event_manager.update_triggered.connect(self._programar_actualizacion)
 
         # Crear widget central
         central_widget = QWidget()
@@ -69,37 +87,37 @@ class MainWindow(QMainWindow):
 
         # 1. Menú lateral
         self.menu = MenuLateral(self.db, id_usuario)
-        self.menu.setMinimumWidth(50)
-        self.menu.setMaximumWidth(50)  
+        self.menu.setFixedWidth(50)
 
         # 2. Área de contenido
         self.stacked_widget = QStackedWidget()
 
-        # Crear interfaces y pasar la conexión a la base de datos
-        self.interfaces = [
-            InterfazHome(self, self.db, id_usuario),
-            GestionHorariosRutas(self, self.db, id_usuario),
-            MonitoreoInterface(self, self.db),
-            GestionIncidencias(self, self.db, id_usuario),
-            GestionInfraestructura(self, self.db, id_usuario),
-            OptimizacionDinamica(self, self.db, id_usuario),
-            #InterfazAsignacion(self, self.db),
-            MejoraContinua(self, self.db)
-        ]
+        # Lazy-load: factories por índice para crear cada interfaz bajo demanda
+        self._interface_factories = {
+            0: lambda self=self, db=self.db, uid=id_usuario: InterfazHome(self, db, uid),
+            1: lambda self=self, db=self.db, uid=id_usuario: GestionHorariosRutas(self, db, uid),
+            2: lambda self=self, db=self.db: MonitoreoInterface(self, db),
+            3: lambda self=self, db=self.db, uid=id_usuario: GestionIncidencias(self, db, uid),
+            4: lambda self=self, db=self.db, uid=id_usuario: GestionInfraestructura(self, db, uid),
+            5: lambda self=self, db=self.db, uid=id_usuario: OptimizacionDinamica(self, db, uid),
+            6: lambda self=self, db=self.db: MejoraContinua(self, db),
+            # 7: InterfazAsignacion si se activa en el futuro
+        }
+        self._interfaces = {}  # índice -> instancia creada
+        self._placeholders = {}
 
-        # Conectar la señal de actualización a cada interfaz
-        for interfaz in self.interfaces:
-            self.db.event_manager.update_triggered.connect(interfaz.actualizar_datos)
-            #self.db.event_manager.update_triggered.connect(self.interfaz_home.actualizar_datos)
-
-
-        for interface in self.interfaces:
-            self.stacked_widget.addWidget(interface)
+        # Insertar placeholders para mantener los índices coherentes
+        total_views = len(self._interface_factories)
+        for idx in range(total_views):
+            ph = QWidget()
+            self._placeholders[idx] = ph
+            self.stacked_widget.addWidget(ph)
 
         # Configurar splitter
         splitter.addWidget(self.menu)
         splitter.addWidget(self.stacked_widget)
         splitter.setSizes([50, self.width() - 100])  # Establecer tamaños iniciales
+        splitter.setChildrenCollapsible(False)
 
         # Conectar señal del menú
         self.menu.cambio_interfaz.connect(self.cambiar_interfaz)
@@ -107,23 +125,101 @@ class MainWindow(QMainWindow):
 
         main_layout.addWidget(splitter)
 
+        # Crear y mostrar la primera vista bajo demanda
+        self._ensure_interface(0)
+        self.stacked_widget.setCurrentIndex(0)
+
         # Mostrar maximizado
         self.showMaximized()
 
+        t1 = time.perf_counter()
+        self._logger.info("MainWindow creada en %.1f ms", (t1 - t0) * 1000)
+
+    def _ensure_interface(self, index: int) -> None:
+        """Crea e inserta la interfaz en el índice si aún no existe."""
+        if index in self._interfaces:
+            return
+        factory = self._interface_factories.get(index)
+        if not factory:
+            return
+        widget = factory()
+        # Reemplazar placeholder en el mismo índice
+        placeholder = self._placeholders.pop(index, None)
+        if placeholder is not None:
+            self.stacked_widget.removeWidget(placeholder)
+            # insertWidget coloca en posición, pero si el índice es > count, lo añade al final
+            self.stacked_widget.insertWidget(index, widget)
+        else:
+            # fallback: añadir al final si no hay placeholder
+            self.stacked_widget.addWidget(widget)
+        self._interfaces[index] = widget
+
     def cambiar_interfaz(self, index):
         """Cambia a la interfaz seleccionada"""
+        self._ensure_interface(index)
         self.stacked_widget.setCurrentIndex(index)
+        # Si estaba marcada como dirty, refrescar al entrar
+        if index in self._dirty_indices:
+            widget = self._interfaces.get(index)
+            if widget is not None:
+                self._refresh_widget(widget)
+            self._dirty_indices.discard(index)
 
-    def actualizar_interfaz(self):
-        """Actualiza las interfaces cuando ocurre un evento"""
-        print("Actualizando interfaz debido a un evento...")
-        for interface in self.interfaces:
-            if hasattr(interface, 'cargar_datos'):
-                interface.cargar_datos()
+    def _programar_actualizacion(self) -> None:
+        """Coalesce de eventos: programa una actualización de la vista visible y marca el resto como sucia."""
+        # Marcar todas las vistas (por índice) como "dirty" excepto la visible
+        current = self.stacked_widget.currentIndex()
+        self._dirty_indices.update(i for i in self._interface_factories.keys() if i != current)
+        if not self._update_timer.isActive():
+            self._update_timer.start()
+
+    def _procesar_actualizacion(self) -> None:
+        """Ejecuta la actualización de la vista visible de forma segura y ligera."""
+        idx = self.stacked_widget.currentIndex()
+        widget = self._interfaces.get(idx)
+        if widget is None:
+            # Si aún no está creada, créala y márcala como limpia
+            self._ensure_interface(idx)
+            widget = self._interfaces.get(idx)
+        if widget is not None:
+            self._refresh_widget(widget)
+        # la vista visible se considera actualizada
+        self._dirty_indices.discard(idx)
+
+    def _refresh_widget(self, widget: QWidget) -> None:
+        """Intenta refrescar una vista llamando actualizar_datos() o cargar_datos()."""
+        try:
+            if hasattr(widget, 'actualizar_datos') and callable(getattr(widget, 'actualizar_datos')):
+                widget.actualizar_datos()
+            elif hasattr(widget, 'cargar_datos') and callable(getattr(widget, 'cargar_datos')):
+                widget.cargar_datos()
+        except Exception as e:
+            self._logger.warning("Error al refrescar vista %s: %s", type(widget).__name__, e)
+
+    def closeEvent(self, event):
+        """Limpieza de conexiones y timers al cerrar la ventana."""
+        try:
+            self.db.event_manager.update_triggered.disconnect(self._programar_actualizacion)
+        except Exception:
+            pass
+        try:
+            if self._update_timer.isActive():
+                self._update_timer.stop()
+        except Exception:
+            pass
+        super().closeEvent(event)
 
 def main():
     # Asegura que Windows use el ícono de la app en la barra de tareas
     _set_windows_app_id("APPv0.2.ControlTrenes")
+
+    # Configurar logging básico y nivel por variable de entorno APP_LOG_LEVEL
+    log_level_name = os.getenv("APP_LOG_LEVEL", "INFO").upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    logging.basicConfig(
+        level=log_level,
+        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    )
 
     app = QApplication([])
 
