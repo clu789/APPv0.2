@@ -45,31 +45,60 @@ Cambios aplicados:
 - DSN cacheado: construcción de DSN única por instancia.
 - Métricas básicas: `get_metrics()` devuelve consultas totales, lentas y reintentos.
 - Thin/Thick (punto 8): se retiró `init_oracle_client(...)` para usar thin por defecto; se agrega log del modo actual (`thin`/`thick`) tras conectar.
--
+
+Notas anteriores:
+- Inicialmente se mantenía la creación de `EventManager(self)` en `connect()` (punto 7 pendiente de coordinar con `event_manager.py`).
+- Si se detectan problemas tras retirar `init_oracle_client`, evaluar reintroducirlo de forma opcional o condicional por entorno.
+
+Cambio 7 (2025-10-26): imports perezosos y limpieza
+- Se eliminó la creación automática de `EventManager` dentro de `connect()`; ahora la inicialización es explícita a través de `init_event_manager(usuario_id, auto_start=True)`.
+- Import perezoso: `EventManager` se importa dentro de `init_event_manager` en lugar de a nivel de módulo.
+- Ciclo de vida: `close()` detiene y desasocia el `EventManager` si existe (`stop()` y `detach_from_db()`), y lo borra de la referencia de `db`.
+- Coordinación con UI: `APP/main.py` ahora llama `db.init_event_manager(id_usuario)` al iniciar sesión; se eliminó la dependencia directa (`from base_de_datos.event_manager import EventManager`) en `main.py` y en `interfaces/monitoreo.py` (import no usado).
+
 ## APP/base_de_datos/event_manager.py
 
-Fecha: 2025-10-25
+Fecha: 2025-10-26
 
-Objetivos:
-- Reducir freezes por solapes de verificación y mejorar previsibilidad de timers
-- Bajar ruido en consola y mejorar trazabilidad
-- Preparar ajustes finos de rendimiento sin cambiar SQL aún
+Objetivo (fase 1):
+- Reiniciar los campos `HORA_SALIDA_REAL` y `HORA_LLEGADA_REAL` de `ASIGNACION_TREN` cuando se registre la última llegada del día o al detectar cambio de día, manteniendo la lógica de día agnóstico de horarios/asignaciones.
 
-Cambios aplicados (1,2,3,4,5,6,7,8,9):
-- Logging estructurado: reemplazo de `print` por `logging` con niveles; mensajes claros por evento y errores en workers.
-- Verificación periódica sin solapes: `verification_timer` singleShot y guard `_verificando`; intervalo configurable con `APP_EVENTS_VERIFY_MS` (default 60000 ms).
-- Reutilización de timer de próximo evento: `current_timer` único con callback `_on_next_event_timeout` y almacenamiento de `_next_event`.
-- Coalescing de señales: se mantiene emisión en workers al finalizar una operación; sin emisiones extra en caminos intermedios.
-- Método `stop()`: detiene timers y limpia estado para cambio de sesión/cierre.
-- Orden garantizado: lista `eventos_pendientes` ordenada por `hora_programada` tras cargar.
-- Configuración por entorno: `APP_EVENTS_VERIFY_MS` para tuning rápido del polling.
+Cambios aplicados (fase 1):
+- Se agrega `self._current_date` para detectar cambio de día en `verificar_eventos()`.
+- Nuevo flujo post-evento: tras una llegada exitosa y si no quedan eventos pendientes, se lanza un `DbTask` que pone en `NULL` las horas reales de todas las asignaciones y posteriormente recarga los eventos (`_reset_asignaciones_async`).
+- En `verificar_eventos()`, si cambia el día, se dispara el mismo reset asíncrono y, al finalizar, se recargan los eventos del nuevo ciclo.
+- El reset se ejecuta en worker `_reset_asignaciones_worker` con `commit`/`rollback` defensivos.
 
-- SQL por hora (punto 5): se evita `TO_CHAR` en WHERE/ORDER BY; se usa aritmética de fecha anclada a hoy para comparar solo la hora del día y se ordena por `HORA_EVENTO_DT` nativo; `TO_CHAR` se mantiene solo en SELECT para la UI.
-- Menos SELECT redundantes (punto 7): `registrar_historial` acepta `hora_salida_real_str` opcional y los llamadores la pasan cuando ya la tienen, evitando lecturas extra.
+Cambios adicionales realizados (post-fase 1):
+- Mejora de detección de llegadas: ahora se cargan eventos del día tanto de SALIDA (cuando `HORA_SALIDA_REAL IS NULL`) como de LLEGADA (cuando `HORA_LLEGADA_REAL IS NULL` y ya hay `HORA_SALIDA_REAL`). Se ordenan por hora y se valida formato de tiempo.
+- Recarga inmediata tras SALIDA: al completar una salida se recargan eventos para que las llegadas dependientes queden elegibles sin esperar al verificador periódico.
+- Prevención de ejecución masiva tras cambios de fecha: se introduce un filtro de hora mínima (`min_time`) por defecto en "ahora" y una ventana opcional de catch-up controlada por `APP_EVENTS_CATCHUP_MINS` (minutos). Así se evitan ejecuciones de cientos de eventos atrasados salvo que se habilite explícitamente.
+
+Cambios aprobados e implementados (fase 2: 1, 2, 3, 4, 6, 8, 9):
+- (1) Logging estructurado: reemplazo de prints por `logging`, logger de módulo `APP.event_manager`, mensajes con contexto (tipo de evento, asignación, hora) y niveles adecuados.
+- (2) Programación con un único timer reutilizable y guard anti-solapes: un solo QTimer para el próximo evento, reprogramable; se añade un flag de ejecución para evitar reentradas mientras un evento está en curso; se reprograma al finalizar el worker.
+- (3) Verificador periódico único y no intrusivo: consolidado en un único `verification_timer` y protegido por guardas para no interferir mientras hay ejecución en curso.
+- (4) Deduplicación de programación: si el próximo evento a programar no cambia (misma asignación/tipo/hora), se evita recrear el timer.
+- (6) Método `stop()`: detiene y limpia timers y estado para un apagado ordenado desde la UI.
+- (8) Señales de actualización coalescidas con motivo: se añade emisión auxiliar con motivo (p. ej. `"salida"`, `"llegada"`, `"reset"`, `"reload"`) manteniendo compatibilidad con `update_triggered`.
+- (9) Métricas básicas del gestor: contadores de salidas/llegadas/resets/errores y marcas de tiempo del último evento; método `get_metrics()` para consulta.
 
 Notas:
-- La lógica de “solo hora del día” se conserva; no se consideran eventos del día siguiente por diseño.
+- Los puntos (5) y (7) quedan pendientes para la siguiente iteración. El (7) implica coordinación con `db.py` sobre la creación/vida del `EventManager`.
 
-Notas:
-- Se mantiene la creación de `EventManager(self)` en `connect()` (punto 7 pendiente de coordinar con `event_manager.py`).
-- Si se detectan problemas tras retirar `init_oracle_client`, evaluar reintroducirlo de forma opcional o condicional por entorno.
+Ajustes adicionales (ruido de logs en ráfagas simultáneas):
+- Se añadió una guarda en `programar_proximo_evento()` para no programar si hay un evento en curso, evitando intentos redundantes.
+- Se bajó el nivel de mensajes previamente marcados como WARNING a DEBUG/INFO en casos benignos (intento de ejecución durante ráfaga; lista vacía al hacer pop; cambios durante verificación). Resultado: no aparecen advertencias mientras todo funciona correctamente.
+
+Cambios implementados ahora (fase 2: 5 y 7):
+- (5) Catch-up/backfill avanzado configurable:
+	- `APP_EVENTS_CATCHUP_MODE`: none (por defecto) | window | all | schedule-only.
+		- none: sólo eventos futuros.
+		- window: incluye vencidos dentro de `APP_EVENTS_CATCHUP_MINS`.
+		- all: incluye todo el día y procesa vencidos en lotes controlados.
+		- schedule-only: no ejecuta vencidos; descarta eventos atrasados y programa a partir del próximo futuro.
+	- `APP_EVENTS_BATCH_SIZE` y `APP_EVENTS_BATCH_DELAY_MS`: cuando el modo es `all`, los vencidos se ejecutan en lotes de tamaño configurable con una pausa entre lotes para evitar ráfagas.
+- (7) Coordinación con db:
+	- Nuevo parámetro `auto_start` en `EventManager(..., auto_start=True)` para permitir inicialización diferida sin arrancar timers ni cargas iniciales.
+	- Métodos `start()`/`stop()` para controlar el ciclo de vida desde fuera.
+	- Métodos `attach_to_db()`/`detach_from_db()` y registro seguro de `db.event_manager` si está libre.

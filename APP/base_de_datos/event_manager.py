@@ -1,4 +1,6 @@
-from PyQt6.QtCore import QTimer, QTime, QObject, pyqtSignal, QThreadPool
+import os
+import logging
+from PyQt6.QtCore import QTimer, QTime, QObject, pyqtSignal, QThreadPool, QDate
 from base_de_datos.db_worker import DbTask
 import random
 
@@ -17,13 +19,46 @@ class Evento:
 class EventManager(QObject):
     """Gestor centralizado de eventos de trenes"""
     update_triggered = pyqtSignal()
+    # Señal auxiliar con motivo textual; opcional para vistas que quieran diferenciar el origen.
+    update_reason = pyqtSignal(str)
     
-    def __init__(self, db_connection, usuario_id=1):
+    def __init__(self, db_connection, usuario_id=1, auto_start: bool = True):
         super().__init__()
+        self.log = logging.getLogger('APP.event_manager')
         self.db = db_connection
         self.usuario_id = usuario_id  # ID del usuario actual
         self.eventos_pendientes = []  # Lista ordenada de eventos futuros
-        self.current_timer = None
+        # Timer único para programar el próximo evento
+        self._schedule_timer = None
+        self._scheduled_key = None
+        # Guardas de estado
+        self._running_event = False
+        self._current_date = QDate.currentDate()  # Para detectar cambio de día
+        # Configuración avanzada de catch-up/backfill
+        self._catchup_mode = os.getenv('APP_EVENTS_CATCHUP_MODE', 'none').lower()  # none|window|all|schedule-only
+        try:
+            self._catchup_mins = max(0, int(os.getenv('APP_EVENTS_CATCHUP_MINS', '0')))
+        except Exception:
+            self._catchup_mins = 0
+        try:
+            self._batch_size = max(1, int(os.getenv('APP_EVENTS_BATCH_SIZE', '5')))
+        except Exception:
+            self._batch_size = 5
+        try:
+            self._batch_delay_ms = max(0, int(os.getenv('APP_EVENTS_BATCH_DELAY_MS', '750')))
+        except Exception:
+            self._batch_delay_ms = 750
+        self._batch_count = 0
+        self._batch_delay_timer = None
+        # Métricas básicas
+        self._metrics = {
+            'total': 0,
+            'salidas': 0,
+            'llegadas': 0,
+            'resets': 0,
+            'errores': 0,
+            'last_event_at': None,
+        }
         # Thread pool para ejecutar tareas de BD
         self.thread_pool = QThreadPool.globalInstance()
         try:
@@ -35,14 +70,41 @@ class EventManager(QObject):
         # Configurar timer de verificación periódica
         self.verification_timer = QTimer()
         self.verification_timer.timeout.connect(self.verificar_eventos)
-        self.verification_timer.start(60000)  # 1 minuto
+        if auto_start:
+            self.verification_timer.start(60000)  # 1 minuto
         
-        # Cargar eventos iniciales
-        self.cargar_eventos_futuros()
+        # Cargar eventos iniciales si aplica
+        if auto_start:
+            self.cargar_eventos_futuros()
+
+        # Registrar referencia en db si es posible (coordinación con db)
+        try:
+            if not hasattr(self.db, 'event_manager') or getattr(self.db, 'event_manager') is None:
+                setattr(self.db, 'event_manager', self)
+        except Exception:
+            pass
 
     def cargar_eventos_futuros(self):
-        """Carga todos los eventos futuros de la base de datos"""
-        print("\n[Cargando eventos futuros...]")
+        """Carga eventos del día a partir de una hora mínima configurable.
+        Por defecto, solo futuros (min_time = ahora). Si APP_EVENTS_CATCHUP_MINS>0, incluye vencidos en esa ventana.
+        """
+        self.log.info("Cargando eventos del día...")
+
+        # Calcular hora mínima a considerar según modo de catch-up
+        ahora = QTime.currentTime()
+        mode = self._catchup_mode
+        if mode == 'none':
+            min_time = ahora
+        elif mode == 'window':
+            min_time = ahora.addSecs(-60 * self._catchup_mins) if self._catchup_mins > 0 else ahora
+            if not min_time.isValid():
+                min_time = QTime(0, 0, 0)
+        elif mode in ('all', 'schedule-only'):
+            min_time = QTime(0, 0, 0)
+        else:
+            # fallback seguro
+            min_time = ahora
+        min_time_str = min_time.toString('HH:mm:ss')
         query = """
         WITH eventos AS (
             -- Eventos de SALIDA
@@ -57,7 +119,7 @@ class EventManager(QObject):
             FROM ASIGNACION_TREN a
             JOIN HORARIO h ON a.ID_HORARIO = h.ID_HORARIO
             WHERE a.HORA_SALIDA_REAL IS NULL
-            AND TO_CHAR(h.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') > TO_CHAR(SYSDATE, 'HH24:MI:SS')
+            AND TO_CHAR(h.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') >= :min_time
             
             UNION ALL
             
@@ -75,17 +137,19 @@ class EventManager(QObject):
             JOIN RUTA r ON a.ID_RUTA = r.ID_RUTA
             WHERE a.HORA_LLEGADA_REAL IS NULL
             AND a.HORA_SALIDA_REAL IS NOT NULL
-            AND TO_CHAR(h.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') > TO_CHAR(SYSDATE, 'HH24:MI:SS')
+            AND TO_CHAR(h.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') >= :min_time
         )
         SELECT * FROM eventos
         ORDER BY HORA_EVENTO ASC
         """
-        
-        resultados = self.db.fetch_all(query)
+
+        resultados = self.db.fetch_all(query, {'min_time': min_time_str})
         self.eventos_pendientes = []
         
         for res in resultados:
             hora_evento = QTime.fromString(res[3], "HH:mm:ss")
+            if not hora_evento.isValid():
+                continue
             evento = Evento(
                 asignacion_id=res[0],
                 horario_id=res[1],
@@ -96,20 +160,38 @@ class EventManager(QObject):
                 duracion_estimada=res[6] if res[2] == 'LLEGADA' else None
             )
             self.eventos_pendientes.append(evento)
-            print(f" - Evento cargado: {evento.tipo} para ASIGNACION {evento.asignacion_id} a las {hora_evento.toString('HH:mm:ss')}")
+            self.log.debug(f"Evento cargado: {evento.tipo} asignación={evento.asignacion_id} hora={hora_evento.toString('HH:mm:ss')}")
+
+        # Asegurar orden ascendente por hora
+        self.eventos_pendientes.sort(key=lambda ev: ev.hora_programada)
+        self.log.info(f"Total eventos pendientes: {len(self.eventos_pendientes)}")
         
         self.programar_proximo_evento()
 
     def programar_proximo_evento(self):
         """Programa el temporizador para el próximo evento con verificación de lista vacía"""
-        if self.current_timer:
-            self.current_timer.stop()
-            self.current_timer = None
-        
-        if not self.eventos_pendientes:
-            print("\n[No hay eventos pendientes. Revisando en 1 minuto...]")
-            QTimer.singleShot(60000, self.verificar_eventos)
+        # Si hay un evento ejecutándose, evitamos programar para no generar intentos redundantes
+        if self._running_event:
+            self.log.debug("Se omite programación: hay un evento en curso.")
             return
+        # Si no hay eventos, no programamos nada específico; el verificador periódico se encargará.
+        if not self.eventos_pendientes:
+            self._scheduled_key = None
+            self.log.info("No hay eventos pendientes. Esperando al verificador periódico...")
+            return
+        
+        # Si el modo es 'schedule-only', descartamos vencidos y buscamos el primer futuro
+        if self._catchup_mode == 'schedule-only':
+            ahora = QTime.currentTime()
+            dropped = 0
+            while self.eventos_pendientes and ahora.msecsTo(self.eventos_pendientes[0].hora_programada) <= 0:
+                self.eventos_pendientes.pop(0)
+                dropped += 1
+            if dropped:
+                self.log.info(f"Modo schedule-only: se omitieron {dropped} eventos vencidos.")
+            if not self.eventos_pendientes:
+                self._scheduled_key = None
+                return
         
         evento = self.eventos_pendientes[0]
         ahora = QTime.currentTime()
@@ -117,49 +199,143 @@ class EventManager(QObject):
         
         if ms_hasta_evento <= 0:
             # El evento debería haber ocurrido ya
+            self.log.debug("Evento vencido detectado; ejecutando inmediatamente.")
             self.ejecutar_evento(evento)
         else:
-            print(f"\n[Programando próximo evento: {evento.tipo} para {evento.hora_programada.toString('HH:mm:ss')}]")
-            self.current_timer = QTimer()
-            self.current_timer.setSingleShot(True)
-            self.current_timer.timeout.connect(lambda: self.ejecutar_evento(evento))
-            self.current_timer.start(ms_hasta_evento)
+            key = (evento.tipo, evento.asignacion_id, evento.hora_programada.toString('HH:mm:ss'))
+            if self._schedule_timer is None:
+                self._schedule_timer = QTimer()
+                self._schedule_timer.setSingleShot(True)
+                # Conectar a un wrapper que revalide el primer elemento al disparar
+                self._schedule_timer.timeout.connect(self._on_schedule_timeout)
+            # Si el evento programado no cambia, no recreamos el timer
+            if self._scheduled_key == key and self._schedule_timer.isActive():
+                self.log.debug("Timer ya programado para el mismo evento; no se reprograma.")
+                return
+            self._scheduled_key = key
+            self.log.info(f"Programando próximo evento: {evento.tipo} a las {evento.hora_programada.toString('HH:mm:ss')} (en {ms_hasta_evento} ms)")
+            self._schedule_timer.start(ms_hasta_evento)
+
+    def _on_schedule_timeout(self):
+        """Callback del timer de programación: toma el primer evento actual y lo ejecuta si aplica."""
+        if not self.eventos_pendientes:
+            self._scheduled_key = None
+            return
+        evento = self.eventos_pendientes[0]
+        key = (evento.tipo, evento.asignacion_id, evento.hora_programada.toString('HH:mm:ss'))
+        # Evitar disparos obsoletos si cambió el primer evento
+        if self._scheduled_key is not None and key != self._scheduled_key:
+            self.log.debug("El evento programado cambió; se reprogramará.")
+            self.programar_proximo_evento()
+            return
+        self.ejecutar_evento(evento)
 
     def ejecutar_evento(self, evento):
         """Ejecuta el evento (salida o llegada) con manejo seguro de lista vacía"""
         try:
-            print(f"\n[Ejecutando evento {evento.tipo} para ASIGNACION {evento.asignacion_id}]")
+            if self._running_event:
+                # Silenciar advertencia: este caso es esperado en ráfagas simultáneas, no es un error
+                self.log.debug("Intento de ejecución mientras otra está en curso; se omite (ráfaga).")
+                return
+            self._running_event = True
+            self.log.info(f"Ejecutando evento {evento.tipo} asignación={evento.asignacion_id}")
             
             if evento.tipo == 'SALIDA':
                 task = DbTask(self.db, self._task_manejar_salida, evento)
-                task.signals.result.connect(lambda res: print(f"[Worker] Salida result: {res}"))
-                task.signals.error.connect(lambda err: print(f"[Worker Error] {err}"))
+                task.signals.result.connect(lambda res: self.log.debug(f"[Worker] Salida result: {res}"))
+                task.signals.error.connect(lambda err: self._on_worker_error(err, 'SALIDA'))
+                task.signals.result.connect(lambda res: self._on_salida_done(res))
+                task.signals.result.connect(lambda res: self._on_event_done(res, 'SALIDA'))
+                # Tras resultado de salida no reiniciamos; solo para llegada
                 self.thread_pool.start(task)
             else:
                 task = DbTask(self.db, self._task_manejar_llegada, evento)
-                task.signals.result.connect(lambda res: print(f"[Worker] Llegada result: {res}"))
-                task.signals.error.connect(lambda err: print(f"[Worker Error] {err}"))
+                task.signals.result.connect(lambda res: self.log.debug(f"[Worker] Llegada result: {res}"))
+                task.signals.error.connect(lambda err: self._on_worker_error(err, 'LLEGADA'))
+                # Si fue llegada y ya no hay más eventos del día, reiniciar asignaciones
+                task.signals.result.connect(lambda res, ev=evento: self._post_event_result(res, ev))
+                task.signals.result.connect(lambda res: self._on_event_done(res, 'LLEGADA'))
                 self.thread_pool.start(task)
             
             # Eliminar el evento completado solo si hay elementos
             if self.eventos_pendientes:
                 self.eventos_pendientes.pop(0)
             else:
-                print("[Advertencia] No hay eventos pendientes para eliminar")
-            
-            # Programar próximo evento
-            self.programar_proximo_evento()
+                self.log.debug("No hay eventos pendientes para eliminar tras ejecutar")
             
         except Exception as e:
-            print(f"[Error Crítico] en ejecutar_evento: {str(e)}")
+            self.log.exception(f"Error Crítico en ejecutar_evento: {e}")
+            self._running_event = False
             # Intentar recuperación
             self.cargar_eventos_futuros()
+
+    def _on_worker_error(self, err, tipo):
+        try:
+            self._metrics['errores'] += 1
+        except Exception:
+            pass
+        self.log.error(f"[Worker Error] tipo={tipo} detalle={err}")
+
+    def _on_salida_done(self, res):
+        """Tras una salida exitosa, recargar eventos para incluir llegadas elegibles u otras dependencias."""
+        try:
+            if res:
+                self.cargar_eventos_futuros()
+                self._emit_update('salida')
+        except Exception as e:
+            self.log.error(f"Error en _on_salida_done: {e}")
+
+    def _on_event_done(self, ok, tipo):
+        """Limpia guardas y reprograma el siguiente evento, contabilizando métricas."""
+        self._running_event = False
+        try:
+            self._metrics['total'] += 1
+            if tipo == 'SALIDA':
+                self._metrics['salidas'] += 1
+            elif tipo == 'LLEGADA':
+                self._metrics['llegadas'] += 1
+        except Exception:
+            pass
+        # Lógica de batch/cooldown para modo 'all' con muchos vencidos
+        if self._catchup_mode == 'all' and self.eventos_pendientes:
+            ahora = QTime.currentTime()
+            ms = ahora.msecsTo(self.eventos_pendientes[0].hora_programada)
+            if ms <= 0:
+                self._batch_count += 1
+                if self._batch_count >= self._batch_size:
+                    # Pausar antes de seguir con backlog
+                    self._batch_count = 0
+                    if self._batch_delay_timer is None:
+                        self._batch_delay_timer = QTimer()
+                        self._batch_delay_timer.setSingleShot(True)
+                        self._batch_delay_timer.timeout.connect(self.programar_proximo_evento)
+                    self.log.info(f"Pausa de backfill por {self._batch_delay_ms} ms tras lote de {self._batch_size}.")
+                    self._batch_delay_timer.start(self._batch_delay_ms)
+                    return
+            else:
+                # Volvemos a futuro, reiniciar contador
+                self._batch_count = 0
+        # Reprogramar siguiendo el estado actual de la lista (se deduplica internamente)
+        self.programar_proximo_evento()
+        if ok:
+            self._emit_update(tipo.lower())
+
+    def _post_event_result(self, res, evento):
+        """Hook post-resultado de worker para lógica adicional (reset al finalizar el día)."""
+        try:
+            if not res:
+                return
+            if evento.tipo == 'LLEGADA' and not self.eventos_pendientes:
+                self.log.info("Última llegada del día registrada. Reiniciando asignaciones...")
+                self._reset_asignaciones_async()
+        except Exception as e:
+            self.log.error(f"Error en _post_event_result: {e}")
 
     def manejar_salida(self, evento):
         """Registra la salida real del tren"""
         try:
             hora_actual = QTime.currentTime()
-            print(f"[DEBUG] Intentando registrar salida para asignación {evento.asignacion_id} a las {hora_actual.toString('HH:mm:ss')}")
+            self.log.debug(f"Intentando registrar salida asignación={evento.asignacion_id} hora={hora_actual.toString('HH:mm:ss')}")
             
             query = """
             UPDATE ASIGNACION_TREN
@@ -172,10 +348,10 @@ class EventManager(QObject):
             }
             
             if not self.db.execute_query(query, params):
-                print("[ERROR] Falló el execute_query para salida")
+                self.log.error("Falló el execute_query para salida")
                 return False
             
-            print(f"[✓] Salida registrada exitosamente para asignación {evento.asignacion_id}")
+            self.log.info(f"Salida registrada exitosamente para asignación {evento.asignacion_id}")
             
             # Registrar incidencia si hay retraso > 5 minutos
             retraso_minutos = max(0, evento.hora_programada.msecsTo(hora_actual) / 60000)
@@ -186,11 +362,11 @@ class EventManager(QObject):
             self.registrar_historial(evento, hora_actual)
             
             self.db.connection.commit()
-            self.update_triggered.emit()
+            self._emit_update('salida')
             return True
             
         except Exception as e:
-            print(f"[ERROR CRÍTICO] en manejar_salida: {str(e)}")
+            self.log.exception(f"ERROR CRÍTICO en manejar_salida: {e}")
             self.db.connection.rollback()
             return False
 
@@ -220,17 +396,17 @@ class EventManager(QObject):
         }
         
         if not self.db.execute_query(query, params):
-            print("[Error] No se pudo registrar la llegada")
+            self.log.error("No se pudo registrar la llegada")
             self.db.connection.rollback()
             return
         
-        print(f"[✓] Llegada registrada: {hora_llegada.toString('HH:mm:ss')} (Duración: {duracion_segundos/60:.1f} min)")
+        self.log.info(f"Llegada registrada: {hora_llegada.toString('HH:mm:ss')} (Duración: {duracion_segundos/60:.1f} min)")
         
         # Registrar en historial
         self.registrar_historial(evento, hora_llegada)
 
         self.db.connection.commit()
-        self.update_triggered.emit()
+        self._emit_update('llegada')
 
     # Worker task implementations that receive a DB connection
     def _task_manejar_salida(self, conn, evento):
@@ -263,14 +439,14 @@ class EventManager(QObject):
                     pass
 
             # Notificar UI
-            self.update_triggered.emit()
+            self._emit_update('salida')
             return True
         except Exception as e:
             try:
                 conn.rollback()
             except Exception:
                 pass
-            print(f"[Error worker] manejar_salida: {e}")
+            self.log.error(f"[Error worker] manejar_salida: {e}")
             return False
 
     def _task_manejar_llegada(self, conn, evento):
@@ -313,14 +489,14 @@ class EventManager(QObject):
                 except Exception:
                     pass
 
-            self.update_triggered.emit()
+            self._emit_update('llegada')
             return True
         except Exception as e:
             try:
                 conn.rollback()
             except Exception:
                 pass
-            print(f"[Error worker] manejar_llegada: {e}")
+            self.log.error(f"[Error worker] manejar_llegada: {e}")
             return False
 
     def registrar_incidencia_retraso(self, evento, retraso_minutos, conn=None):
@@ -342,13 +518,13 @@ class EventManager(QObject):
                     cur.execute(query, {'asignacion_id': evento.asignacion_id, 'descripcion': descripcion})
                 return True
             except Exception as e:
-                print(f"[Error worker] registrar_incidencia_retraso: {e}")
+                self.log.error(f"[Error worker] registrar_incidencia_retraso: {e}")
                 return False
         else:
             if self.db.execute_query(query, {'asignacion_id': evento.asignacion_id, 'descripcion': descripcion}):
-                print(f"[✓] Incidencia registrada: {descripcion}")
+                self.log.info(f"Incidencia registrada: {descripcion}")
             else:
-                print("[Error] No se pudo registrar incidencia")
+                self.log.error("No se pudo registrar incidencia")
 
 
     def registrar_historial(self, evento, hora_real, conn=None):
@@ -408,34 +584,95 @@ class EventManager(QObject):
                         cur.execute(query, params)
                     return True
                 except Exception as e:
-                    print(f"[Error worker] registrar_historial: {e}")
+                    self.log.error(f"[Error worker] registrar_historial: {e}")
                     return False
             else:
                 if not self.db.execute_query(query, params):
-                    print("[Error] No se pudo registrar en historial")
+                    self.log.error("No se pudo registrar en historial")
                     return False
                 
-            print(f"[Éxito] Registro en historial para {evento.tipo} de ASIGNACION {evento.asignacion_id}")
+            self.log.info(f"Registro en historial para {evento.tipo} de ASIGNACION {evento.asignacion_id}")
             return True
             
         except Exception as e:
-            print(f"[Error] Excepción en registrar_historial: {str(e)}")
+            self.log.error(f"Excepción en registrar_historial: {str(e)}")
             return False
 
     def verificar_eventos(self):
         """Verificación periódica con manejo de errores mejorado"""
         try:
-            print("\n[Verificando nuevos eventos...]")
+            # Detectar cambio de día y reiniciar si corresponde
+            hoy = QDate.currentDate()
+            if hoy != self._current_date:
+                self.log.info("Cambio de día detectado. Reiniciando asignaciones del nuevo día...")
+                self._current_date = hoy
+                self._reset_asignaciones_async()
+                # cargar eventos después del reset en el callback
+                return
+
+            if self._running_event:
+                self.log.debug("Se omite verificación: hay un evento en ejecución.")
+                return
+            self.log.info("Verificando nuevos eventos...")
             eventos_previos = len(self.eventos_pendientes)
             self.cargar_eventos_futuros()
             
             if not self.eventos_pendientes and eventos_previos == 0:
-                print("[Info] Aún no hay eventos pendientes después de verificación")
+                self.log.info("Aún no hay eventos pendientes después de verificación")
             elif not self.eventos_pendientes:
-                print("[Advertencia] Se perdieron los eventos pendientes durante la verificación")
+                self.log.info("Eventos pendientes cambiaron durante la verificación; recargando...")
                 self.cargar_eventos_futuros()  # Reintento
         except Exception as e:
-            print(f"[Error] en verificar_eventos: {str(e)}")
+            self.log.error(f"Error en verificar_eventos: {str(e)}")
+
+    # --- Reset diario de asignaciones ---
+    def _reset_asignaciones_async(self):
+        """Lanza un DbTask para poner en NULL las horas reales de todas las asignaciones y luego recargar eventos."""
+        def on_done(res):
+            if res:
+                self.log.info("Asignaciones reiniciadas para el nuevo ciclo del día")
+                try:
+                    self._metrics['resets'] += 1
+                except Exception:
+                    pass
+            else:
+                self.log.error("Falló el reinicio de asignaciones")
+            # Tras reiniciar, recargar lista de eventos del día
+            self.cargar_eventos_futuros()
+            self._emit_update('reset')
+
+        task = DbTask(self.db, self._reset_asignaciones_worker)
+        task.signals.result.connect(on_done)
+        task.signals.error.connect(lambda err: self.log.error(f"[Worker Error] reset_asignaciones: {err}"))
+        self.thread_pool.start(task)
+
+    def _reset_asignaciones_worker(self, conn):
+        """Worker: ejecuta el reset de asignaciones en la misma conexión y hace commit."""
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE ASIGNACION_TREN
+                    SET HORA_SALIDA_REAL = NULL,
+                        HORA_LLEGADA_REAL = NULL
+                    WHERE HORA_SALIDA_REAL IS NOT NULL OR HORA_LLEGADA_REAL IS NOT NULL
+                    """
+                )
+            try:
+                conn.commit()
+            except Exception:
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+            return True
+        except Exception as e:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+            self.log.error(f"[Error worker] _reset_asignaciones_worker: {e}")
+            return False
 
     def obtener_progreso_tren(self, asignacion_id):
         """Calcula el porcentaje de avance de un tren (0-100)"""
@@ -475,7 +712,71 @@ class EventManager(QObject):
         WHERE ID_ASIGNACION = :id
         """
         resultado = self.db.fetch_one(query, {'id': asignacion_id})
-        print(f"[DEBUG] Estado actual de asignación {asignacion_id}: {resultado}")
+        self.log.debug(f"Estado actual de asignación {asignacion_id}: {resultado}")
         return resultado
+
+    # --- Señales y utilidades ---
+    def _emit_update(self, reason: str = "update"):
+        """Emite señales de actualización compatibles y opcionalmente con motivo."""
+        try:
+            self.update_triggered.emit()
+            self.update_reason.emit(reason)
+        except Exception:
+            # En caso de que alguna vista aún no esté conectada a update_reason
+            try:
+                self.update_triggered.emit()
+            except Exception:
+                pass
+
+    def get_metrics(self):
+        """Devuelve un snapshot de métricas básicas del EventManager."""
+        return dict(self._metrics)
+
+    def stop(self):
+        """Detiene timers y limpia estado para apagado ordenado."""
+        try:
+            if self.verification_timer and self.verification_timer.isActive():
+                self.verification_timer.stop()
+        except Exception:
+            pass
+        try:
+            if self._schedule_timer and self._schedule_timer.isActive():
+                self._schedule_timer.stop()
+        except Exception:
+            pass
+        try:
+            if self._batch_delay_timer and self._batch_delay_timer.isActive():
+                self._batch_delay_timer.stop()
+        except Exception:
+            pass
+        self._scheduled_key = None
+        self._running_event = False
+
+    def start(self):
+        """Inicia timers y carga de eventos si no están activos (para coordinación con db)."""
+        try:
+            if not self.verification_timer.isActive():
+                self.verification_timer.start(60000)
+        except Exception:
+            pass
+        self.cargar_eventos_futuros()
+
+    # Coordinación con db: attach/detach
+    def attach_to_db(self, db_connection):
+        """Asocia el EventManager a un objeto db y registra la referencia si está libre."""
+        self.db = db_connection
+        try:
+            if not hasattr(self.db, 'event_manager') or getattr(self.db, 'event_manager') is None:
+                setattr(self.db, 'event_manager', self)
+        except Exception:
+            pass
+
+    def detach_from_db(self):
+        """Desasocia y limpia la referencia desde el objeto db, sin detener timers."""
+        try:
+            if hasattr(self.db, 'event_manager') and getattr(self.db, 'event_manager') is self:
+                setattr(self.db, 'event_manager', None)
+        except Exception:
+            pass
     
 

@@ -16,7 +16,6 @@ import os
 import logging
 import time
 from PyQt6.QtCore import pyqtSignal, QTimer, Qt
-from base_de_datos.event_manager import EventManager
 from interfaces.mejora import MejoraContinua
 from interfaces.usuarios import InterfazGestionUsuarios
 
@@ -264,12 +263,10 @@ def main():
     # Función que se ejecuta al iniciar sesión correctamente
     def iniciar_sesion_exitoso(id_usuario):
         login.close()
-        # Pasar el id_usuario al EventManager
-        try:
-            db.event_manager = EventManager(db, id_usuario)
-        except Exception as e:
-                QMessageBox.critical(None, "Error", f"No se pudo iniciar el gestor de eventos: {str(e)}")
-                return
+        # Inicializar EventManager de forma explícita y perezosa
+        if not db.init_event_manager(id_usuario):
+            QMessageBox.critical(None, "Error", "No se pudo iniciar el gestor de eventos")
+            return
          #db.event_manager = EventManager(db, id_usuario)
         ventana_principal = MainWindow(db, id_usuario)
         ventana_principal.showMaximized()

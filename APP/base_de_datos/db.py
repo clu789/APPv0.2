@@ -2,7 +2,6 @@ import os
 import time
 import logging
 import oracledb
-from base_de_datos.event_manager import EventManager
 
 # Intentar que los LOB (CLOB/BLOB) se obtengan ya como strings/bytes para no depender de la conexión luego
 try:  # Disponible en versiones recientes de oracledb
@@ -116,9 +115,7 @@ class DatabaseConnection:
                 self.session_pool = None
                 self.connection = oracledb.connect(user=self.username, password=self.password, dsn=dsn)
 
-            # Mantener comportamiento actual: crear EventManager básico aquí
-            # (optimización más fina pospuesta mientras coordinamos con event_manager)
-            self.event_manager = EventManager(self)
+            # Ya no crear EventManager aquí: la inicialización es explícita vía init_event_manager()
             self._configure_connection(self.connection)
             try:
                 self._logger.info("python-oracledb mode: %s", "thin" if oracledb.is_thin_mode() else "thick")
@@ -207,6 +204,19 @@ class DatabaseConnection:
 
     def close(self):
         """Cerrar la conexión y el cursor"""
+        # Detener y desasociar EventManager si existe
+        if self.event_manager is not None:
+            try:
+                if hasattr(self.event_manager, 'stop'):
+                    self.event_manager.stop()
+            except Exception:
+                pass
+            try:
+                if hasattr(self.event_manager, 'detach_from_db'):
+                    self.event_manager.detach_from_db()
+            except Exception:
+                pass
+            self.event_manager = None
         if self.cursor:
             try:
                 self.cursor.close()
@@ -453,10 +463,11 @@ class DatabaseConnection:
                 self._logger.error("Error al hacer rollback: %s", e)
                 return False
 
-    def init_event_manager(self, usuario_id):
-        """Inicializa el EventManager con el usuario_id proporcionado"""
+    def init_event_manager(self, usuario_id, auto_start=True):
+        """Inicializa el EventManager de forma perezosa (lazy) con el usuario_id proporcionado."""
         try:
-            self.event_manager = EventManager(self, usuario_id)
+            from base_de_datos.event_manager import EventManager  # import perezoso
+            self.event_manager = EventManager(self, usuario_id, auto_start=auto_start)
             return True
         except Exception as e:
             self._logger.error("Error al inicializar EventManager: %s", e)

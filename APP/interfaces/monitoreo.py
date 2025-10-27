@@ -3,7 +3,6 @@ from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtGui import QFont, QPixmap
 from datetime import datetime
 from base_de_datos.db import DatabaseConnection  
-from base_de_datos.event_manager import EventManager
 from utils import obtener_ruta_recurso
 
 class MonitoreoInterface(QWidget):
