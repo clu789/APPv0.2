@@ -2,10 +2,9 @@ from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton,
     QVBoxLayout, QHBoxLayout, QMessageBox
 )
-from PyQt6.QtGui import QPixmap, QFont
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtCore import Qt, pyqtSignal
-from base_de_datos.db import DatabaseConnection
+import logging
+from PyQt6.QtGui import QPixmap
+from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from utils import obtener_ruta_recurso
 
 class LineEditSeleccion(QLineEdit):
@@ -20,11 +19,13 @@ class LoginInterface(QWidget):
     def __init__(self, db, main_window=None):
         super().__init__()
         self.main_window = main_window
+        self._logger = logging.getLogger(__name__)
 
         self.setWindowTitle("Inicio de sesión - TRACKSYNC")
         self.setGeometry(600, 100, 400, 700)
         
         self.db = db
+        self._busy = False
 
         self.initUI()
 
@@ -145,8 +146,10 @@ class LoginInterface(QWidget):
         self.input_contrasena.returnPressed.connect(self.boton_login.click)
 
     def verificar_credenciales(self):
-        usuario = self.input_usuario.text()
-        contrasena = self.input_contrasena.text()
+        if self._busy:
+            return
+        usuario = (self.input_usuario.text() or "").strip()
+        contrasena = self.input_contrasena.text() or ""
 
         if not usuario or not contrasena:
             msg = QMessageBox(self)
@@ -158,43 +161,70 @@ class LoginInterface(QWidget):
             msg.exec()
             return
 
-        query = "SELECT COUNT(*) FROM USUARIO WHERE ID_USUARIO = :1 AND CONTRASENA = :2"
-        resultado = self.db.fetch_all(query, (usuario, contrasena))
+        # Anti doble-click: deshabilitar inputs y botón mientras se verifica
+        self._set_busy(True)
+        try:
+            self._logger.info("Intento de login para usuario=%s", usuario)
+            query = "SELECT COUNT(*) FROM USUARIO WHERE ID_USUARIO = :usuario AND CONTRASENA = :pwd"
+            row = self.db.fetch_one(query, {"usuario": usuario, "pwd": contrasena})
+            count_ok = bool(row and row[0] and int(row[0]) > 0)
 
-        if resultado and resultado[0][0] > 0:
-            print(usuario)
-            print(contrasena)
-            if usuario == "9999" and contrasena == "ADMIN_CONTROL_TRENES_0000":
-                self.login_es_admin.emit()
-                self.input_usuario.clear()
-                self.input_usuario.setFocus()
-                self.input_contrasena.clear()
+            if count_ok:
+                # No registrar contraseñas en logs
+                self._logger.info("Login exitoso para usuario=%s", usuario)
+                if usuario == "9999" and contrasena == "ADMIN_CONTROL_TRENES_0000":
+                    self.intentos_login = 0
+                    self.login_es_admin.emit()
+                    self.input_usuario.clear()
+                    self.input_usuario.setFocus()
+                    self.input_contrasena.clear()
+                else:
+                    self.login_exitoso.emit(usuario)
+                    # Reinicia en caso de éxito
+                    self.intentos_login = 0
+                    self.input_usuario.clear()
+                    self.input_usuario.setFocus()
+                    self.input_contrasena.clear()
             else:
-                self.login_exitoso.emit(usuario)
-                # Reinicia en caso de éxito
-                self.intentos_login = 0
-                self.input_usuario.clear()
-                self.input_usuario.setFocus()
-                self.input_contrasena.clear()
-        else:
-            self.intentos_login += 1
-            if self.intentos_login >= 3:
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Acceso denegado")
-                msg.setText("Has excedido el número de intentos permitidos. El programa se cerrará.")
-                msg.setIcon(QMessageBox.Icon.Critical)
-                # Cambia el color del texto (mensaje y botones) a blanco
-                msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
-                msg.exec()
-                import sys
-                sys.exit()
-            else:
-                msg = QMessageBox(self)
-                msg.setWindowTitle("Error")
-                msg.setText("Usuario o contraseña incorrectos.")
-                msg.setIcon(QMessageBox.Icon.Critical)
-                # Cambia el color del texto (mensaje y botones) a blanco
-                msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
-                msg.exec()
-                self.input_contrasena.clear()
-                self.input_contrasena.setFocus()
+                self.intentos_login += 1
+                self._logger.warning("Login fallido para usuario=%s (intento %d)", usuario, self.intentos_login)
+                if self.intentos_login >= 3:
+                    msg = QMessageBox(self)
+                    msg.setWindowTitle("Acceso denegado")
+                    msg.setText("Has excedido el número de intentos permitidos. El programa se cerrará.")
+                    msg.setIcon(QMessageBox.Icon.Critical)
+                    msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
+                    msg.exec()
+                    try:
+                        # Cierre ordenado de la aplicación
+                        from PyQt6.QtWidgets import QApplication
+                        app = QApplication.instance()
+                        if app is not None:
+                            app.quit()
+                        else:
+                            import sys
+                            sys.exit()
+                    except Exception:
+                        import sys
+                        sys.exit()
+                else:
+                    msg = QMessageBox(self)
+                    msg.setWindowTitle("Error")
+                    msg.setText("Usuario o contraseña incorrectos.")
+                    msg.setIcon(QMessageBox.Icon.Critical)
+                    msg.setStyleSheet("QMessageBox QLabel, QMessageBox QPushButton { color: white; }")
+                    msg.exec()
+                    self.input_contrasena.clear()
+                    # Programar el enfoque para el siguiente ciclo de evento, cuando ya esté habilitado
+                    QTimer.singleShot(0, lambda: self.input_contrasena.setFocus())
+        finally:
+            self._set_busy(False)
+
+    def _set_busy(self, busy: bool):
+        self._busy = busy
+        try:
+            self.input_usuario.setEnabled(not busy)
+            self.input_contrasena.setEnabled(not busy)
+            self.boton_login.setEnabled(not busy)
+        except Exception:
+            pass

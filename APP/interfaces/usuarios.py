@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (
     QHBoxLayout, QTableWidget, QTableWidgetItem, QHeaderView, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+import logging
 
 class InterfazGestionUsuarios(QWidget):
     cerrar_sesion = pyqtSignal()  # Señal para volver al login
@@ -10,6 +11,7 @@ class InterfazGestionUsuarios(QWidget):
     def __init__(self, db):
         super().__init__()
         self.db = db
+        self._logger = logging.getLogger(__name__)
         self.setWindowTitle("Administración de Usuarios")
         self.setMinimumSize(800, 600)
 
@@ -72,6 +74,12 @@ class InterfazGestionUsuarios(QWidget):
         self.tabla_usuarios.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
 
         layout_principal.addWidget(self.tabla_usuarios)
+
+        # Conectar señales de selección una sola vez (evitar conectar/desconectar en cada carga)
+        try:
+            self.tabla_usuarios.itemSelectionChanged.connect(self.controlar_botones)
+        except Exception:
+            pass
 
         # Botones de acción (Agregar, Modificar, Eliminar)
         botones_layout = QHBoxLayout()
@@ -248,49 +256,49 @@ class InterfazGestionUsuarios(QWidget):
             self.btn_modificar.setEnabled(True)
 
     def cargar_usuarios(self):
-        cursor = self.db.connection.cursor()
         try:
-            cursor.execute("""
-                SELECT ID_USUARIO, NOMBRE, APELLIDO_PATERNO, APELLIDO_MATERNO,
-                CONTRASENA FROM USUARIO
-                WHERE ID_USUARIO <> 9999
-                ORDER BY 1
-            """)
-            resultados = cursor.fetchall()
+            # Evitar N+1: traer el conteo de historial por usuario en una sola consulta
+            query = (
+                """
+                SELECT u.ID_USUARIO,
+                       u.NOMBRE,
+                       u.APELLIDO_PATERNO,
+                       u.APELLIDO_MATERNO,
+                       u.CONTRASENA,
+                       (SELECT COUNT(*) FROM HISTORIAL h WHERE h.ID_USUARIO = u.ID_USUARIO) AS REG_HIST
+                  FROM USUARIO u
+                 WHERE u.ID_USUARIO <> 9999
+                 ORDER BY 1
+                """
+            )
+            resultados = self.db.fetch_all(query) or []
 
             self.tabla_usuarios.setRowCount(len(resultados))
             # Limpia selección completamente
             self.tabla_usuarios.clearSelection()
             self.tabla_usuarios.setCurrentItem(None)
             for fila, usuario in enumerate(resultados):
-                id_usuario = QTableWidgetItem(str(usuario[0]))
-                nombre_completo = f"{usuario[1]} {usuario[2]} {usuario[3]}"
-                nombre_item = QTableWidgetItem(nombre_completo)
-                contrasena = QTableWidgetItem(usuario[4])
+                id_usuario = int(usuario[0])
+                nombre = usuario[1] or ""
+                ap_pat = usuario[2] or ""
+                ap_mat = usuario[3] or ""
+                contrasena = usuario[4] or ""
+                reg_hist = int(usuario[5] or 0)
 
-                self.tabla_usuarios.setItem(fila, 0, id_usuario)
+                id_item = QTableWidgetItem(str(id_usuario))
+                nombre_item = QTableWidgetItem(f"{nombre} {ap_pat} {ap_mat}".strip())
+                pass_item = QTableWidgetItem(contrasena)
+                hist_item = QTableWidgetItem(str(reg_hist))
+
+                self.tabla_usuarios.setItem(fila, 0, id_item)
                 self.tabla_usuarios.setItem(fila, 1, nombre_item)
-                self.tabla_usuarios.setItem(fila, 2, contrasena)
-                
-                # Obtener la cantidad de registros en HISTORIAL para este usuario
-                cursor.execute("SELECT COUNT(*) FROM HISTORIAL WHERE ID_USUARIO = :1", [usuario[0]])
-                cantidad = cursor.fetchone()[0]
-                self.tabla_usuarios.setItem(fila, 3, QTableWidgetItem(str(cantidad)))
-            # Conectar solo una vez fuera del ciclo
-            self.tabla_usuarios.clearSelection()
-            try:
-                self.tabla_usuarios.selectionModel().selectionChanged.disconnect()
-            except Exception:
-                pass  # Ignora si no estaba conectado
+                self.tabla_usuarios.setItem(fila, 2, pass_item)
+                self.tabla_usuarios.setItem(fila, 3, hist_item)
 
-            self.tabla_usuarios.selectionModel().selectionChanged.connect(self.controlar_botones)
+            # Mantener botones en estado correcto
             self.controlar_botones()
-
-
         except Exception as e:
-            print("Error al cargar usuarios:", e)
-        finally:
-            cursor.close()
+            self._logger.error("Error al cargar usuarios: %s", e)
 
     def abrir_dialogo_agregar_usuario(self):
         dialogo = DialogoAgregarUsuario(self.db, self)
@@ -347,12 +355,16 @@ class InterfazGestionUsuarios(QWidget):
 
         if confirmacion.exec() == 2:
             try:
-                cursor = self.db.connection.cursor()
-                cursor.execute("DELETE FROM USUARIO WHERE ID_USUARIO = :1", [id_usuario])
-                self.db.connection.commit()
-                cursor.close()
-                QMessageBox.information(self, "Éxito", "Usuario eliminado correctamente.")
-                self.cargar_usuarios()
+                filas = self.db.execute_query(
+                    "DELETE FROM USUARIO WHERE ID_USUARIO = :id",
+                    {"id": int(id_usuario)},
+                    return_rows=True,
+                )
+                if filas and int(filas) > 0:
+                    QMessageBox.information(self, "Éxito", "Usuario eliminado correctamente.")
+                    self.cargar_usuarios()
+                else:
+                    QMessageBox.warning(self, "Aviso", "No se eliminó ningún registro (puede que el ID no exista).")
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo eliminar el usuario.\nError: {e}")
         self.bloquear_botones()
@@ -409,23 +421,28 @@ class DialogoAgregarUsuario(QDialog):
             return
 
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute("""
-                SELECT MAX(ID_USUARIO)
-                FROM USUARIO
-                WHERE ID_USUARIO <> 9999
-            """)
-            max_id = cursor.fetchone()[0] or 0
+            row = self.db.fetch_one(
+                """
+                SELECT NVL(MAX(ID_USUARIO), 0)
+                  FROM USUARIO
+                 WHERE ID_USUARIO <> 9999
+                """
+            )
+            max_id = int(row[0]) if row else 0
             id_usuario = max_id + 1
 
-            cursor.execute("""
+            ok = self.db.execute_query(
+                """
                 INSERT INTO USUARIO (ID_USUARIO, NOMBRE, APELLIDO_PATERNO, APELLIDO_MATERNO, CONTRASENA)
-                VALUES (:1, :2, :3, :4, :5)
-            """, (id_usuario, nombre, apellido_paterno, apellido_materno, contrasena))
-            self.db.connection.commit()
-            cursor.close()
-            QMessageBox.information(self, "Éxito", "Usuario agregado correctamente.")
-            self.accept()
+                VALUES (:id, :nom, :ap_pat, :ap_mat, :pwd)
+                """,
+                {"id": id_usuario, "nom": nombre, "ap_pat": apellido_paterno, "ap_mat": apellido_materno, "pwd": contrasena}
+            )
+            if ok:
+                QMessageBox.information(self, "Éxito", "Usuario agregado correctamente.")
+                self.accept()
+            else:
+                QMessageBox.critical(self, "Error", "No se pudo agregar el usuario (sin cambios).")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo agregar el usuario:\n{e}")
 
@@ -473,18 +490,21 @@ class DialogoModificarUsuario(QDialog):
             return
 
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute("""
+            ok = self.db.execute_query(
+                """
                 UPDATE USUARIO
-                SET NOMBRE = :1,
-                    APELLIDO_PATERNO = :2,
-                    APELLIDO_MATERNO = :3,
-                    CONTRASENA = :4
-                WHERE ID_USUARIO = :5
-            """, (nombre, apellido_paterno, apellido_materno, contrasena, self.id_usuario))
-            self.db.connection.commit()
-            cursor.close()
-            QMessageBox.information(self, "Éxito", "Usuario modificado correctamente.")
-            self.accept()
+                   SET NOMBRE = :nom,
+                       APELLIDO_PATERNO = :ap_pat,
+                       APELLIDO_MATERNO = :ap_mat,
+                       CONTRASENA = :pwd
+                 WHERE ID_USUARIO = :id
+                """,
+                {"nom": nombre, "ap_pat": apellido_paterno, "ap_mat": apellido_materno, "pwd": contrasena, "id": int(self.id_usuario)}
+            )
+            if ok:
+                QMessageBox.information(self, "Éxito", "Usuario modificado correctamente.")
+                self.accept()
+            else:
+                QMessageBox.warning(self, "Aviso", "No se modificó ningún registro.")
         except Exception as e:
             QMessageBox.critical(self, "Error", f"No se pudo modificar el usuario:\n{e}")

@@ -102,3 +102,43 @@ Cambios implementados ahora (fase 2: 5 y 7):
 	- Nuevo parámetro `auto_start` en `EventManager(..., auto_start=True)` para permitir inicialización diferida sin arrancar timers ni cargas iniciales.
 	- Métodos `start()`/`stop()` para controlar el ciclo de vida desde fuera.
 	- Métodos `attach_to_db()`/`detach_from_db()` y registro seguro de `db.event_manager` si está libre.
+
+## APP/interfaces/login.py
+
+Fecha: 2025-10-26
+
+Objetivos aprobados (2, 3, 4, 6, 8):
+- (2) Consulta eficiente y segura: uso de `fetch_one` con parámetros nombrados (`:usuario`, `:pwd`) en vez de `fetch_all` con posicionales.
+- (3) Logging prudente y sin credenciales: se eliminan prints de usuario/contraseña; se agrega logger del módulo con mensajes informativos sin exponer datos sensibles.
+- (4) Anti-doble click: deshabilitar inputs y botón mientras se verifica, evitando múltiples envíos simultáneos.
+- (6) Cierre tras 3 intentos: se mantiene la política de cierre, ahora intentando `QApplication.quit()` de forma ordenada; fallback a `sys.exit()` si no hay instancia.
+- (8) Limpieza de imports: unificación de imports de Qt, remoción de no usados.
+
+Ajuste UX:
+- Foco tras error: al limpiar la contraseña después de “usuario o contraseña incorrectos”, el foco ahora se aplica con `QTimer.singleShot(0, ...)` para ejecutarse luego de re-habilitar los campos (evita que `setFocus()` se pierda durante el estado ocupado).
+
+## APP/interfaces/usuarios.py
+
+Fecha: 2025-10-26
+
+Cambios aprobados y aplicados:
+- (3) SQL parametrizado consistente y uso de helpers del módulo DB: se migran consultas a `fetch_all`, `fetch_one` y `execute_query` con parámetros nombrados, evitando cursores manuales y asegurando commit automático.
+- (4) Evitar N+1 al contar historial: se sustituye el bucle de consultas por una única consulta con subselect de conteo por usuario.
+- (8) Señales conectadas una sola vez: `itemSelectionChanged` se conecta en `initUI`, eliminando conectar/desconectar en cada carga.
+- (10) Logger: se añade `logging.getLogger(__name__)` y se reemplazan prints por logs (sin añadir otras responsabilidades de estado ocupado).
+
+Notas:
+- Por indicación, se mantuvo la columna de contraseña sin cambios funcionales (no se ocultó ni retiró).
+
+## APP/interfaces/home.py
+
+Fecha: 2025-10-26
+
+Cambios aprobados y aplicados (1, 2, 3, 4, 5, 6, 9, 14[seq HISTORIAL]):
+- (1) Logger y eliminación de prints: se añade `logging.getLogger(__name__)` y se reemplazan prints por logs `debug`.
+- (2/14) Acceso BD con helpers y secuencia para HISTORIAL: uso de parámetros nombrados y `execute_query`/`fetch_one`; inserción en `HISTORIAL` con `HISTORIAL_SEQ.NEXTVAL` (compromiso: toda inserción futura a HISTORIAL usará la secuencia).
+- (3) Usar ID ya disponible: en cancelar se utiliza `ID_ASIGNACION` tomado de la tabla sin consultar de nuevo por horario.
+- (4) Manejo robusto de nulos y tipos: casteo seguro y checks antes de usar resultados.
+- (5) Integración segura con EventManager: emisión de `update_triggered` solo si existe; fallback a refresco local.
+- (6) Coalescer recargas: se introduce `self._refresh_timer` (single-shot) y `actualizar_datos()` programa la recarga.
+- (9) Limpiezas menores: eliminación de `hide()` duplicado, conversión del timer de reloj a atributo y remoción de configuraciones duplicadas de scrollbars.

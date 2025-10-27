@@ -7,6 +7,7 @@ from PyQt6.QtGui import QIcon, QFont, QPixmap
 from base_de_datos.db import DatabaseConnection
 import oracledb
 from utils import obtener_ruta_recurso
+import logging
 
 class InterfazHome(QWidget):
     def __init__(self, main_window, db, username):
@@ -14,7 +15,12 @@ class InterfazHome(QWidget):
         self.username = username
         self.main_window = main_window
         self.db = db
+        self._logger = logging.getLogger(__name__)
         self.setGeometry(100, 100, 1000, 600)
+        # Timer single-shot para coalescer recargas
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.cargar_datos)
         self.init_ui()
         self.cargar_datos()
 
@@ -23,7 +29,7 @@ class InterfazHome(QWidget):
 
     def init_ui(self):
 
-    # Layout principal con scroll (nuevo)
+        # Layout principal con scroll (nuevo)
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
         self.scroll_area.setFrameShape(QFrame.Shape.NoFrame)
@@ -59,9 +65,9 @@ class InterfazHome(QWidget):
         self.label_reloj = QLabel()
         self.label_reloj.setStyleSheet("font-size: 22px; font-weight: bold; color: white;")
         self.actualizar_reloj()
-        timer = QTimer(self)
-        timer.timeout.connect(self.actualizar_reloj)
-        timer.start(1000)
+        self._clock_timer = QTimer(self)
+        self._clock_timer.timeout.connect(self.actualizar_reloj)
+        self._clock_timer.start(1000)
         top_layout.addWidget(self.label_reloj)
         
         # Layout vertical para logo y título
@@ -108,8 +114,6 @@ class InterfazHome(QWidget):
         self.content_layout.addWidget(label_curso)
                 
         self.tabla_viajes = QTableWidget()
-        self.tabla_viajes.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.tabla_viajes.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tabla_viajes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tabla_viajes.setColumnCount(6)
        # self.tabla_viajes.setFixedWidth(1050)
@@ -170,8 +174,6 @@ class InterfazHome(QWidget):
         self.content_layout.addWidget(label_proximos)
                 
         self.tabla_proximos = QTableWidget()
-        self.tabla_proximos.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOn)
-        self.tabla_proximos.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tabla_proximos.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.tabla_proximos.setColumnCount(5)
         #self.tabla_viajes.setFixedWidth(850)
@@ -230,7 +232,7 @@ class InterfazHome(QWidget):
         self.content_layout.addWidget(self.panel_asignacion)
 
             # Panel de modificación 
-        print(self.username)
+        self._logger.debug("Usuario activo en Home: %s", self.username)
         
         self.panel_modificar = InterfazModificarAsignacion(self.main_window, self.db, self.username)
         self.panel_modificar.btn_cancelar.clicked.connect(self.ocultar_panel_modificar)
@@ -426,7 +428,6 @@ class InterfazHome(QWidget):
         self.tabla_viajes.setMaximumHeight(16777215)
         self.tabla_proximos.setMaximumHeight(16777215)
         self.panel_asignacion.hide()
-        self.panel_asignacion.hide()
         # Restaurar posición del scroll
         QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(0))
         #self.panel_asignacion.combo_ruta.clear()
@@ -477,35 +478,32 @@ class InterfazHome(QWidget):
                 self.bloquear_botones()
                 return
 
-            # Obtener ID de asignación
-            asignacion = self.db.fetch_one("""
-                SELECT ID_ASIGNACION 
-                FROM ASIGNACION_TREN 
-                WHERE ID_HORARIO = :1
-            """, [id_horario])
-
-            if not asignacion:
-                QMessageBox.information(self, "Información", "Este horario no tiene una asignación de tren.")
-                return
-
-            id_asignacion = asignacion[0]
-
             # Eliminar asignación
-            self.db.execute_query("DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1", [id_asignacion])
+            self.db.execute_query(
+                "DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :id_asig",
+                {"id_asig": int(id_asignacion)},
+            )
 
             # Registrar en historial
-            id_historial = self.db.fetch_one("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")[0]
             informacion = f"Se canceló la asignación del horario {id_horario}."
-            self.db.execute_query("""
+            self.db.execute_query(
+                """
                 INSERT INTO HISTORIAL (
                     ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO
                 ) VALUES (
-                    :1, :2, :3, :4, SYSDATE
+                    HISTORIAL_SEQ.NEXTVAL, :info, :id_user, :id_horario, SYSDATE
                 )
-            """, [id_historial, informacion, self.username, id_horario])
-            # Realiza commit
-            self.db.connection.commit()
-            self.db.event_manager.update_triggered.emit()
+                """,
+                {"info": informacion, "id_user": self.username, "id_horario": int(id_horario)},
+            )
+            # Notificar actualización si existe EventManager
+            try:
+                if getattr(self.db, 'event_manager', None) is not None and hasattr(self.db.event_manager, 'update_triggered'):
+                    self.db.event_manager.update_triggered.emit()
+                else:
+                    self.actualizar_datos()
+            except Exception:
+                self.actualizar_datos()
             QMessageBox.information(self, "Éxito", f"Asignación del horario {id_horario} cancelada correctamente.")
             self.cargar_datos()
             
@@ -519,15 +517,15 @@ class InterfazHome(QWidget):
 
 
     def actualizar_datos(self):
-        """Recarga los datos de la interfaz"""
-        print("Actualizando datos de InterfazHome")
-        self.cargar_datos()
+        """Recarga los datos de la interfaz (coalesced)."""
+        self._logger.debug("Actualización de datos solicitada")
+        self._refresh_timer.start(0)
 
     def actualizar_reloj(self):
         self.label_reloj.setText(QTime.currentTime().toString("HH:mm:ss"))
 
     def cargar_datos(self):
-        print("[DEBUG] Recargando datos de Viajes en Curso y Próximamente...")
+        self._logger.debug("Recargando datos de 'En curso' y 'Próximamente'")
         self.cargar_datos_viajes()
         self.cargar_datos_proximos()
 
@@ -557,12 +555,12 @@ class InterfazHome(QWidget):
                 <= TO_NUMBER(TO_CHAR(SYSDATE, 'HH24')) * 60 + TO_NUMBER(TO_CHAR(SYSDATE, 'MI'))
             AND TO_NUMBER(TO_CHAR(SYSDATE, 'HH24')) * 60 + TO_NUMBER(TO_CHAR(SYSDATE, 'MI')) 
                 <= TO_NUMBER(TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24')) * 60 + TO_NUMBER(TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'MI'))
-            ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
+            ORDER BY H.HORA_SALIDA_PROGRAMADA ASC, A.ID_ASIGNACION ASC
         """
         viajes = self.db.fetch_all(query)
 
         if not viajes:
-            print("[DEBUG] No se encontraron registros en la consulta de viajes.")
+            self._logger.debug("No se encontraron viajes en curso")
             return
 
         self.tabla_viajes.setRowCount(len(viajes))
@@ -603,7 +601,7 @@ class InterfazHome(QWidget):
                 JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
                 WHERE RD2.ORDEN = (SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = A.ID_RUTA)
                 AND TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI') > TO_CHAR(SYSDATE, 'HH24:MI')
-                ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
+                ORDER BY H.HORA_SALIDA_PROGRAMADA ASC, A.ID_ASIGNACION ASC
         """
         proximos = self.db.fetch_all(query)
         self.tabla_proximos.setRowCount(0)
@@ -632,12 +630,11 @@ class InterfazHome(QWidget):
         self.bloquear_botones()
 
     def load_user_name(self):
-        print(self.username)
-        query = "SELECT NOMBRE FROM USUARIO WHERE ID_USUARIO = :1"
-        result = self.db.fetch_all(query, (self.username,))
-        print(result)
-        if result:
-            nombre_usuario = result[0][0]
+        self._logger.debug("Cargando nombre de usuario para ID=%s", self.username)
+        query = "SELECT NOMBRE FROM USUARIO WHERE ID_USUARIO = :id"
+        row = self.db.fetch_one(query, {"id": self.username})
+        if row and row[0]:
+            nombre_usuario = row[0]
             self.label_bienvenida.setText(f"Bienvenido de vuelta, {nombre_usuario}!")
 
     def _controlar_botones_proximos(self):
