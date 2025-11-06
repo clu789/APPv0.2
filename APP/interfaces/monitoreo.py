@@ -1,8 +1,8 @@
+import logging
 from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel, QTableWidget, QTableWidgetItem, QPushButton, QHBoxLayout, QProgressBar, QFrame, QGridLayout, QScrollArea, QHeaderView
 from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtGui import QFont, QPixmap
+from PyQt6.QtGui import QPixmap
 from datetime import datetime
-from base_de_datos.db import DatabaseConnection  
 from utils import obtener_ruta_recurso
 
 class MonitoreoInterface(QWidget):
@@ -15,6 +15,12 @@ class MonitoreoInterface(QWidget):
         
         # Conexión a la base de datos
         self.db = db
+        self.logger = logging.getLogger(__name__)
+
+        # Timer para coalescer recargas
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.load_real_time_data)
 
         self.initUI()
         self.load_real_time_data()
@@ -183,8 +189,11 @@ class MonitoreoInterface(QWidget):
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
-        print("Actualizando datos de MonitoreoInterface")
-        self.load_real_time_data()
+        # Coalescer múltiples llamadas cercanas
+        if self._refresh_timer.isActive():
+            self._refresh_timer.stop()
+        self._refresh_timer.start(150)
+        self.logger.debug("Programada recarga de datos de MonitoreoInterface en 150 ms")
 
     def determinar_estado_horario(self, hora_salida_str, hora_llegada_str):
         """Determina si un horario está en curso, próximo o finalizado"""
@@ -222,36 +231,56 @@ class MonitoreoInterface(QWidget):
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             ORDER BY H.HORA_SALIDA_PROGRAMADA ASC
         """
-        asignaciones = self.db.fetch_all(query)
-
-        if not asignaciones:
-            print("[DEBUG] No se encontraron datos para cargar en la tabla.")
+        try:
+            asignaciones = self.db.fetch_all(query)
+        except Exception:
+            self.logger.exception("Error consultando asignaciones para monitoreo")
             self.tabla_trenes.setRowCount(0)
             return
 
-        self.tabla_trenes.setRowCount(len(asignaciones))
-        for i, asignacion in enumerate(asignaciones):
-            estado = self.determinar_estado_horario(asignacion[5], asignacion[6])
-            
-            self.tabla_trenes.setItem(i, 0, QTableWidgetItem(str(asignacion[0])))  # ID Asignación
-            self.tabla_trenes.setItem(i, 1, QTableWidgetItem(str(asignacion[1])))  # ID Tren
-            self.tabla_trenes.setItem(i, 2, QTableWidgetItem(asignacion[2]))      # Nombre Tren
-            self.tabla_trenes.setItem(i, 3, QTableWidgetItem(str(asignacion[3]))) # ID Ruta
-            self.tabla_trenes.setItem(i, 4, QTableWidgetItem(str(asignacion[4]))) # ID Horario
-            self.tabla_trenes.setItem(i, 5, QTableWidgetItem(asignacion[5]))      # Hora Salida
-            self.tabla_trenes.setItem(i, 6, QTableWidgetItem(asignacion[6]))      # Hora Llegada
-            self.tabla_trenes.setItem(i, 7, QTableWidgetItem(estado))             # Estado
+        if not asignaciones:
+            self.logger.debug("No se encontraron datos para la tabla de monitoreo")
+            self.tabla_trenes.setRowCount(0)
+            return
 
-        # Ajustar tamaño de columnas y filas
-        self.tabla_trenes.resizeColumnsToContents()
-        self.tabla_trenes.resizeRowsToContents()
+        # Repoblación básica de tabla minimizando parpadeos
+        self.tabla_trenes.setUpdatesEnabled(False)
+        try:
+            self.tabla_trenes.setRowCount(len(asignaciones))
+            for i, asignacion in enumerate(asignaciones):
+                estado = self.determinar_estado_horario(asignacion[5], asignacion[6])
+                self.tabla_trenes.setItem(i, 0, QTableWidgetItem(str(asignacion[0])))  # ID Asignación
+                self.tabla_trenes.setItem(i, 1, QTableWidgetItem(str(asignacion[1])))  # ID Tren
+                self.tabla_trenes.setItem(i, 2, QTableWidgetItem(asignacion[2]))      # Nombre Tren
+                self.tabla_trenes.setItem(i, 3, QTableWidgetItem(str(asignacion[3]))) # ID Ruta
+                self.tabla_trenes.setItem(i, 4, QTableWidgetItem(str(asignacion[4]))) # ID Horario
+                self.tabla_trenes.setItem(i, 5, QTableWidgetItem(asignacion[5]))      # Hora Salida
+                self.tabla_trenes.setItem(i, 6, QTableWidgetItem(asignacion[6]))      # Hora Llegada
+                self.tabla_trenes.setItem(i, 7, QTableWidgetItem(estado))             # Estado
+            self.tabla_trenes.resizeColumnsToContents()
+            self.tabla_trenes.resizeRowsToContents()
+        finally:
+            self.tabla_trenes.setUpdatesEnabled(True)
 
     def on_row_selected(self, row, column):
+        # Evitar solapes del timer de progreso
+        try:
+            if hasattr(self, 'timer_progreso'):
+                self.timer_progreso.stop()
+        except Exception:
+            pass
+
         self.limpiar_panel_detalles()
         
-        id_asignacion = self.tabla_trenes.item(row, 0).text()
+        item = self.tabla_trenes.item(row, 0)
+        if item is None:
+            return
+        id_asignacion = item.text()
         self.refrescar_detalles_asignacion(id_asignacion)
-        self.timer_progreso.start(1000)
+        try:
+            self.timer_progreso.start(1000)
+        except Exception:
+            pass
 
     def refrescar_detalles_asignacion(self, id_asignacion):
         self.limpiar_panel_detalles()
@@ -290,15 +319,20 @@ class MonitoreoInterface(QWidget):
             JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
             WHERE A.ID_ASIGNACION = :id
         """
-        datos = self.db.fetch_one(query, {'id': id_asignacion})
+        try:
+            datos = self.db.fetch_one(query, {'id': id_asignacion})
+        except Exception:
+            self.logger.exception("Error obteniendo detalles de asignación %s", id_asignacion)
+            self.detalle_panel.setVisible(True)
+            return
 
         if not datos:
-            print(f"[ERROR] No se encontraron datos para la asignación {id_asignacion}.")
+            self.logger.error("No se encontraron datos para la asignación %s", id_asignacion)
             self.detalle_panel.setVisible(True)  # Mostrar el panel vacío
             return
 
         if len(datos) < 15:
-            print(f"[ADVERTENCIA] Datos incompletos para la asignación {id_asignacion}: {datos}")
+            self.logger.warning("Datos incompletos para la asignación %s: %s", id_asignacion, datos)
 
         # Guardar datos importantes para la barra de progreso
         self.hora_salida = datos[8] if len(datos) > 8 else "N/A"
@@ -529,14 +563,18 @@ class MonitoreoInterface(QWidget):
                 progreso = (transcurrido / total) * 100
 
             self.progress_bar.setValue(int(progreso))
-        except Exception as e:
-            print("Error actualizando barra:", e)
+        except Exception:
+            self.logger.exception("Error actualizando barra de progreso")
             self.progress_bar.setValue(0)
 
     def limpiar_panel_detalles(self):
         """Limpia completamente el panel de detalles"""
         # Detener el timer si está activo
-        self.timer_progreso.stop()
+        try:
+            if hasattr(self, 'timer_progreso'):
+                self.timer_progreso.stop()
+        except Exception:
+            pass
         
         # Eliminar todos los widgets del layout
         while self.detalle_layout.count():

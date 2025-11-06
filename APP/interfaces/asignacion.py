@@ -3,8 +3,116 @@ from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBo
                             QSpacerItem, QFrame, QScrollArea)
 from PyQt6.QtCore import Qt, QDateTime, QTime, QSize, pyqtSignal
 from PyQt6.QtGui import QPixmap
+import logging
 import oracledb
 from datetime import datetime, timedelta
+
+
+def _load_route_image_helper(db, panel_imagen, img_label, id_ruta, logger=None):
+    """Carga imagen de ruta desde BD y la ajusta al panel (helper compartido)."""
+    try:
+        img_label.clear()
+        result = db.fetch_one("SELECT IMAGEN FROM RUTA WHERE ID_RUTA = :id_ruta", {"id_ruta": id_ruta})
+        if not result or not result[0]:
+            img_label.setText("No hay imagen disponible")
+            return
+        raw = result[0]
+        image_bytes = None
+        try:
+            if hasattr(raw, 'read') and callable(raw.read):
+                image_bytes = raw.read()
+            elif isinstance(raw, (bytes, bytearray)):
+                image_bytes = bytes(raw)
+            elif isinstance(raw, memoryview):
+                image_bytes = raw.tobytes()
+            else:
+                image_bytes = bytes(raw)
+        except Exception:
+            image_bytes = None
+        if not image_bytes:
+            img_label.setText("Imagen no disponible")
+            return
+        pixmap = QPixmap()
+        if not pixmap.loadFromData(image_bytes):
+            img_label.setText("Formato no soportado")
+            return
+        # Guardar el pixmap original para reescalado responsivo
+        try:
+            img_label._orig_pixmap = pixmap
+        except Exception:
+            pass
+        max_width = panel_imagen.width() - 20
+        max_height = panel_imagen.height() - 50
+        scaled_pix = pixmap.scaled(max_width, max_height, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        img_label.setPixmap(scaled_pix)
+    except oracledb.DatabaseError as e:
+        if logger:
+            logger.error("Error Oracle al cargar imagen de ruta %s: %s", id_ruta, e)
+        img_label.setText("Error de base de datos")
+    except Exception as e:
+        if logger:
+            logger.error("Error general al cargar imagen de ruta %s: %s", id_ruta, e)
+        img_label.setText("Error al cargar imagen")
+
+
+def _cargar_rutas_helper(db, combo_ruta):
+    combo_ruta.clear()
+    combo_ruta.addItem("Seleccionar")
+    query = (
+        """
+        SELECT R.ID_RUTA,
+               LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
+          FROM RUTA R
+          JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
+          JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
+         GROUP BY R.ID_RUTA
+         ORDER BY R.ID_RUTA
+        """
+    )
+    rutas = db.fetch_all(query)
+    if rutas:
+        for id_ruta, estaciones in rutas:
+            combo_ruta.addItem(f"Ruta {id_ruta} - {estaciones.split('→')[0].strip()}...", id_ruta)
+
+
+def _get_asignados_set(db, id_ruta, exclude_asignacion=None):
+    """Devuelve un conjunto de ID_HORARIO ya asignados a la ruta dada.
+    Si exclude_asignacion se provee, se excluye esa asignación (útil en modificar).
+    """
+    if exclude_asignacion is not None:
+        rows = db.fetch_all(
+            """
+            SELECT ID_HORARIO
+              FROM ASIGNACION_TREN
+             WHERE ID_RUTA = :id_ruta
+               AND ID_ASIGNACION != :id_asig
+            """,
+            {"id_ruta": id_ruta, "id_asig": exclude_asignacion}
+        )
+    else:
+        rows = db.fetch_all(
+            """
+            SELECT ID_HORARIO
+              FROM ASIGNACION_TREN
+             WHERE ID_RUTA = :id_ruta
+            """,
+            {"id_ruta": id_ruta}
+        )
+    return set(r[0] for r in (rows or []))
+
+
+def _rescale_route_image(panel_imagen, img_label):
+    """Reescala la imagen de ruta basada en el tamaño del panel, si existe pixmap original."""
+    try:
+        orig = getattr(img_label, "_orig_pixmap", None)
+        if orig is None or orig.isNull():
+            return
+        max_width = panel_imagen.width() - 20
+        max_height = panel_imagen.height() - 50
+        scaled = orig.scaled(max_width, max_height, Qt.AspectRatioMode.KeepAspectRatio, Qt.TransformationMode.SmoothTransformation)
+        img_label.setPixmap(scaled)
+    except Exception:
+        pass
 
 class InterfazAsignacion(QWidget):
     asignacion_exitosa = pyqtSignal()  # Señal para recargar interfaces
@@ -13,6 +121,7 @@ class InterfazAsignacion(QWidget):
         super().__init__()
         self.main_window = main_window
         self.db = db
+        self._logger = logging.getLogger(__name__)
         self.init_ui()
         self.validar_ventana_15min = False
         self.cargar_datos()
@@ -304,13 +413,25 @@ class InterfazAsignacion(QWidget):
 
     def cargar_datos(self):
         """Recarga los datos de la interfaz"""
-        print("Actualizando datos de InterfazAsignacion")
+        try:
+            self._logger.debug("Actualizando datos de InterfazAsignacion")
+        except Exception:
+            pass
         self.cargar_rutas()
         self.combo_horario.clear()
         self.combo_horario.addItem("Seleccione una ruta primero")
         self.combo_tren.clear()
         self.combo_tren.addItem("Seleccione un horario primero")
         self.label_mensaje.setText("Seleccione una ruta para comenzar")
+    
+    def resizeEvent(self, event):
+        """Reescalar imagen de ruta cuando cambie el tamaño del panel."""
+        try:
+            if self.panel_imagen.isVisible():
+                _rescale_route_image(self.panel_imagen, self.img_ruta)
+        except Exception:
+            pass
+        super().resizeEvent(event)
     
 
     def on_ruta_selected(self):
@@ -341,81 +462,11 @@ class InterfazAsignacion(QWidget):
 
     def load_route_image(self, id_ruta):
         """Versión robusta para cargar imágenes desde Oracle"""
-        try:
-            self.img_ruta.clear()
-            
-            # 1. Obtener el BLOB desde Oracle
-            query = "SELECT IMAGEN FROM RUTA WHERE ID_RUTA = :id_ruta"
-            result = self.db.fetch_one(query, {"id_ruta": id_ruta})
-            
-            if not result or not result[0]:
-                self.img_ruta.setText("No hay imagen disponible")
-                return
-
-            # 2. Obtener bytes de la imagen (acepta LOB, bytes, memoryview, etc.)
-            raw = result[0]
-            image_bytes = None
-            try:
-                if hasattr(raw, 'read') and callable(raw.read):
-                    image_bytes = raw.read()
-                elif isinstance(raw, (bytes, bytearray)):
-                    image_bytes = bytes(raw)
-                elif isinstance(raw, memoryview):
-                    image_bytes = raw.tobytes()
-                else:
-                    image_bytes = bytes(raw)
-            except Exception:
-                image_bytes = None
-
-            # 3. Crear QPixmap a partir de los bytes
-            if not image_bytes:
-                self.img_ruta.setText("Imagen no disponible")
-                return
-
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(image_bytes):
-                self.img_ruta.setText("Formato no soportado")
-                return
-
-            # 4. Escalar adecuadamente
-            max_width = self.panel_imagen.width() - 20
-            max_height = self.panel_imagen.height() - 50
-            
-            scaled_pix = pixmap.scaled(
-                max_width, 
-                max_height,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            
-            self.img_ruta.setPixmap(scaled_pix)
-            
-        except oracledb.DatabaseError as e:
-            print(f"Error Oracle: {e}")
-            self.img_ruta.setText("Error de base de datos")
-        except Exception as e:
-            print(f"Error general: {str(e)}")
-            self.img_ruta.setText("Error al cargar imagen")
+        _load_route_image_helper(self.db, self.panel_imagen, self.img_ruta, id_ruta, self._logger)
             
     def cargar_rutas(self):
         """Carga las rutas disponibles con información básica"""
-        self.combo_ruta.clear()
-        self.combo_ruta.addItem("Seleccionar")
-        
-        query = """
-            SELECT R.ID_RUTA, 
-                   LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-            FROM RUTA R
-            JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-            JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-            GROUP BY R.ID_RUTA
-            ORDER BY R.ID_RUTA
-        """
-        rutas = self.db.fetch_all(query)
-        
-        if rutas:
-            for id_ruta, estaciones in rutas:
-                self.combo_ruta.addItem(f"Ruta {id_ruta} - {estaciones.split('→')[0].strip()}...", id_ruta)
+        _cargar_rutas_helper(self.db, self.combo_ruta)
 
     def cargar_horarios_disponibles(self, id_ruta):
         """Carga los horarios disponibles para la ruta seleccionada"""
@@ -424,10 +475,11 @@ class InterfazAsignacion(QWidget):
         self.label_mensaje.setText("Cargando horarios...")
         
         try:
+            t0 = datetime.now()
             duracion = self.obtener_duracion_ruta(id_ruta)
             if not duracion:
                 self.combo_horario.addItem("No hay horarios disponibles")
-                self.label_mensaje.setText("No se pudo obtener duración de la ruta")
+                self.mostrar_mensaje("No se pudo obtener duración de la ruta", False)
                 return
 
             # Obtener horarios asignados a esta ruta (solo si la validación está activa)
@@ -453,6 +505,9 @@ class InterfazAsignacion(QWidget):
                 ORDER BY H.HORA_SALIDA_PROGRAMADA
             """
             todos_horarios = self.db.fetch_all(query_horarios)
+
+            # Evitar N+1: obtener set de horarios ya asignados a la ruta
+            asignados_set = _get_asignados_set(self.db, id_ruta)
             
             if todos_horarios:
                 horarios_filtrados = []
@@ -463,16 +518,8 @@ class InterfazAsignacion(QWidget):
                     if duracion_horario < duracion:
                         continue
                     
-                    # Verificar si ya está asignado a esta ruta
-                    query_asignado = """
-                        SELECT COUNT(*) FROM ASIGNACION_TREN 
-                        WHERE ID_HORARIO = :id_horario AND ID_RUTA = :id_ruta
-                    """
-                    asignado = self.db.fetch_one(query_asignado, {
-                        "id_horario": id_horario,
-                        "id_ruta": id_ruta
-                    })
-                    if asignado and asignado[0] > 0:
+                    # Verificar si ya está asignado a esta ruta (usando set)
+                    if id_horario in asignados_set:
                         continue
                     
                     # Validación opcional de 15 minutos
@@ -497,15 +544,25 @@ class InterfazAsignacion(QWidget):
                     msg = f"{len(horarios_filtrados)} horarios disponibles"
                     if self.validar_ventana_15min:
                         msg += " (con ventana de 15 min)"
-                    self.label_mensaje.setText(msg)
+                    self.mostrar_mensaje(msg, True)
                 else:
                     self.combo_horario.addItem("No hay horarios disponibles")
-                    self.label_mensaje.setText("No hay horarios que cumplan los requisitos")
+                    self.mostrar_mensaje("No hay horarios que cumplan los requisitos", False)
+            try:
+                dt_ms = (datetime.now() - t0).total_seconds() * 1000
+                self._logger.debug("Horarios: total=%d, filtrados=%d, duracionRuta=%s min, tiempo=%.0f ms",
+                                   len(todos_horarios or []), len(horarios_filtrados) if 'horarios_filtrados' in locals() else 0,
+                                   duracion, dt_ms)
+            except Exception:
+                pass
                     
         except Exception as e:
-            print(f"Error al cargar horarios: {str(e)}")
+            try:
+                self._logger.error("Error al cargar horarios: %s", e)
+            except Exception:
+                pass
             self.combo_horario.addItem("Error al cargar horarios")
-            self.label_mensaje.setText("Error al cargar horarios")
+            self.mostrar_mensaje("Error al cargar horarios", False)
 
     def validar_asignacion(self):
         """Valida la asignación con validaciones opcionales"""
@@ -624,6 +681,7 @@ class InterfazAsignacion(QWidget):
         self.label_mensaje.setText("Cargando trenes...")
         
         try:
+            t0 = datetime.now()
             # Primero obtener el rango de tiempo del horario seleccionado
             query_horario = """
                 SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
@@ -668,65 +726,54 @@ class InterfazAsignacion(QWidget):
                     self.combo_tren.addItem(f"{id_tren} - {nombre}", id_tren)
                 
                 if self.combo_tren.count() > 1:
-                    self.label_mensaje.setText(f"{len(trenes)} trenes disponibles")
+                    self.mostrar_mensaje(f"{len(trenes)} trenes disponibles", True)
                 else:
                     self.combo_tren.clear()
                     self.combo_tren.addItem("No hay trenes disponibles")
-                    self.label_mensaje.setText("No hay trenes para este horario")
+                    self.mostrar_mensaje("No hay trenes para este horario", False)
             else:
                 self.combo_tren.addItem("No hay trenes disponibles")
-                self.label_mensaje.setText("No hay trenes disponibles")
+                self.mostrar_mensaje("No hay trenes disponibles", False)
+            try:
+                dt_ms = (datetime.now() - t0).total_seconds() * 1000
+                self._logger.debug("Trenes disponibles: %d, tiempo=%.0f ms", len(trenes or []), dt_ms)
+            except Exception:
+                pass
                 
         except Exception as e:
-            print(f"Error al cargar trenes: {str(e)}")
+            try:
+                self._logger.error("Error al cargar trenes: %s", e)
+            except Exception:
+                pass
             self.combo_tren.addItem("Error al cargar trenes")
-            self.label_mensaje.setText("Error al cargar datos")
+            self.mostrar_mensaje("Error al cargar datos", False)
 
     def confirmar_asignacion(self):
         try:
+            # Validación previa para robustez
+            if not self.validar_asignacion():
+                return
             # Obtener parámetros del formulario
             id_tren = self.combo_tren.currentData()
             id_ruta = self.combo_ruta.currentData()
             id_horario = self.combo_horario.currentData()
 
-            # Mensajes de depuración
-            print(f"\n[DEBUG] Parámetros para asignación:")
-            print(f"Tren ID: {id_tren}, Ruta ID: {id_ruta}, Horario ID: {id_horario}")
+            if id_tren is None or id_ruta is None or id_horario is None:
+                self.mostrar_mensaje("Error: Selecciones inválidas", False)
+                return
 
-            # Iniciar transacción
-            cursor = self.db.connection.cursor()
-
-            # Insertar en ASIGNACION_TREN (versión corregida)
-            id_asignacion_var = cursor.var(oracledb.NUMBER)
-            cursor.execute("""
-                BEGIN
-                    INSERT INTO ASIGNACION_TREN (
-                        ID_ASIGNACION, 
-                        ID_TREN, 
-                        ID_RUTA, 
-                        ID_HORARIO
-                    )
-                    VALUES (
-                        (SELECT NVL(MAX(ID_ASIGNACION), 0) + 1 FROM ASIGNACION_TREN),
-                        :id_tren, 
-                        :id_ruta, 
-                        :id_horario
-                    )
-                    RETURNING ID_ASIGNACION INTO :id_asignacion;
-                END;
-            """, {
-                "id_tren": id_tren,
-                "id_ruta": id_ruta,
-                "id_horario": id_horario,
-                "id_asignacion": id_asignacion_var
-            })
-            
-            id_asignacion = id_asignacion_var.getvalue()
-            print(f"[DEBUG] Asignación insertada. ID: {id_asignacion}")
-
-            # Confirmar la inserción
-            self.db.connection.commit()
-            print("[DEBUG] ¡Inserción exitosa!")
+            # Insertar en ASIGNACION_TREN con helpers
+            try:
+                self._logger.debug("Insertando asignación (tren=%s, ruta=%s, horario=%s)", id_tren, id_ruta, id_horario)
+            except Exception:
+                pass
+            self.db.execute_query(
+                """
+                INSERT INTO ASIGNACION_TREN (ID_ASIGNACION, ID_TREN, ID_RUTA, ID_HORARIO)
+                VALUES ((SELECT NVL(MAX(ID_ASIGNACION), 0) + 1 FROM ASIGNACION_TREN), :id_tren, :id_ruta, :id_horario)
+                """,
+                {"id_tren": id_tren, "id_ruta": id_ruta, "id_horario": id_horario}
+            )
 
             # Emitir señal para actualizar la interfaz de home
             self.asignacion_exitosa.emit()
@@ -740,12 +787,18 @@ class InterfazAsignacion(QWidget):
 
             # Actualizar interfaz
             self.cargar_datos()
-            self.db.event_manager.update_triggered.emit()
-            print('se manda la señar acutalizar') 
+            try:
+                if getattr(self.db, 'event_manager', None) is not None and hasattr(self.db.event_manager, 'update_triggered'):
+                    self.db.event_manager.update_triggered.emit()
+            except Exception:
+                pass
 
         except oracledb.DatabaseError as e:
             error_obj = e.args[0]
-            print(f"[ERROR ORACLE] Código: {error_obj.code}, Mensaje: {error_obj.message}")
+            try:
+                self._logger.error("Oracle error %s: %s", error_obj.code, error_obj.message)
+            except Exception:
+                pass
             self.db.rollback()
             QMessageBox.critical(
                 self, 
@@ -754,7 +807,10 @@ class InterfazAsignacion(QWidget):
             )
 
         except Exception as e:
-            print(f"[ERROR INESPERADO] {str(e)}")
+            try:
+                self._logger.error("Error inesperado en confirmar_asignacion: %s", e)
+            except Exception:
+                pass
             self.db.rollback()
             QMessageBox.critical(
                 self,
@@ -795,6 +851,7 @@ class InterfazModificarAsignacion(QWidget):
         self.db = db
         self.username = username
         self.id_asignacion = None
+        self._logger = logging.getLogger(__name__)
         self.init_ui()
         self.validar_ventana_15min = False
 
@@ -1134,6 +1191,15 @@ class InterfazModificarAsignacion(QWidget):
         self.combo_tren.addItem("Seleccione un horario primero")
         self.label_mensaje.setText("Seleccione los nuevos valores")
 
+    def resizeEvent(self, event):
+        """Reescalar imagen de ruta cuando cambie el tamaño del panel."""
+        try:
+            if self.panel_imagen.isVisible():
+                _rescale_route_image(self.panel_imagen, self.img_ruta)
+        except Exception:
+            pass
+        super().resizeEvent(event)
+
     def on_ruta_selected(self):
         if self.combo_ruta.currentIndex() > 0:
             id_ruta = self.combo_ruta.currentData()
@@ -1161,81 +1227,11 @@ class InterfazModificarAsignacion(QWidget):
 
     def load_route_image(self, id_ruta):
         """Versión robusta para cargar imágenes desde Oracle"""
-        try:
-            self.img_ruta.clear()
-            
-            # 1. Obtener el BLOB desde Oracle
-            query = "SELECT IMAGEN FROM RUTA WHERE ID_RUTA = :id_ruta"
-            result = self.db.fetch_one(query, {"id_ruta": id_ruta})
-            
-            if not result or not result[0]:
-                self.img_ruta.setText("No hay imagen disponible")
-                return
-
-            # 2. Obtener bytes de la imagen (acepta LOB, bytes, memoryview, etc.)
-            raw = result[0]
-            image_bytes = None
-            try:
-                if hasattr(raw, 'read') and callable(raw.read):
-                    image_bytes = raw.read()
-                elif isinstance(raw, (bytes, bytearray)):
-                    image_bytes = bytes(raw)
-                elif isinstance(raw, memoryview):
-                    image_bytes = raw.tobytes()
-                else:
-                    image_bytes = bytes(raw)
-            except Exception:
-                image_bytes = None
-
-            # 3. Crear QPixmap a partir de los bytes
-            if not image_bytes:
-                self.img_ruta.setText("Imagen no disponible")
-                return
-
-            pixmap = QPixmap()
-            if not pixmap.loadFromData(image_bytes):
-                self.img_ruta.setText("Formato no soportado")
-                return
-
-            # 4. Escalar adecuadamente
-            max_width = self.panel_imagen.width() - 20
-            max_height = self.panel_imagen.height() - 50
-            
-            scaled_pix = pixmap.scaled(
-                max_width, 
-                max_height,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation
-            )
-            
-            self.img_ruta.setPixmap(scaled_pix)
-            
-        except oracledb.DatabaseError as e:
-            print(f"Error Oracle: {e}")
-            self.img_ruta.setText("Error de base de datos")
-        except Exception as e:
-            print(f"Error general: {str(e)}")
-            self.img_ruta.setText("Error al cargar imagen")
+        _load_route_image_helper(self.db, self.panel_imagen, self.img_ruta, id_ruta, self._logger)
             
     def cargar_rutas(self):
         """Carga las rutas disponibles con información básica"""
-        self.combo_ruta.clear()
-        self.combo_ruta.addItem("Seleccionar")
-        
-        query = """
-            SELECT R.ID_RUTA, 
-                   LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-            FROM RUTA R
-            JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-            JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-            GROUP BY R.ID_RUTA
-            ORDER BY R.ID_RUTA
-        """
-        rutas = self.db.fetch_all(query)
-        
-        if rutas:
-            for id_ruta, estaciones in rutas:
-                self.combo_ruta.addItem(f"Ruta {id_ruta} - {estaciones.split('→')[0].strip()}...", id_ruta)
+        _cargar_rutas_helper(self.db, self.combo_ruta)
 
     def cargar_horarios_disponibles(self, id_ruta):
         """Carga los horarios disponibles para la ruta seleccionada"""
@@ -1244,10 +1240,11 @@ class InterfazModificarAsignacion(QWidget):
         self.label_mensaje.setText("Cargando horarios...")
         
         try:
+            t0 = datetime.now()
             duracion = self.obtener_duracion_ruta(id_ruta)
             if not duracion:
                 self.combo_horario.addItem("No hay horarios disponibles")
-                self.label_mensaje.setText("No se pudo obtener duración de la ruta")
+                self.mostrar_mensaje("No se pudo obtener duración de la ruta", False)
                 return
 
             # Obtener horarios asignados a esta ruta (excluyendo la asignación actual)
@@ -1278,6 +1275,9 @@ class InterfazModificarAsignacion(QWidget):
             """
             todos_horarios = self.db.fetch_all(query_horarios)
             
+            # Evitar N+1: obtener set de horarios ya asignados a la ruta (excluyendo la asignación actual)
+            asignados_set = _get_asignados_set(self.db, id_ruta, exclude_asignacion=self.id_asignacion)
+
             if todos_horarios:
                 horarios_filtrados = []
                 
@@ -1287,19 +1287,8 @@ class InterfazModificarAsignacion(QWidget):
                     if duracion_horario < duracion:
                         continue
                     
-                    # Verificar si ya está asignado a esta ruta (excluyendo la asignación actual)
-                    query_asignado = """
-                        SELECT COUNT(*) FROM ASIGNACION_TREN 
-                        WHERE ID_HORARIO = :id_horario 
-                        AND ID_RUTA = :id_ruta
-                        AND ID_ASIGNACION != NVL(:id_asignacion, -1)
-                    """
-                    asignado = self.db.fetch_one(query_asignado, {
-                        "id_horario": id_horario,
-                        "id_ruta": id_ruta,
-                        "id_asignacion": self.id_asignacion
-                    })
-                    if asignado and asignado[0] > 0:
+                    # Verificar si ya está asignado a esta ruta (usando set, excluyendo actual)
+                    if id_horario in asignados_set:
                         continue
                     
                     # Validación opcional de 15 minutos
@@ -1324,15 +1313,25 @@ class InterfazModificarAsignacion(QWidget):
                     msg = f"{len(horarios_filtrados)} horarios disponibles"
                     if self.validar_ventana_15min:
                         msg += " (con ventana de 15 min)"
-                    self.label_mensaje.setText(msg)
+                    self.mostrar_mensaje(msg, True)
                 else:
                     self.combo_horario.addItem("No hay horarios disponibles")
-                    self.label_mensaje.setText("No hay horarios que cumplan los requisitos")
+                    self.mostrar_mensaje("No hay horarios que cumplan los requisitos", False)
+            try:
+                dt_ms = (datetime.now() - t0).total_seconds() * 1000
+                self._logger.debug("Horarios(mod): total=%d, filtrados=%d, duracionRuta=%s min, tiempo=%.0f ms",
+                                   len(todos_horarios or []), len(horarios_filtrados) if 'horarios_filtrados' in locals() else 0,
+                                   duracion, dt_ms)
+            except Exception:
+                pass
                     
         except Exception as e:
-            print(f"Error al cargar horarios: {str(e)}")
+            try:
+                self._logger.error("Error al cargar horarios: %s", e)
+            except Exception:
+                pass
             self.combo_horario.addItem("Error al cargar horarios")
-            self.label_mensaje.setText("Error al cargar horarios")
+            self.mostrar_mensaje("Error al cargar horarios", False)
 
     def validar_modificacion(self):
         """Valida la modificación con validaciones opcionales"""
@@ -1463,6 +1462,7 @@ class InterfazModificarAsignacion(QWidget):
         self.label_mensaje.setText("Cargando trenes...")
         
         try:
+            t0 = datetime.now()
             # Primero obtener el rango de tiempo del horario seleccionado
             query_horario = """
                 SELECT HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA
@@ -1515,19 +1515,27 @@ class InterfazModificarAsignacion(QWidget):
                     self.combo_tren.addItem(f"{id_tren} - {nombre}", id_tren)
                 
                 if self.combo_tren.count() > 1:
-                    self.label_mensaje.setText(f"{len(trenes)} trenes disponibles")
+                    self.mostrar_mensaje(f"{len(trenes)} trenes disponibles", True)
                 else:
                     self.combo_tren.clear()
                     self.combo_tren.addItem("No hay trenes disponibles")
-                    self.label_mensaje.setText("No hay trenes para este horario")
+                    self.mostrar_mensaje("No hay trenes para este horario", False)
             else:
                 self.combo_tren.addItem("No hay trenes disponibles")
-                self.label_mensaje.setText("No hay trenes disponibles")
+                self.mostrar_mensaje("No hay trenes disponibles", False)
+            try:
+                dt_ms = (datetime.now() - t0).total_seconds() * 1000
+                self._logger.debug("Trenes disponibles(mod): %d, tiempo=%.0f ms", len(trenes or []), dt_ms)
+            except Exception:
+                pass
                 
         except Exception as e:
-            print(f"Error al cargar trenes: {str(e)}")
+            try:
+                self._logger.error("Error al cargar trenes: %s", e)
+            except Exception:
+                pass
             self.combo_tren.addItem("Error al cargar trenes")
-            self.label_mensaje.setText("Error al cargar datos")
+            self.mostrar_mensaje("Error al cargar datos", False)
 
     def confirmar_modificacion(self):
         try:
@@ -1566,35 +1574,29 @@ class InterfazModificarAsignacion(QWidget):
                 f"Hora llegada real: {asignacion_actual[4] or 'N/A'}"
             )
 
-            # Iniciar transacción
-            cursor = self.db.connection.cursor()
-
-            # Actualizar la asignación
-            cursor.execute("""
+            # Actualizar la asignación (helpers + parámetros nombrados)
+            self.db.execute_query(
+                """
                 UPDATE ASIGNACION_TREN SET
                     ID_TREN = :id_tren,
                     ID_RUTA = :id_ruta,
                     ID_HORARIO = :id_horario
                 WHERE ID_ASIGNACION = :id_asignacion
-            """, {
-                "id_tren": id_tren,
-                "id_ruta": id_ruta,
-                "id_horario": id_horario,
-                "id_asignacion": self.id_asignacion
-            })
+                """,
+                {"id_tren": id_tren, "id_ruta": id_ruta, "id_horario": id_horario, "id_asignacion": self.id_asignacion}
+            )
 
-            # Registrar en historial
-            id_historial = self.db.fetch_one("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")[0]
-            cursor.execute("""
+            # Registrar en historial (usar secuencia HISTORIAL_SEQ)
+            self.db.execute_query(
+                """
                 INSERT INTO HISTORIAL (
                     ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO
                 ) VALUES (
-                    :1, :2, :3, :4, SYSDATE
+                    HISTORIAL_SEQ.NEXTVAL, :info, :id_user, :id_asig, SYSDATE
                 )
-            """, [id_historial, info_historial, self.username, self.id_asignacion])
-
-            # Confirmar la transacción
-            self.db.connection.commit()
+                """,
+                {"info": info_historial, "id_user": self.username, "id_asig": self.id_asignacion}
+            )
 
             # Emitir señal para actualizar la interfaz de home
             self.modificacion_exitosa.emit()
@@ -1608,11 +1610,18 @@ class InterfazModificarAsignacion(QWidget):
 
             # Actualizar interfaz
             #self.ocultar_panel_modificar()
-            self.db.event_manager.update_triggered.emit()
+            try:
+                if getattr(self.db, 'event_manager', None) is not None and hasattr(self.db.event_manager, 'update_triggered'):
+                    self.db.event_manager.update_triggered.emit()
+            except Exception:
+                pass
 
         except oracledb.DatabaseError as e:
             error_obj = e.args[0]
-            print(f"[ERROR ORACLE] Código: {error_obj.code}, Mensaje: {error_obj.message}")
+            try:
+                self._logger.error("Oracle error %s: %s", error_obj.code, error_obj.message)
+            except Exception:
+                pass
             self.db.rollback()
             QMessageBox.critical(
                 self, 
@@ -1621,7 +1630,10 @@ class InterfazModificarAsignacion(QWidget):
             )
 
         except Exception as e:
-            print(f"[ERROR INESPERADO] {str(e)}")
+            try:
+                self._logger.error("Error inesperado en confirmar_modificacion: %s", e)
+            except Exception:
+                pass
             self.db.rollback()
             QMessageBox.critical(
                 self,

@@ -1,10 +1,11 @@
+import logging
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox,
     QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
     QDateTimeEdit, QMessageBox, QScrollArea, QFrame, QAbstractItemView, QHeaderView,
     QSizePolicy
 )
-from PyQt6.QtCore import Qt, QDateTime, QDate
+from PyQt6.QtCore import Qt, QDateTime, QDate, QTimer
 from PyQt6.QtGui import QTextCharFormat, QColor
 from datetime import datetime
 
@@ -18,6 +19,14 @@ class InterfazAgregarIncidencia(QWidget):
         self.setWindowTitle("Agregar Incidencia")
 
         self.fecha_actual = True
+
+        # Logger de módulo
+        self.logger = logging.getLogger(__name__)
+
+        # Timer para coalescer recargas de asignaciones
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.cargar_asignaciones)
 
         self.initUI()
         self.cargar_asignaciones()
@@ -51,9 +60,9 @@ class InterfazAgregarIncidencia(QWidget):
         """)
         self.main_layout.addWidget(titulo)
 
-        # Contenedor para el contenido con ancho fijo
+        # Contenedor para el contenido (expansivo a lo ancho)
         self.content_container = QWidget()
-        self.content_container.setFixedWidth(1250)
+        self.content_container.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         content_layout = QVBoxLayout(self.content_container)
         content_layout.setContentsMargins(0, 0, 0, 0)
         content_layout.setSpacing(15)
@@ -92,7 +101,8 @@ class InterfazAgregarIncidencia(QWidget):
 
         # Ajustar tamaño de columnas y filas
         self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
-        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.Stretch)
+        # Dar más espacio a la columna de Ruta: tren a tamaño de contenido, ruta en expansión
+        self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
         self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
         self.tabla_asignaciones.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
 
@@ -104,6 +114,12 @@ class InterfazAgregarIncidencia(QWidget):
         # Configurar scrollbars
         self.tabla_asignaciones.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.tabla_asignaciones.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.tabla_asignaciones.setWordWrap(True)
+        # Evitar elipsis en celdas; permitir que el alto de fila crezca con wrap
+        try:
+            self.tabla_asignaciones.setTextElideMode(Qt.TextElideMode.ElideNone)
+        except Exception:
+            pass
 
         content_layout.addWidget(self.tabla_asignaciones)
 
@@ -402,7 +418,11 @@ class InterfazAgregarIncidencia(QWidget):
             LEFT JOIN RUTAS_ORDEN RORD ON RORD.ID_RUTA = A.ID_RUTA
             ORDER BY A.ID_ASIGNACION
         """
-        asignaciones = self.db.fetch_all(query)
+        try:
+            asignaciones = self.db.fetch_all(query) or []
+        except Exception:
+            self.logger.exception("Error cargando asignaciones para incidencias")
+            asignaciones = []
 
         # Mejorar rendimiento durante la carga de datos
         self.tabla_asignaciones.setUpdatesEnabled(False)
@@ -423,44 +443,39 @@ class InterfazAgregarIncidencia(QWidget):
             self.tabla_asignaciones.setUpdatesEnabled(True)
 
     def obtener_info(self):
-        cursor = self.db.connection.cursor()
-        # Obtener ID_RUTA e ID_TREN de la asignacion
-        cursor.execute("""
-            SELECT ID_HORARIO, ID_TREN, ID_RUTA FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
-        """, (self.id_asignacion,))
-        id_horario, id_tren, id_ruta = cursor.fetchone()
-
-        #Obtener duracion estimada y orden de las estaciones
-        cursor.execute("""
-            SELECT DURACION_ESTIMADA,
-                   LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-            FROM RUTA R
-            JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-            JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-            WHERE R.ID_RUTA = :1
-            GROUP BY R.DURACION_ESTIMADA
-        """, (id_ruta,))
-        resultado_ruta = cursor.fetchone()
-        duracion = resultado_ruta[0]
-        estaciones = resultado_ruta[1]
-
-        # Obtener hora inicio y fin del horario
-        cursor.execute("""
-            SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
-            TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-            FROM HORARIO WHERE ID_HORARIO = :1
-        """, (id_horario,))
-        hora_inicio, hora_fin = cursor.fetchone()
-
-        # Obtener nombre del tren
-        cursor.execute("""
-            SELECT NOMBRE FROM TREN WHERE ID_TREN = :1
-        """, (id_tren,))
-        nombre_tren = cursor.fetchone()
-
-        # Construir el string de información
-        info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren: {nombre_tren}"
-        return info
+        """Obtiene un resumen de la asignación en un solo roundtrip.
+        Devuelve: "Duración: X; Orden: a → b → c; Horario: hh:mm:ss - hh:mm:ss; Tren: Nombre"
+        """
+        try:
+            row = self.db.fetch_one(
+                """
+                SELECT R.DURACION_ESTIMADA,
+                       (SELECT LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN)
+                          FROM RUTA_DETALLE RD
+                          JOIN ESTACION E ON E.ID_ESTACION = RD.ID_ESTACION
+                         WHERE RD.ID_RUTA = A.ID_RUTA) AS ESTACIONES,
+                       TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS HORA_INI,
+                       TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS HORA_FIN,
+                       T.NOMBRE AS NOMBRE_TREN
+                  FROM ASIGNACION_TREN A
+                  JOIN HORARIO H ON H.ID_HORARIO = A.ID_HORARIO
+                  JOIN TREN T ON T.ID_TREN = A.ID_TREN
+                  JOIN RUTA R ON R.ID_RUTA = A.ID_RUTA
+                 WHERE A.ID_ASIGNACION = :id_asig
+                """,
+                {"id_asig": self.id_asignacion},
+            )
+            if not row:
+                return ""
+            duracion, estaciones, hora_ini, hora_fin, nombre_tren = row
+            estaciones = estaciones or ""
+            nombre_tren = nombre_tren or ""
+            hora_ini = hora_ini or ""
+            hora_fin = hora_fin or ""
+            return f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_ini} - {hora_fin}; Tren: {nombre_tren}"
+        except Exception:
+            self.logger.exception("Error obteniendo información de asignación %s", getattr(self, 'id_asignacion', None))
+            return ""
 
     def insertar_incidencia(self):
         fila = self.tabla_asignaciones.currentRow()
@@ -477,57 +492,71 @@ class InterfazAgregarIncidencia(QWidget):
             QMessageBox.warning(self, "Error", "La descripción no puede estar vacía.")
             return
 
-        if self.fecha_actual:
-            fecha_hora = "SYSDATE"
-            use_sysdate = True
-        else:
+        use_sysdate = self.fecha_actual
+        if not use_sysdate:
             fecha_qt = self.datetime_edit.dateTime().toPyDateTime()
             fecha_hora = fecha_qt.strftime("%Y-%m-%d %H:%M:%S")
-            use_sysdate = False
 
         try:
-            cursor = self.db.connection.cursor()
-            # Obtener nuevo ID
-            cursor.execute("SELECT NVL(MAX(ID_INCIDENCIA), 0) + 1 FROM INCIDENCIA")
-            nuevo_id = cursor.fetchone()[0]
+            # Obtener nuevo ID de incidencia (política vigente: solo MAX+1; no usar secuencias aquí)
+            row_max = self.db.fetch_one("SELECT NVL(MAX(ID_INCIDENCIA), 0) + 1 FROM INCIDENCIA")
+            nuevo_id = row_max[0] if row_max else 1
+
+            # Insertar la incidencia
             if use_sysdate:
-                # Inserta en incidencia
-                cursor.execute("""
+                self.db.execute_query(
+                    """
                     INSERT INTO INCIDENCIA (ID_INCIDENCIA, ID_ASIGNACION, TIPO, DESCRIPCION, FECHA_HORA, ESTADO)
-                    VALUES (:1, :2, UPPER(:3), :4, SYSDATE, UPPER(:5))
-                """, (nuevo_id, self.id_asignacion, tipo, descripcion, estado))
-                
-                # Obtiene la informacion de la asignacion
-                info = self.obtener_info()
-                
-                #Inserta en historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id_his = cursor.fetchone()[0]
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, ID_INCIDENCIA, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, :5, SYSDATE)
-                """, (nuevo_id_his, info, self.username, self.id_asignacion, nuevo_id,))
+                    VALUES (:id, :asig, UPPER(:tipo), :descripcion, SYSDATE, UPPER(:estado))
+                    """,
+                    {"id": nuevo_id, "asig": self.id_asignacion, "tipo": tipo, "descripcion": descripcion, "estado": estado},
+                )
             else:
-                cursor.execute("""
+                self.db.execute_query(
+                    """
                     INSERT INTO INCIDENCIA (ID_INCIDENCIA, ID_ASIGNACION, TIPO, DESCRIPCION, FECHA_HORA, ESTADO)
-                    VALUES (:1, :2, UPPER(:3), :4, TO_DATE(:5, 'YYYY-MM-DD HH24:MI:SS'), UPPER(:6))
-                """, (nuevo_id, self.id_asignacion, tipo, descripcion, fecha_hora, estado))
-            
-            self.db.connection.commit()
-            # Emitir la señal update_triggered
-            self.db.event_manager.update_triggered.emit()
+                    VALUES (:id, :asig, UPPER(:tipo), :descripcion, TO_DATE(:fh, 'YYYY-MM-DD HH24:MI:SS'), UPPER(:estado))
+                    """,
+                    {"id": nuevo_id, "asig": self.id_asignacion, "tipo": tipo, "descripcion": descripcion, "fh": fecha_hora, "estado": estado},
+                )
+
+            # Insertar en HISTORIAL (siempre) con secuencia
+            info = self.obtener_info()
+            self.db.execute_query(
+                """
+                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, ID_INCIDENCIA, FECHA_REGISTRO)
+                VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :usuario, :id_asig, :id_incid, SYSDATE)
+                """,
+                {"info": info, "usuario": self.username, "id_asig": self.id_asignacion, "id_incid": nuevo_id},
+            )
+
+            # Emitir la señal update_triggered de forma segura
+            try:
+                if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                    self.db.event_manager.update_triggered.emit()
+            except Exception:
+                self.logger.exception("Fallo al emitir update_triggered tras insertar incidencia")
+
             QMessageBox.information(self, "Éxito", "Incidencia registrada correctamente.")
+            # Evitar refresco inmediato local para no duplicar cargas con la vista padre;
+            # el padre ya programa su propia recarga coalescida.
             # Restablecer formulario sin recargar la tabla (rápido)
             self.tipo_combo.setCurrentIndex(0)
             self.descripcion_input.clear()
             self.estado_combo.setCurrentIndex(0)
             self.datetime_edit.setDateTime(QDateTime.currentDateTime())
             self.datetime_edit.setEnabled(False)
-            #if self.confirmar_callback:
-            #    self.confirmar_callback()
         except Exception as e:
-            self.db.rollback()
+            self.logger.exception("Error al insertar incidencia para asignación %s", self.id_asignacion)
             QMessageBox.critical(self, "Error al insertar", str(e))
 
     def actualizar_datos(self):
-        self.cargar_asignaciones()
+        # Coalescer recargas para evitar parpadeos en la tabla
+        try:
+            if self._refresh_timer.isActive():
+                self._refresh_timer.stop()
+            self._refresh_timer.start(150)
+            self.logger.debug("Programada recarga de asignaciones en 150 ms")
+        except Exception:
+            self.logger.exception("Fallo programando recarga; cargando directamente")
+            self.cargar_asignaciones()

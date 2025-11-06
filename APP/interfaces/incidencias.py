@@ -1,9 +1,9 @@
+import logging
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QTableWidget, 
                              QTableWidgetItem, QPushButton, QHBoxLayout, 
                              QSizePolicy, QHeaderView, QStackedWidget, QScrollArea,
                              QMessageBox, QFrame, QAbstractItemView)
-from PyQt6.QtCore import Qt
-from base_de_datos.db import DatabaseConnection
+from PyQt6.QtCore import Qt, QTimer
 from interfaces.paneles.panel_incidencias import InterfazAgregarIncidencia
 from PyQt6.QtGui import QPixmap
 from utils import obtener_ruta_recurso
@@ -14,6 +14,12 @@ class GestionIncidencias(QWidget):
         self.username = username
         self.main_window = main_window
         self.db = db
+        self.logger = logging.getLogger(__name__)
+
+        # Timer para coalescer recargas
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self.load_incidencias)
 
         self.setWindowTitle("Gestión de Incidencias")
         self.setGeometry(100, 100, 1000, 600)
@@ -258,7 +264,8 @@ class GestionIncidencias(QWidget):
         self.scroll_incidencias.setWidgetResizable(True)
         self.scroll_incidencias.hide()
         self.panel_incidencias = InterfazAgregarIncidencia(self.main_window, self.db, self.username)
-        self.db.event_manager.update_triggered.connect(self.panel_incidencias.actualizar_datos)
+        # Nota: evitamos conectar update_triggered -> panel_incidencias.actualizar_datos para no duplicar recargas
+        # que no aportan cambios en la lista de asignaciones.
         self.panel_incidencias.btn_cancelar.clicked.connect(self.ocultar_panel)
         self.panel_incidencias.btn_confirmar.clicked.connect(self.ocultar_panel)
         self.panel_incidencias.btn_confirmar.clicked.connect(self.actualizar_datos)
@@ -338,8 +345,16 @@ class GestionIncidencias(QWidget):
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
-        print("Actualizando datos de GestionHorariosRutas")
-        self.load_incidencias()
+        # Coalescer llamadas cercanas para evitar repaints innecesarios
+        try:
+            if self._refresh_timer.isActive():
+                self._refresh_timer.stop()
+            self._refresh_timer.start(150)
+            self.logger.debug("Programada recarga de incidencias en 150 ms")
+        except Exception:
+            # Fallback directo si el timer falla
+            self.logger.exception("Fallo programando recarga; cargando directamente")
+            self.load_incidencias()
     
     #def _con_titulo(self, titulo, tabla):
     #    """Devuelve un widget vertical con título y tabla"""
@@ -353,36 +368,42 @@ class GestionIncidencias(QWidget):
     #    return widget
 
     def mostrar_afectaciones_no_resuelta(self, row, col):
-        id_asignacion = self.tabla_no_resueltas.item(row, 1).text()
-        cursor = self.db.connection.cursor()
+        item = self.tabla_no_resueltas.item(row, 1)
+        if item is None:
+            return
+        id_asignacion = item.text()
         self.btn_resolver_incidencia.setEnabled(True)
-
         try:
             # Obtener hora de salida e ID_RUTA de la asignación seleccionada
-            cursor.execute("""
+            fila = self.db.fetch_one(
+                """
                 SELECT H.HORA_SALIDA_PROGRAMADA, A.ID_RUTA
                 FROM ASIGNACION_TREN A
                 JOIN HORARIO H ON H.ID_HORARIO = A.ID_HORARIO
-                WHERE A.ID_ASIGNACION = :1
-            """, (id_asignacion,))
-            fila = cursor.fetchone()
+                WHERE A.ID_ASIGNACION = :id
+                """,
+                {"id": id_asignacion},
+            )
             if not fila:
                 self._cargar_tabla(self.tabla_horarios_afectados, [])
                 return
             hora_salida, id_ruta = fila
 
             # Obtener estaciones ordenadas de la ruta
-            cursor.execute("""
+            _row_ord = self.db.fetch_one(
+                """
                 SELECT LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN)
                 FROM RUTA_DETALLE RD
                 JOIN ESTACION E ON E.ID_ESTACION = RD.ID_ESTACION
-                WHERE RD.ID_RUTA = :1
-            """, (id_ruta,))
-            _row_ord = cursor.fetchone()
+                WHERE RD.ID_RUTA = :id_ruta
+                """,
+                {"id_ruta": id_ruta},
+            )
             orden_ruta = _row_ord[0] if _row_ord and _row_ord[0] else None
 
             # Obtener asignaciones futuras en la misma ruta, con tren incluido (comparando por hora)
-            cursor.execute("""
+            filas = self.db.fetch_all(
+                """
                 SELECT A.ID_ASIGNACION,
                        TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI'),
                        TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI'),
@@ -390,17 +411,19 @@ class GestionIncidencias(QWidget):
                 FROM ASIGNACION_TREN A
                 JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
                 JOIN TREN T ON A.ID_TREN = T.ID_TREN
-                WHERE A.ID_RUTA = :1 AND H.HORA_SALIDA_PROGRAMADA > :2
+                WHERE A.ID_RUTA = :id_ruta AND H.HORA_SALIDA_PROGRAMADA > :hora
                 ORDER BY H.HORA_SALIDA_PROGRAMADA
-            """, (id_ruta, hora_salida))
-            filas = cursor.fetchall()
+                """,
+                {"id_ruta": id_ruta, "hora": hora_salida},
+            ) or []
 
             # Agregar ruta (igual para todas) y tren individual
             ruta_str = orden_ruta if orden_ruta is not None else ""
             afectadas = [(f[0], f[1], f[2], ruta_str, f[3]) for f in filas]
             self._cargar_tabla(self.tabla_horarios_afectados, afectadas)
-        finally:
-            cursor.close()
+        except Exception:
+            self.logger.exception("Error mostrando afectaciones (no resuelta) para asignación %s", id_asignacion)
+            self._cargar_tabla(self.tabla_horarios_afectados, [])
             
     """Resumen de la lógica actual
     No resueltas: misma ruta, comparación por DATE real 
@@ -413,14 +436,18 @@ class GestionIncidencias(QWidget):
     """
 
     def mostrar_afectaciones_resuelta(self, row, col):
-        id_incidencia = self.tabla_resueltas.item(row, 0).text()
-        cursor = self.db.connection.cursor()
+        item = self.tabla_resueltas.item(row, 0)
+        if item is None:
+            return
+        id_incidencia = item.text()
         self.btn_resolver_incidencia.setEnabled(False)
 
         try:
             # 1) Intentar obtener ORDEN y HORARIO desde HISTORIAL (estado "congelado")
-            cursor.execute("SELECT INFORMACION FROM HISTORIAL WHERE ID_INCIDENCIA = :1", (id_incidencia,))
-            row_info = cursor.fetchone()
+            row_info = self.db.fetch_one(
+                "SELECT INFORMACION FROM HISTORIAL WHERE ID_INCIDENCIA = :id",
+                {"id": id_incidencia},
+            )
 
             orden_objetivo_norm = None
             hora_inicio_str = None
@@ -441,7 +468,8 @@ class GestionIncidencias(QWidget):
             if orden_objetivo_norm and hora_inicio_str:
                 # 2) Buscar asignaciones en cualquier ruta cuyo ORDEN coincida y sean posteriores a la hora del historial
                 #    Comparación por DATE usando solo la parte de hora (independiente de la fecha).
-                cursor.execute("""
+                filas = self.db.fetch_all(
+                    """
                     WITH RUTAS_ORDEN AS (
                         SELECT RD.ID_RUTA,
                                LISTAGG(E.NOMBRE, ' - ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ORDEN
@@ -461,8 +489,9 @@ class GestionIncidencias(QWidget):
                       AND (H.HORA_SALIDA_PROGRAMADA - TRUNC(H.HORA_SALIDA_PROGRAMADA)) >=
                           (TO_DATE(:hora_str, 'HH24:MI:SS') - TRUNC(TO_DATE(:hora_str, 'HH24:MI:SS')))
                     ORDER BY H.HORA_SALIDA_PROGRAMADA
-                """, {"orden": orden_objetivo_norm, "hora_str": hora_inicio_str})
-                filas = cursor.fetchall()
+                    """,
+                    {"orden": orden_objetivo_norm, "hora_str": hora_inicio_str},
+                ) or []
 
                 ruta_display = orden_objetivo_norm.replace(' - ', ' → ')
                 afectadas = [(f[0], f[1], f[2], ruta_display, f[3]) for f in filas]
@@ -470,29 +499,34 @@ class GestionIncidencias(QWidget):
                 return
 
             # 3) Fallback: usar la ruta/hora actual de la incidencia y derivar ORDEN en vivo
-            cursor.execute("""
+            fila = self.db.fetch_one(
+                """
                 SELECT A.ID_RUTA, H.HORA_SALIDA_PROGRAMADA
                 FROM INCIDENCIA I
                 JOIN ASIGNACION_TREN A ON A.ID_ASIGNACION = I.ID_ASIGNACION
                 JOIN HORARIO H ON H.ID_HORARIO = A.ID_HORARIO
                 WHERE I.ID_INCIDENCIA = :1
-            """, (id_incidencia,))
-            fila = cursor.fetchone()
+                """,
+                {"id": id_incidencia},
+            )
             if not fila:
                 self._cargar_tabla(self.tabla_horarios_afectados, [])
                 return
             id_ruta, hora_salida = fila
 
-            cursor.execute("""
+            row_ord = self.db.fetch_one(
+                """
                 SELECT LISTAGG(E.NOMBRE, ' - ') WITHIN GROUP (ORDER BY RD.ORDEN)
                 FROM RUTA_DETALLE RD
                 JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
                 WHERE RD.ID_RUTA = :1
-            """, (id_ruta,))
-            row_ord = cursor.fetchone()
+                """,
+                {"id_ruta": id_ruta},
+            )
             orden_objetivo_norm = row_ord[0] if row_ord and row_ord[0] else ''
 
-            cursor.execute("""
+            filas = self.db.fetch_all(
+                """
                 WITH RUTAS_ORDEN AS (
                     SELECT RD.ID_RUTA,
                            LISTAGG(E.NOMBRE, ' - ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ORDEN
@@ -511,14 +545,16 @@ class GestionIncidencias(QWidget):
                 WHERE R.ORDEN = :orden
                   AND (H.HORA_SALIDA_PROGRAMADA - TRUNC(H.HORA_SALIDA_PROGRAMADA)) >= (:hora_ref - TRUNC(:hora_ref))
                 ORDER BY H.HORA_SALIDA_PROGRAMADA
-            """, {"orden": orden_objetivo_norm, "hora_ref": hora_salida})
-            filas = cursor.fetchall()
+                """,
+                {"orden": orden_objetivo_norm, "hora_ref": hora_salida},
+            ) or []
 
             ruta_display = orden_objetivo_norm.replace(' - ', ' → ')
             afectadas = [(f[0], f[1], f[2], ruta_display, f[3]) for f in filas]
             self._cargar_tabla(self.tabla_horarios_afectados, afectadas)
-        finally:
-            cursor.close()
+        except Exception:
+            self.logger.exception("Error mostrando afectaciones (resuelta) para incidencia %s", id_incidencia)
+            self._cargar_tabla(self.tabla_horarios_afectados, [])
 
     def _normalizar_orden_str(self, s: str) -> str:
         """Normaliza el string de orden de estaciones a formato 'A - B - C' para comparaciones.
@@ -547,7 +583,11 @@ class GestionIncidencias(QWidget):
                    ESTADO
             FROM INCIDENCIA
         """
-        filas = self.db.fetch_all(query)
+        try:
+            filas = self.db.fetch_all(query)
+        except Exception:
+            self.logger.exception("Error cargando incidencias")
+            filas = []
 
         no_resueltas = [f[:5] for f in filas if str(f[5]).upper().startswith('NO RESUELT')]
         resueltas = [f[:5] for f in filas if str(f[5]).upper().startswith('RESUELT')]
@@ -583,8 +623,10 @@ class GestionIncidencias(QWidget):
         if fila == -1:
             QMessageBox.warning(self, "Advertencia", "Selecciona una incidencia a resolver.")
             return
-        id_incidencia = self.tabla_no_resueltas.item(fila, 0).text()
-        cursor = self.db.connection.cursor()
+        item = self.tabla_no_resueltas.item(fila, 0)
+        if item is None:
+            return
+        id_incidencia = item.text()
         
         confirmacion = QMessageBox(self)
         confirmacion.setIcon(QMessageBox.Icon.Question)
@@ -597,13 +639,20 @@ class GestionIncidencias(QWidget):
             # Ejecutar el diálogo y verificar explícitamente el botón pulsado
             confirmacion.exec()
             if confirmacion.clickedButton() == boton_si:
-                cursor.execute("""
+                self.db.execute_query(
+                    """
                     UPDATE INCIDENCIA
                     SET ESTADO = 'RESUELTO'
-                    WHERE ID_INCIDENCIA = :1
-                """, (id_incidencia,))
-                self.db.connection.commit()
-                self.db.event_manager.update_triggered.emit()
+                    WHERE ID_INCIDENCIA = :id
+                    """,
+                    {"id": id_incidencia},
+                )
+                # Emitir evento de actualización si existe
+                try:
+                    if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                        self.db.event_manager.update_triggered.emit()
+                except Exception:
+                    self.logger.exception("Fallo al emitir update_triggered tras resolver incidencia")
                 QMessageBox.information(self, "Éxito", f"Incidencia {id_incidencia} marcada como resuelta.")
                 # Actualizar tablas de forma liviana
                 self.load_incidencias()
@@ -613,7 +662,5 @@ class GestionIncidencias(QWidget):
             self.tabla_horarios_afectados.clearContents()
             self.tabla_horarios_afectados.setRowCount(0)
         except Exception as e:
-            self.db.connection.rollback()
+            self.logger.exception("Error resolviendo incidencia %s", id_incidencia)
             QMessageBox.critical(self, "Error", f"No se pudo resolver la incidencia: {str(e)}")
-        finally:
-            cursor.close()

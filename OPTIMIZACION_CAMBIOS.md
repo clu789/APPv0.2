@@ -142,3 +142,123 @@ Cambios aprobados y aplicados (1, 2, 3, 4, 5, 6, 9, 14[seq HISTORIAL]):
 - (5) Integración segura con EventManager: emisión de `update_triggered` solo si existe; fallback a refresco local.
 - (6) Coalescer recargas: se introduce `self._refresh_timer` (single-shot) y `actualizar_datos()` programa la recarga.
 - (9) Limpiezas menores: eliminación de `hide()` duplicado, conversión del timer de reloj a atributo y remoción de configuraciones duplicadas de scrollbars.
+
+## APP/interfaces/asignacion.py
+
+Fecha: 2025-10-26
+
+Cambios aprobados y aplicados (1, 2, 3[solo secuencia en HISTORIAL], 4, 8, 10, 11):
+- (1) Logger: se añade `logging.getLogger(__name__)` en ambas clases y se reemplazan prints por logs (niveles debug/error).
+- (2) Acceso a BD consistente: `confirmar_asignacion` y `confirmar_modificacion` migran a helpers (`execute_query`, `fetch_one`, `fetch_all`) con parámetros nombrados; se elimina el manejo manual de cursores/commit.
+- (3) Secuencia para HISTORIAL: en `confirmar_modificacion` las inserciones ahora usan `HISTORIAL_SEQ.NEXTVAL`. No se agregaron nuevas inserciones fuera del flujo existente.
+- (4) Emisión segura de eventos: `update_triggered` se emite solo si `db.event_manager` existe y expone la señal, evitando errores si no está inicializado.
+- (8) Validaciones y nulos: `confirmar_asignacion` llama a `validar_asignacion()` y verifica `currentData()` no nulo antes de insertar.
+- (10) DRY helpers: se extraen `_load_route_image_helper` y `_cargar_rutas_helper` para compartir la lógica entre ambas clases (carga de imagen y rutas).
+- (11) SQL expresivo y consistente: consultas con binds nombrados y estilo uniforme; sin concatenación de parámetros.
+
+Notas:
+- No se añadieron registros extra a `HISTORIAL`; solo se cambió a `HISTORIAL_SEQ.NEXTVAL` donde ya se insertaba.
+- La carga de imágenes ahora centraliza el manejo de LOB/bytes y errores, con escalado suave.
+
+Cambios adicionales aprobados y aplicados (6, 9, 12, 14):
+- (6) Evitar N+1 al filtrar horarios: se agrega `_get_asignados_set(...)` para precargar `ID_HORARIO` asignados por ruta (y excluir la asignación actual en modificar). Se elimina el `SELECT COUNT(*)` por cada fila.
+- (9) Escalado responsivo de imagen: guardamos el `QPixmap` original al cargar y reescalamos en `resizeEvent` de ambas clases mediante `_rescale_route_image(...)`.
+- (12) Mensajería uniforme: se usa `mostrar_mensaje(...)` para estados de éxito/aviso/error en cargas de horarios y trenes; se homogenizan textos.
+- (14) Métricas debug ligeras: logs `debug` con conteos (total/filtrados de horarios, trenes disponibles) y tiempos aproximados en ms para diagnósticos.
+
+## APP/interfaces/horarios.py
+
+Fecha: 2025-11-03
+
+Cambios aprobados y aplicados (1, 2, 3, 6, 7, 8, 10, 11, 12, 13):
+- (1) Acceso a BD con helpers y parámetros nombrados: migración de operaciones a `fetch_one`/`fetch_all`/`execute_query` con binds nombrados; se evita el cursor manual.
+- (2) Secuencia para HISTORIAL: todas las inserciones a `HISTORIAL` usan `HISTORIAL_SEQ.NEXTVAL`.
+- (3) Emisión segura de eventos: `update_triggered` se emite solo si existe `db.event_manager` y la señal.
+- (6) Logger por módulo: se añade `logging.getLogger(__name__)`; se reemplazan prints por `logger.debug` y se agregan logs informativos en cargas y eliminaciones.
+- (7) Transacciones robustas: se ejecutan operaciones de eliminación + historial dentro de un único bloque PL/SQL por llamada (atómico) y con commit automático del helper.
+- (8) Carga robusta de imagen de ruta: uso de `fetch_one` y helper `_read_blob_to_bytes` para compatibilidad `LOB/bytes/memoryview`, conservando la escala suave.
+- (10) Limpieza de código: se elimina bloque grande de UI comentado (botones antiguos) para mejorar mantenibilidad.
+- (11) UX scroll: `singleShot` de 50 ms y verificación de visibilidad del panel antes de desplazar el scroll.
+- (12) Mensajes de error informativos: en eliminaciones, se muestran IDs involucrados y pista ante errores de integridad referencial (ORA-02291/02292).
+- (13) Validaciones suaves/tipos: helper `_get_selected_id(...)` para castear IDs de forma segura y uso en flujos de edición/eliminación.
+
+Notas:
+- Se mantuvo la lógica de confirmación (QMessageBox) existente salvo en `eliminar_asignacion`, que ya usaba `QMessageBox.question` estándar.
+
+## APP/interfaces/paneles/panel_horarios.py
+
+Fecha: 2025-11-04
+
+Cambios aprobados y aplicados (1, 2, 3, 6, 7, 13):
+- (1) Uso de helpers de BD con parámetros nombrados en `consultar()` y `confirmar()` de ambas clases; se elimina el manejo manual de cursores.
+- (2) Secuencia para `HISTORIAL`: inserción en `InterfazEditarHorario.confirmar` usa `HISTORIAL_SEQ.NEXTVAL`.
+- (3) Emisión segura de eventos: `update_triggered` se emite solo si el `EventManager` existe y expone la señal.
+- (6) Logger por módulo: se añade `logging.getLogger(__name__)` y logs informativos en consultas/inserciones/actualizaciones y errores.
+- (7) Commit/rollback gestionado por helpers: se retiran `commit()`/`rollback()` manuales; los helpers hacen commit automático; en errores se muestra un mensaje y se registra en logs.
+- (13) Señales tras éxito real: se emiten `asignacion_exitosa` y `update_triggered` únicamente cuando las operaciones en BD concluyen sin excepción.
+
+Cambio adicional (4) - 2025-11-05:
+- Validación de duplicados optimizada: se sustituyeron comprobaciones con `COUNT(*)` por `EXISTS` en `consultar()` y `confirmar()` de ambas clases para evitar escaneos innecesarios y mejorar el rendimiento.
+
+## APP/interfaces/paneles/panel_rutas.py
+
+Fecha: 2025-11-05
+
+Cambios aprobados y aplicados (1, 2, 3, 7, 8, 10, 14, 15):
+- (1) Helpers y parámetros nombrados: migración de consultas/actualizaciones a `fetch_one`, `fetch_all`, `execute_query` con binds nombrados. Se eliminan cursores manuales y `commit()/rollback()` explícitos.
+- (2) Secuencia para HISTORIAL: inserciones en edición usan `HISTORIAL_SEQ.NEXTVAL`.
+- (3) Emisión segura de eventos: `update_triggered` y `asignacion_exitosa` solo tras éxito y con guardas por existencia de señal.
+- (7) Manejo robusto de imagen: lectura con try/except; si falla, se continúa sin imagen mostrando aviso.
+- (8) Logger por módulo: se añade `logging` y se sustituyen prints/errores silenciosos por logs informativos y de error.
+- (10) Creación de estación: verificación de duplicado (case-insensitive) antes de insertar; mensajes amigables.
+- (14) Limpieza de imports: unificación y remoción de duplicados/no usados.
+- (15) Edición tolerante a “solo duración”: durante edición, si el orden de estaciones es idéntico a la ruta actual:
+	- Si la duración es igual: no se actualiza y se informa "Una ruta idéntica ya existe".
+	- Si la duración es distinta: se actualiza únicamente la duración (y la imagen si corresponde) y se registra en HISTORIAL.
+
+Ajuste en Consultar (edición):
+- El botón Consultar refleja la misma lógica: si solo cambia la duración, informa explícitamente el cambio propuesto (p. ej. "se actualizaría la duración de X a Y"). Si hay una ruta idéntica con distinto ID, bloquea con el mensaje de duplicado.
+
+## APP/interfaces/monitoreo.py
+
+Fecha: 2025-11-05
+
+Cambios aprobados y aplicados (1, 2, 6, 8):
+- (1) Logger y eliminación de prints: se añade `logging.getLogger(__name__)` y se reemplazan prints por logs (`debug/info/warning/error/exception`) con contexto.
+- (2) Coalescer recargas: se incorpora `self._refresh_timer` (single-shot) y `actualizar_datos()` programa la recarga en 150 ms, evitando ráfagas y parpadeos.
+- (6) Integración segura del timer de progreso: se detiene el `timer_progreso` antes de iniciar una nueva selección, y también al cerrar/limpiar el panel; guardas para evitar solapes/excepciones.
+- (8) Limpieza de imports: se remueven imports no usados y se consolida la cabecera de imports (se elimina `QFont` y `DatabaseConnection`).
+
+Notas:
+- Se añadieron capturas de errores en consultas con mensajes a logs y vaciado seguro de tabla/panel cuando falla la carga.
+
+## APP/interfaces/incidencias.py
+
+Fecha: 2025-11-05
+
+Cambios aprobados y aplicados (1, 2, 3, 4, 6):
+- (1) Helpers de BD y parámetros nombrados: migración de consultas en `mostrar_afectaciones_no_resuelta`, `mostrar_afectaciones_resuelta`, `load_incidencias` y `resolver_incidencia` a `fetch_one`/`fetch_all`/`execute_query` con binds nombrados; se elimina el manejo manual de cursores y `commit()/rollback()` explícitos.
+- (2) Logger por módulo: se añade `logging.getLogger(__name__)` y se sustituyen prints por logs informativos y de error.
+- (3) Emisión y conexión segura de eventos: la conexión a `update_triggered` se realiza solo si existe el `event_manager`; la emisión tras resolver una incidencia se hace con guardas y captura de errores.
+- (4) Coalescer de recargas: `actualizar_datos()` ahora programa la recarga con un `QTimer` single-shot (150 ms) para evitar ráfagas y parpadeos; fallback directo si el timer falla.
+- (6) Limpieza de imports: se elimina `DatabaseConnection` no utilizado y se consolida la cabecera de imports.
+
+Notas:
+- Se mantienen los formatos de hora y las cadenas de ruta existentes (LISTAGG con separadores) para estabilidad visual.
+- Ante errores al cargar afectaciones o incidencias, se registran en logs y se vacía la tabla afectada de forma segura.
+
+## APP/interfaces/paneles/panel_incidencias.py
+
+Fecha: 2025-11-05
+
+Cambios aprobados y aplicados (1, 2, 3[consolidado], 4, 6, 7):
+- (1) Helpers de BD y binds nombrados: `cargar_asignaciones`, `obtener_info` e `insertar_incidencia` usan `fetch_one`/`fetch_all`/`execute_query` con parámetros nombrados; sin cursores manuales ni `commit()/rollback()` explícitos.
+- (2) IDs y auditoría: `INCIDENCIA` usa `NVL(MAX(ID_INCIDENCIA), 0) + 1` por solicitud expresa (no usar secuencias fuera de HISTORIAL); `HISTORIAL` usa siempre `HISTORIAL_SEQ.NEXTVAL` y se inserta en ambos casos (fecha actual o manual).
+- (3) `obtener_info` consolidado: una sola consulta devuelve duración, orden de estaciones (LISTAGG), horario y tren; corrige el bug del nombre del tren y reduce latencia.
+- (4) Coalescer recargas: `actualizar_datos()` programa la recarga con `QTimer` single-shot (150 ms) y registra en logs; fallback directo en caso de error del timer.
+- (6) Emisión segura de eventos: `update_triggered` se emite solo si existe el `event_manager` y la señal; errores capturados en logs.
+- (7) Logging y manejo de errores: logger por módulo; captura de excepciones en carga de asignaciones y en inserción con mensajes al usuario y vaciado seguro cuando corresponde.
+
+Notas:
+- Se mantienen los separadores "→" en las cadenas de rutas para coherencia visual con otras vistas.
+- Se eliminó el intento previo de usar `INCIDENCIA_SEQ` y se fijó la política de ID por `MAX+1` para `INCIDENCIA`.

@@ -3,12 +3,14 @@ from PyQt6.QtWidgets import (
     QVBoxLayout, QHBoxLayout, QMessageBox
 )
 from PyQt6.QtCore import Qt, pyqtSignal
+import logging
 
 class InterfazAgregarHorario(QWidget):
     def __init__(self, main_window, db):
         super().__init__()
         self.main_window = main_window
         self.db = db
+        self._logger = logging.getLogger(__name__)
 
         self.init_ui()
 
@@ -244,20 +246,25 @@ class InterfazAgregarHorario(QWidget):
             return
 
         try:
-            cursor = self.db.connection.cursor()
-            query = """
-                SELECT COUNT(*) FROM HORARIO
-                WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS')
-                  AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-            """
-            cursor.execute(query, (salida + ":00", llegada + ":00"))
-            count = cursor.fetchone()[0]
-
+            self._logger.debug("Consultando disponibilidad de horario %s -> %s", salida, llegada)
+            row = self.db.fetch_one(
+                """
+                SELECT CASE WHEN EXISTS (
+                        SELECT 1 FROM HORARIO
+                        WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:salida, 'HH24:MI:SS')
+                          AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:llegada, 'HH24:MI:SS')
+                ) THEN 1 ELSE 0 END AS existe
+                FROM DUAL
+                """,
+                {"salida": salida + ":00", "llegada": llegada + ":00"},
+            )
+            count = int(row[0]) if row else 0
             if count > 0:
                 QMessageBox.information(self, "Resultado", "El horario ya existe en la base de datos.")
             else:
                 QMessageBox.information(self, "Resultado", "El horario está disponible.")
         except Exception as e:
+            self._logger.error("Error al consultar horario: %s", e)
             QMessageBox.critical(self, "Error al consultar", str(e))
 
     def confirmar(self):
@@ -274,34 +281,50 @@ class InterfazAgregarHorario(QWidget):
             return
     
         try:
-            cursor = self.db.connection.cursor()
-            query = """
-                SELECT COUNT(*) FROM HORARIO
-                WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS')
-                  AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-            """
-            cursor.execute(query, (salida + ":00", llegada + ":00"))
-            count = cursor.fetchone()[0]
+            # Validar duplicado
+            row = self.db.fetch_one(
+                """
+                SELECT CASE WHEN EXISTS (
+                        SELECT 1 FROM HORARIO
+                        WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:salida, 'HH24:MI:SS')
+                          AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:llegada, 'HH24:MI:SS')
+                ) THEN 1 ELSE 0 END AS existe
+                FROM DUAL
+                """,
+                {"salida": salida + ":00", "llegada": llegada + ":00"},
+            )
+            count = int(row[0]) if row else 0
             if count > 0:
                 QMessageBox.information(self, "Resultado", "El horario ya existe en la base de datos.")
+                self.cancelar()
                 return
-            cursor.execute("SELECT NVL(MAX(ID_HORARIO), 0) + 1 FROM HORARIO")
-            nuevo_id = cursor.fetchone()[0]
-    
-            insert = f"""
-                INSERT INTO HORARIO (ID_HORARIO, HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA)
-                VALUES (:1, TO_DATE(:2, 'HH24:MI:SS'), TO_DATE(:3, 'HH24:MI:SS'))
-            """
-            # Se agregan segundos ':00' para cumplir con HH24:MI:SS
-            cursor.execute(insert, (nuevo_id, salida + ":00", llegada + ":00"))
-            self.db.connection.commit()
 
-            # Emitir la señal update_triggered
-            self.db.event_manager.update_triggered.emit()
+            # Obtener nuevo ID (no atómico, mantenemos estrategia actual)
+            row_id = self.db.fetch_one("SELECT NVL(MAX(ID_HORARIO), 0) + 1 FROM HORARIO")
+            nuevo_id = row_id[0] if row_id else None
+            if nuevo_id is None:
+                raise RuntimeError("No se pudo generar un nuevo ID_HORARIO")
+
+            # Insertar
+            self.db.execute_query(
+                """
+                INSERT INTO HORARIO (ID_HORARIO, HORA_SALIDA_PROGRAMADA, HORA_LLEGADA_PROGRAMADA)
+                VALUES (:id_horario, TO_DATE(:salida, 'HH24:MI:SS'), TO_DATE(:llegada, 'HH24:MI:SS'))
+                """,
+                {"id_horario": nuevo_id, "salida": salida + ":00", "llegada": llegada + ":00"},
+            )
+
+            # Emitir señal solo tras éxito
+            if hasattr(self.db, 'event_manager') and self.db.event_manager and hasattr(self.db.event_manager, 'update_triggered'):
+                try:
+                    self.db.event_manager.update_triggered.emit()
+                except Exception:
+                    pass
             QMessageBox.information(self, "Éxito", f"Horario agregado con ID {nuevo_id}.")
+            self._logger.info("Horario agregado id=%s (%s -> %s)", nuevo_id, salida, llegada)
             self.cancelar()
         except Exception as e:
-            self.db.rollback()
+            self._logger.error("Error al insertar horario: %s", e)
             QMessageBox.critical(self, "Error al insertar", str(e))
             
 class InterfazEditarHorario(QWidget):
@@ -311,6 +334,7 @@ class InterfazEditarHorario(QWidget):
         self.username = username
         self.main_window = main_window
         self.db = db
+        self._logger = logging.getLogger(__name__)
         self.id_horario_a_editar = None  # Se usará para almacenar el ID del horario seleccionado
 
         self.init_ui()
@@ -565,20 +589,25 @@ class InterfazEditarHorario(QWidget):
             return
 
         try:
-            cursor = self.db.connection.cursor()
-            query = """
-                SELECT COUNT(*) FROM HORARIO
-                WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS')
-                  AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-            """
-            cursor.execute(query, (salida + ":00", llegada + ":00"))
-            count = cursor.fetchone()[0]
-
+            self._logger.debug("Consultando duplicado para actualización %s -> %s", salida, llegada)
+            row = self.db.fetch_one(
+                """
+                SELECT CASE WHEN EXISTS (
+                        SELECT 1 FROM HORARIO
+                        WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:salida, 'HH24:MI:SS')
+                          AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:llegada, 'HH24:MI:SS')
+                ) THEN 1 ELSE 0 END AS existe
+                FROM DUAL
+                """,
+                {"salida": salida + ":00", "llegada": llegada + ":00"},
+            )
+            count = int(row[0]) if row else 0
             if count > 0:
                 QMessageBox.information(self, "Resultado", "El horario ya existe en la base de datos.")
             else:
                 QMessageBox.information(self, "Resultado", "El horario está disponible.")
         except Exception as e:
+            self._logger.error("Error al consultar horario (edición): %s", e)
             QMessageBox.critical(self, "Error al consultar", str(e))
 
     def confirmar(self):
@@ -607,41 +636,63 @@ class InterfazEditarHorario(QWidget):
         
         try:
             if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                query = """
-                    SELECT COUNT(*) FROM HORARIO
-                    WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS')
-                      AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-                """
-                cursor.execute(query, (salida + ":00", llegada + ":00"))
-                count = cursor.fetchone()[0]
+                # Validar duplicado
+                row = self.db.fetch_one(
+                    """
+                    SELECT CASE WHEN EXISTS (
+                            SELECT 1 FROM HORARIO
+                            WHERE HORA_SALIDA_PROGRAMADA = TO_DATE(:salida, 'HH24:MI:SS')
+                              AND HORA_LLEGADA_PROGRAMADA = TO_DATE(:llegada, 'HH24:MI:SS')
+                    ) THEN 1 ELSE 0 END AS existe
+                    FROM DUAL
+                    """,
+                    {"salida": salida + ":00", "llegada": llegada + ":00"},
+                )
+                count = int(row[0]) if row else 0
                 if count > 0:
                     QMessageBox.information(self, "Resultado", "El horario ya existe en la base de datos.")
                     return
-                
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-                
-                cursor.execute("""
+
+                # Insertar en historial usando secuencia
+                self.db.execute_query(
+                    """
                     INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, self.horario_anterior, self.username, self.id_horario_a_editar,))
-                
-                update = """
+                    VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :id_usuario, :id_horario, SYSDATE)
+                    """,
+                    {
+                        "info": self.horario_anterior,
+                        "id_usuario": self.username,
+                        "id_horario": self.id_horario_a_editar,
+                    },
+                )
+
+                # Actualizar horario
+                self.db.execute_query(
+                    """
                     UPDATE HORARIO
-                    SET HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS'),
-                        HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-                    WHERE ID_HORARIO = :3
-                """
-                # Se agregan segundos ':00' para cumplir con HH24:MI:SS
-                cursor.execute(update, (salida + ":00", llegada + ":00", self.id_horario_a_editar))
-                self.db.connection.commit()
-    
-                 # Emitir señal para actualizar la interfaz
+                    SET HORA_SALIDA_PROGRAMADA = TO_DATE(:salida, 'HH24:MI:SS'),
+                        HORA_LLEGADA_PROGRAMADA = TO_DATE(:llegada, 'HH24:MI:SS')
+                    WHERE ID_HORARIO = :id_horario
+                    """,
+                    {
+                        "salida": salida + ":00",
+                        "llegada": llegada + ":00",
+                        "id_horario": self.id_horario_a_editar,
+                    },
+                )
+
+                # Emitir señales solo tras éxito
                 self.asignacion_exitosa.emit()
-                self.db.event_manager.update_triggered.emit()
-                QMessageBox.information(self, "Éxito", f"Horario actualizado correctamente.")
+                if hasattr(self.db, 'event_manager') and self.db.event_manager and hasattr(self.db.event_manager, 'update_triggered'):
+                    try:
+                        self.db.event_manager.update_triggered.emit()
+                    except Exception:
+                        pass
+                QMessageBox.information(self, "Éxito", "Horario actualizado correctamente.")
+                self._logger.info(
+                    "Horario actualizado id=%s (%s)", self.id_horario_a_editar, self.horario_anterior
+                )
                 self.cancelar()
         except Exception as e:
-            self.db.rollback()
+            self._logger.error("Error al actualizar horario id=%s: %s", self.id_horario_a_editar, e)
             QMessageBox.critical(self, "Error al actualizar", str(e))

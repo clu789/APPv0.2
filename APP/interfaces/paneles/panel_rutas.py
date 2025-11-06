@@ -1,14 +1,11 @@
+import os
+import logging
 from PyQt6.QtWidgets import (
     QWidget, QLabel, QLineEdit, QPushButton, QVBoxLayout, QHBoxLayout,
     QMessageBox, QFileDialog, QListWidget, QComboBox, QAbstractItemView, QFrame
 )
 from PyQt6.QtGui import QPixmap
-from PyQt6.QtCore import Qt ,pyqtSignal
-import os
-from PyQt6.QtCore import Qt, QEvent, QMimeData, QItemSelectionModel, QAbstractItemModel
-from PyQt6.QtCore import Qt
-from PyQt6.QtCore import QEvent, QMimeData, QItemSelectionModel, QAbstractItemModel, QCoreApplication
-from PyQt6.QtCore import Qt, QEvent, QMimeData, QItemSelectionModel, QAbstractItemModel, QCoreApplication, QTimer
+from PyQt6.QtCore import Qt, pyqtSignal
 
 
 class InterfazAgregarRuta(QWidget):
@@ -357,13 +354,16 @@ class InterfazAgregarRuta(QWidget):
 
     def cargar_estaciones_existentes(self):
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute("SELECT ID_ESTACION, NOMBRE FROM ESTACION ORDER BY NOMBRE")
-            self.estaciones = cursor.fetchall()
+            rows = self.db.fetch_all(
+                "SELECT ID_ESTACION, NOMBRE FROM ESTACION ORDER BY NOMBRE",
+                None,
+            )
+            self.estaciones = rows or []
             self.combo_estaciones.clear()
             for id_estacion, nombre in self.estaciones:
                 self.combo_estaciones.addItem(nombre, id_estacion)
         except Exception as e:
+            logging.getLogger(__name__).exception("Error al cargar estaciones")
             QMessageBox.critical(self, "Error al cargar estaciones", str(e))
 
     def agregar_estacion_a_ruta(self):
@@ -415,16 +415,27 @@ class InterfazAgregarRuta(QWidget):
             QMessageBox.warning(self, "Nombre vacío", "Escribe un nombre para la estación.")
             return
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute("SELECT NVL(MAX(ID_ESTACION), 0) + 1 FROM ESTACION")
-            nuevo_id = cursor.fetchone()[0]
-            cursor.execute("INSERT INTO ESTACION (ID_ESTACION, NOMBRE) VALUES (:1, :2)", (nuevo_id, nombre))
-            self.db.connection.commit()
+            # Unicidad por nombre (insensible a mayúsculas)
+            existe = self.db.fetch_one(
+                "SELECT 1 FROM ESTACION WHERE UPPER(NOMBRE) = :nombre",
+                {"nombre": nombre.upper()},
+            )
+            if existe:
+                QMessageBox.information(self, "Duplicado", f"La estación '{nombre}' ya existe.")
+                return
+
+            nuevo_id_row = self.db.fetch_one("SELECT NVL(MAX(ID_ESTACION), 0) + 1 AS ID FROM ESTACION", None)
+            nuevo_id = nuevo_id_row[0] if nuevo_id_row else 1
+
+            self.db.execute_query(
+                "INSERT INTO ESTACION (ID_ESTACION, NOMBRE) VALUES (:id, :nombre)",
+                {"id": nuevo_id, "nombre": nombre},
+            )
             QMessageBox.information(self, "Éxito", f"Estación '{nombre}' agregada.")
             self.input_nueva_estacion.clear()
             self.cargar_estaciones_existentes()
         except Exception as e:
-            self.db.connection.rollback()
+            logging.getLogger(__name__).exception("Error al crear estación")
             QMessageBox.critical(self, "Error", str(e))
 
     def cancelar(self):
@@ -463,34 +474,32 @@ class InterfazAgregarRuta(QWidget):
             return
         
         try:
-            cursor = self.db.connection.cursor()
             # Verifica si ya existe la misma ruta mediante cantidad de estaciones
             # y orden de estaciones
-            query = """
-                SELECT ID_RUTA FROM RUTA
-                WHERE ID_RUTA IN (
-                    SELECT ID_RUTA
-                    FROM RUTA_DETALLE
-                    GROUP BY ID_RUTA
-                    HAVING COUNT(*) = :1
-                )
-            """
-            cursor.execute(query, (len(self.estaciones_agregadas),))
-            posibles = cursor.fetchall()
+            query = (
+                "SELECT ID_RUTA FROM RUTA WHERE ID_RUTA IN ("
+                "    SELECT ID_RUTA FROM RUTA_DETALLE GROUP BY ID_RUTA HAVING COUNT(*) = :count_est"
+                ")"
+            )
+            posibles = self.db.fetch_all(query, {"count_est": len(self.estaciones_agregadas)}) or []
 
             for (id_ruta,) in posibles:
-                cursor.execute("""
-                    SELECT ID_ESTACION
-                    FROM RUTA_DETALLE
-                    WHERE ID_RUTA = :1
-                    ORDER BY ORDEN
-                """, (id_ruta,))
-                ids = [row[0] for row in cursor.fetchall()]
+                ids_rows = self.db.fetch_all(
+                    """
+                        SELECT ID_ESTACION
+                        FROM RUTA_DETALLE
+                        WHERE ID_RUTA = :id_ruta
+                        ORDER BY ORDEN
+                    """,
+                    {"id_ruta": id_ruta},
+                ) or []
+                ids = [row[0] for row in ids_rows]
                 if ids == [e[0] for e in self.estaciones_agregadas]:
                     QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
                     return
             QMessageBox.information(self, "Resultado", "La ruta no existe, puedes usarla.")
         except Exception as e:
+            logging.getLogger(__name__).exception("Error en consulta de duplicados de ruta")
             QMessageBox.critical(self, "Error", str(e))
 
     def confirmar(self):
@@ -501,59 +510,81 @@ class InterfazAgregarRuta(QWidget):
         
         duracion = self.input_duracion.text().strip()
         try:
-            cursor = self.db.connection.cursor()
             # Verifica si ya existe la misma ruta mediante cantidad de estaciones
             # y orden de estaciones
-            query = """
-                SELECT ID_RUTA FROM RUTA
-                WHERE ID_RUTA IN (
-                    SELECT ID_RUTA
-                    FROM RUTA_DETALLE
-                    GROUP BY ID_RUTA
-                    HAVING COUNT(*) = :1
-                )
-            """
-            cursor.execute(query, (len(self.estaciones_agregadas),))
-            posibles = cursor.fetchall()
+            query = (
+                "SELECT ID_RUTA FROM RUTA WHERE ID_RUTA IN ("
+                "    SELECT ID_RUTA FROM RUTA_DETALLE GROUP BY ID_RUTA HAVING COUNT(*) = :count_est"
+                ")"
+            )
+            posibles = self.db.fetch_all(query, {"count_est": len(self.estaciones_agregadas)}) or []
             for (id_ruta,) in posibles:
-                cursor.execute("""
-                    SELECT ID_ESTACION
-                    FROM RUTA_DETALLE
-                    WHERE ID_RUTA = :1
-                    ORDER BY ORDEN
-                """, (id_ruta,))
-                ids = [row[0] for row in cursor.fetchall()]
+                ids_rows = self.db.fetch_all(
+                    """
+                        SELECT ID_ESTACION
+                        FROM RUTA_DETALLE
+                        WHERE ID_RUTA = :id_ruta
+                        ORDER BY ORDEN
+                    """,
+                    {"id_ruta": id_ruta},
+                ) or []
+                ids = [row[0] for row in ids_rows]
                 if ids == [e[0] for e in self.estaciones_agregadas]:
                     QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
                     return
-            cursor.execute("SELECT NVL(MAX(ID_RUTA), 0) + 1 FROM RUTA")
-            nuevo_id_ruta = cursor.fetchone()[0]
+
+            nuevo_id_row = self.db.fetch_one("SELECT NVL(MAX(ID_RUTA), 0) + 1 AS ID FROM RUTA", None)
+            nuevo_id_ruta = nuevo_id_row[0] if nuevo_id_row else 1
 
             # Cargar imagen (opcional)
             if self.ruta_imagen:
-                with open(self.ruta_imagen, "rb") as f:
-                    imagen_data = f.read()
-                cursor.execute("INSERT INTO RUTA (ID_RUTA, DURACION_ESTIMADA, IMAGEN) VALUES (:1, :2, :3)",
-                               (nuevo_id_ruta, int(duracion), imagen_data))
+                try:
+                    with open(self.ruta_imagen, "rb") as f:
+                        imagen_data = f.read()
+                except Exception as img_err:
+                    logging.getLogger(__name__).exception("No se pudo leer la imagen de ruta")
+                    QMessageBox.warning(self, "Imagen", "No se pudo leer la imagen seleccionada. Se guardará sin imagen.")
+                    imagen_data = None
+                if imagen_data is not None:
+                    self.db.execute_query(
+                        "INSERT INTO RUTA (ID_RUTA, DURACION_ESTIMADA, IMAGEN) VALUES (:id, :dur, :img)",
+                        {"id": nuevo_id_ruta, "dur": int(duracion), "img": imagen_data},
+                    )
+                else:
+                    self.db.execute_query(
+                        "INSERT INTO RUTA (ID_RUTA, DURACION_ESTIMADA) VALUES (:id, :dur)",
+                        {"id": nuevo_id_ruta, "dur": int(duracion)},
+                    )
             else:
-                cursor.execute("INSERT INTO RUTA (ID_RUTA, DURACION_ESTIMADA) VALUES (:1, :2)",
-                               (nuevo_id_ruta, int(duracion)))
+                self.db.execute_query(
+                    "INSERT INTO RUTA (ID_RUTA, DURACION_ESTIMADA) VALUES (:id, :dur)",
+                    {"id": nuevo_id_ruta, "dur": int(duracion)},
+                )
 
             # Insertar detalles
             for i, (id_estacion, _) in enumerate(self.estaciones_agregadas):
-                cursor.execute("SELECT NVL(MAX(ID_RUTA_DETALLE), 0) + 1 FROM RUTA_DETALLE")
-                id_detalle = cursor.fetchone()[0]
-                cursor.execute("""
-                    INSERT INTO RUTA_DETALLE (ID_RUTA_DETALLE, ID_RUTA, ID_ESTACION)
-                    VALUES (:1, :2, :3)
-                """, (id_detalle, nuevo_id_ruta, id_estacion))
+                id_det_row = self.db.fetch_one("SELECT NVL(MAX(ID_RUTA_DETALLE), 0) + 1 AS ID FROM RUTA_DETALLE", None)
+                id_detalle = id_det_row[0] if id_det_row else 1
+                self.db.execute_query(
+                    """
+                        INSERT INTO RUTA_DETALLE (ID_RUTA_DETALLE, ID_RUTA, ID_ESTACION)
+                        VALUES (:id_det, :id_ruta, :id_est)
+                    """,
+                    {"id_det": id_detalle, "id_ruta": nuevo_id_ruta, "id_est": id_estacion},
+                )
 
-            self.db.connection.commit()
-            self.db.event_manager.update_triggered.emit()
+            # Emitir señales solo si existen
+            if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                self.db.event_manager.update_triggered.emit()
+            if hasattr(self, "asignacion_exitosa"):
+                try:
+                    self.asignacion_exitosa.emit()
+                except Exception:
+                    pass
             QMessageBox.information(self, "Éxito", f"Ruta agregada con ID {nuevo_id_ruta}.")
             self.cancelar()
         except Exception as e:
-            self.db.connection.rollback()
+            logging.getLogger(__name__).exception("Error al confirmar creación de ruta")
             QMessageBox.critical(self, "Error", str(e))
 
 class InterfazEditarRuta(QWidget):
@@ -566,6 +597,7 @@ class InterfazEditarRuta(QWidget):
         self.estaciones_agregadas = []
         self.ruta_imagen = None
         self.id_ruta_a_editar = None
+        self.logger = logging.getLogger(__name__)
 
         self.init_ui()
         self.cargar_estaciones_existentes()
@@ -937,18 +969,21 @@ class InterfazEditarRuta(QWidget):
                 self.lista_estaciones.addItem(nombre)
                 self.estaciones_agregadas.append((id_estacion, nombre))
             else:
-                print(f"⚠️ Estación no encontrada: {nombre}")
+                self.logger.warning("Estación no encontrada al cargar ruta: %s", nombre)
 
 
     def cargar_estaciones_existentes(self):
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute("SELECT ID_ESTACION, NOMBRE FROM ESTACION ORDER BY NOMBRE")
-            self.estaciones = cursor.fetchall()
+            rows = self.db.fetch_all(
+                "SELECT ID_ESTACION, NOMBRE FROM ESTACION ORDER BY NOMBRE",
+                None,
+            )
+            self.estaciones = rows or []
             self.combo_estaciones.clear()
             for id_estacion, nombre in self.estaciones:
                 self.combo_estaciones.addItem(nombre, id_estacion)
         except Exception as e:
+            self.logger.exception("Error al cargar estaciones")
             QMessageBox.critical(self, "Error al cargar estaciones", str(e))
 
     def agregar_estacion_a_ruta(self):
@@ -1000,16 +1035,25 @@ class InterfazEditarRuta(QWidget):
             QMessageBox.warning(self, "Nombre vacío", "Escribe un nombre para la estación.")
             return
         try:
-            cursor = self.db.connection.cursor()
-            cursor.execute("SELECT NVL(MAX(ID_ESTACION), 0) + 1 FROM ESTACION")
-            nuevo_id = cursor.fetchone()[0]
-            cursor.execute("INSERT INTO ESTACION (ID_ESTACION, NOMBRE) VALUES (:1, :2)", (nuevo_id, nombre))
-            self.db.connection.commit()
+            existe = self.db.fetch_one(
+                "SELECT 1 FROM ESTACION WHERE UPPER(NOMBRE) = :nombre",
+                {"nombre": nombre.upper()},
+            )
+            if existe:
+                QMessageBox.information(self, "Duplicado", f"La estación '{nombre}' ya existe.")
+                return
+
+            nuevo_id_row = self.db.fetch_one("SELECT NVL(MAX(ID_ESTACION), 0) + 1 AS ID FROM ESTACION", None)
+            nuevo_id = nuevo_id_row[0] if nuevo_id_row else 1
+            self.db.execute_query(
+                "INSERT INTO ESTACION (ID_ESTACION, NOMBRE) VALUES (:id, :nombre)",
+                {"id": nuevo_id, "nombre": nombre},
+            )
             QMessageBox.information(self, "Éxito", f"Estación '{nombre}' agregada.")
             self.input_nueva_estacion.clear()
             self.cargar_estaciones_existentes()
         except Exception as e:
-            self.db.connection.rollback()
+            self.logger.exception("Error al crear estación")
             QMessageBox.critical(self, "Error", str(e))
 
     def cancelar(self):
@@ -1048,34 +1092,63 @@ class InterfazEditarRuta(QWidget):
             return
         
         try:
-            cursor = self.db.connection.cursor()
-            # Verifica si ya existe la misma ruta mediante cantidad de estaciones
-            # y orden de estaciones
-            query = """
-                SELECT ID_RUTA FROM RUTA
-                WHERE ID_RUTA IN (
-                    SELECT ID_RUTA
-                    FROM RUTA_DETALLE
-                    GROUP BY ID_RUTA
-                    HAVING COUNT(*) = :1
-                )
-            """
-            cursor.execute(query, (len(self.estaciones_agregadas),))
-            posibles = cursor.fetchall()
+            # 1) Buscar otra ruta (distinto ID) con exactamente la misma secuencia de estaciones
+            query = (
+                "SELECT ID_RUTA FROM RUTA WHERE ID_RUTA IN ("
+                "    SELECT ID_RUTA FROM RUTA_DETALLE GROUP BY ID_RUTA HAVING COUNT(*) = :count_est"
+                ") AND ID_RUTA <> :id_actual"
+            )
+            posibles = self.db.fetch_all(
+                query,
+                {"count_est": len(self.estaciones_agregadas), "id_actual": self.id_ruta_a_editar},
+            ) or []
 
+            propuesta_ids = [e[0] for e in self.estaciones_agregadas]
             for (id_ruta,) in posibles:
-                cursor.execute("""
-                    SELECT ID_ESTACION
-                    FROM RUTA_DETALLE
-                    WHERE ID_RUTA = :1
-                    ORDER BY ORDEN
-                """, (id_ruta,))
-                ids = [row[0] for row in cursor.fetchall()]
-                if ids == [e[0] for e in self.estaciones_agregadas]:
+                ids_rows = self.db.fetch_all(
+                    """
+                        SELECT ID_ESTACION
+                        FROM RUTA_DETALLE
+                        WHERE ID_RUTA = :id_ruta
+                        ORDER BY ORDEN
+                    """,
+                    {"id_ruta": id_ruta},
+                ) or []
+                ids = [row[0] for row in ids_rows]
+                if ids == propuesta_ids:
                     QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
                     return
+
+            # 2) Comparar contra la propia ruta actual: si el orden es idéntico
+            actuales_rows = self.db.fetch_all(
+                "SELECT ID_ESTACION FROM RUTA_DETALLE WHERE ID_RUTA = :id ORDER BY ORDEN",
+                {"id": self.id_ruta_a_editar},
+            ) or []
+            actuales_ids = [r[0] for r in actuales_rows]
+
+            if propuesta_ids == actuales_ids:
+                # Si solo varía la duración, informar de ese cambio
+                duracion_nueva = int(self.input_duracion.text().strip())
+                dur_actual_row = self.db.fetch_one(
+                    "SELECT DURACION_ESTIMADA FROM RUTA WHERE ID_RUTA = :id",
+                    {"id": self.id_ruta_a_editar},
+                )
+                duracion_actual = int(dur_actual_row[0]) if dur_actual_row and dur_actual_row[0] is not None else None
+                if duracion_actual is not None and duracion_actual != duracion_nueva:
+                    QMessageBox.information(
+                        self,
+                        "Resultado",
+                        f"La ruta es idéntica en estaciones; se actualizaría la duración de {duracion_actual} a {duracion_nueva}.",
+                    )
+                    return
+                # Si no cambia la duración, realmente no hay cambios que aplicar
+                QMessageBox.information(self, "Resultado", "La ruta es idéntica; no hay cambios por aplicar.")
+                return
+
+            # 3) Si el orden propuesto es diferente al actual y no hay duplicados externos, está disponible
             QMessageBox.information(self, "Resultado", "La ruta no existe, puedes usarla.")
         except Exception as e:
+            self.logger.exception("Error en consulta de duplicados de ruta (editar)")
             QMessageBox.critical(self, "Error", str(e))
 
     def confirmar(self):
@@ -1094,64 +1167,142 @@ class InterfazEditarRuta(QWidget):
         duracion = self.input_duracion.text().strip()
         try:
             if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
                 # Verifica si ya existe la misma ruta mediante cantidad de estaciones
                 # y orden de estaciones
-                query = """
-                    SELECT ID_RUTA FROM RUTA
-                    WHERE ID_RUTA IN (
-                        SELECT ID_RUTA
-                        FROM RUTA_DETALLE
-                        GROUP BY ID_RUTA
-                        HAVING COUNT(*) = :1
-                    )
-                """
-                cursor.execute(query, (len(self.estaciones_agregadas),))
-                posibles = cursor.fetchall()
+                query = (
+                    "SELECT ID_RUTA FROM RUTA WHERE ID_RUTA IN ("
+                    "    SELECT ID_RUTA FROM RUTA_DETALLE GROUP BY ID_RUTA HAVING COUNT(*) = :count_est"
+                    ") AND ID_RUTA <> :id_actual"
+                )
+                posibles = self.db.fetch_all(
+                    query,
+                    {"count_est": len(self.estaciones_agregadas), "id_actual": self.id_ruta_a_editar},
+                ) or []
                 for (id_ruta,) in posibles:
-                    cursor.execute("""
-                        SELECT ID_ESTACION
-                        FROM RUTA_DETALLE
-                        WHERE ID_RUTA = :1
-                        ORDER BY ORDEN
-                    """, (id_ruta,))
-                    ids = [row[0] for row in cursor.fetchall()]
+                    ids_rows = self.db.fetch_all(
+                        """
+                            SELECT ID_ESTACION
+                            FROM RUTA_DETALLE
+                            WHERE ID_RUTA = :id_ruta
+                            ORDER BY ORDEN
+                        """,
+                        {"id_ruta": id_ruta},
+                    ) or []
+                    ids = [row[0] for row in ids_rows]
                     if ids == [e[0] for e in self.estaciones_agregadas]:
                         QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
                         return
-                #Insertar en HISTORIAL
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, self.ruta_anterior, self.username, self.id_ruta_a_editar,))
-                            
-                # Actualizar la duración
+                # En este punto no hay otra ruta idéntica. Comprobar si la ruta propuesta es idéntica
+                # a la misma ruta actual (mismo ID) y solo cambia la duración.
+                duracion_int = int(duracion)
+                propuesta_ids = [e[0] for e in self.estaciones_agregadas]
+                actuales_rows = self.db.fetch_all(
+                    "SELECT ID_ESTACION FROM RUTA_DETALLE WHERE ID_RUTA = :id ORDER BY ORDEN",
+                    {"id": self.id_ruta_a_editar},
+                ) or []
+                actuales_ids = [r[0] for r in actuales_rows]
+                dur_actual_row = self.db.fetch_one(
+                    "SELECT DURACION_ESTIMADA FROM RUTA WHERE ID_RUTA = :id",
+                    {"id": self.id_ruta_a_editar},
+                )
+                dur_actual = int(dur_actual_row[0]) if dur_actual_row and dur_actual_row[0] is not None else None
+
+                if propuesta_ids == actuales_ids:
+                    # Si también la duración es igual, no hacer nada y avisar
+                    if dur_actual == duracion_int:
+                        QMessageBox.information(self, "Resultado", "Una ruta idéntica ya existe.")
+                        return
+                    # Solo actualizar duración (y opcionalmente imagen) y registrar historial
+                    self.db.execute_query(
+                        """
+                            INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
+                            VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :usuario, :id_ruta, SYSDATE)
+                        """,
+                        {"info": self.ruta_anterior, "usuario": self.username, "id_ruta": self.id_ruta_a_editar},
+                    )
+                    if self.ruta_imagen:
+                        try:
+                            with open(self.ruta_imagen, "rb") as f:
+                                imagen_data = f.read()
+                            self.db.execute_query(
+                                "UPDATE RUTA SET DURACION_ESTIMADA = :dur, IMAGEN = :img WHERE ID_RUTA = :id",
+                                {"dur": duracion_int, "img": imagen_data, "id": self.id_ruta_a_editar},
+                            )
+                        except Exception:
+                            self.logger.exception("No se pudo leer la imagen seleccionada para actualizar la ruta")
+                            QMessageBox.warning(self, "Imagen", "No se pudo leer la imagen seleccionada. Se actualizará sin imagen.")
+                            self.db.execute_query(
+                                "UPDATE RUTA SET DURACION_ESTIMADA = :dur WHERE ID_RUTA = :id",
+                                {"dur": duracion_int, "id": self.id_ruta_a_editar},
+                            )
+                    else:
+                        self.db.execute_query(
+                            "UPDATE RUTA SET DURACION_ESTIMADA = :dur WHERE ID_RUTA = :id",
+                            {"dur": duracion_int, "id": self.id_ruta_a_editar},
+                        )
+                    # Emitir señales solo si existen
+                    if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                        self.db.event_manager.update_triggered.emit()
+                    if hasattr(self, "asignacion_exitosa"):
+                        try:
+                            self.asignacion_exitosa.emit()
+                        except Exception:
+                            pass
+                    QMessageBox.information(self, "Éxito", "Ruta actualizada correctamente.")
+                    self.cancelar()
+                    return
+
+                # Ruta propuesta distinta a la actual: registrar historial, actualizar ruta y reemplazar detalles
+                self.db.execute_query(
+                    """
+                        INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
+                        VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :usuario, :id_ruta, SYSDATE)
+                    """,
+                    {"info": self.ruta_anterior, "usuario": self.username, "id_ruta": self.id_ruta_a_editar},
+                )
                 if self.ruta_imagen:
-                    with open(self.ruta_imagen, "rb") as f:
-                        imagen_data = f.read()
-                    cursor.execute("""
-                        UPDATE RUTA SET DURACION_ESTIMADA = :1, IMAGEN = :2 WHERE ID_RUTA = :3
-                    """, (int(duracion), imagen_data, self.id_ruta_a_editar))
+                    try:
+                        with open(self.ruta_imagen, "rb") as f:
+                            imagen_data = f.read()
+                        self.db.execute_query(
+                            "UPDATE RUTA SET DURACION_ESTIMADA = :dur, IMAGEN = :img WHERE ID_RUTA = :id",
+                            {"dur": duracion_int, "img": imagen_data, "id": self.id_ruta_a_editar},
+                        )
+                    except Exception:
+                        self.logger.exception("No se pudo leer la imagen seleccionada para actualizar la ruta")
+                        QMessageBox.warning(self, "Imagen", "No se pudo leer la imagen seleccionada. Se actualizará sin imagen.")
+                        self.db.execute_query(
+                            "UPDATE RUTA SET DURACION_ESTIMADA = :dur WHERE ID_RUTA = :id",
+                            {"dur": duracion_int, "id": self.id_ruta_a_editar},
+                        )
                 else:
-                    cursor.execute("""
-                        UPDATE RUTA SET DURACION_ESTIMADA = :1 WHERE ID_RUTA = :2
-                    """, (int(duracion), self.id_ruta_a_editar))
-                # Eliminar detalles existentes de la ruta
-                cursor.execute("DELETE FROM RUTA_DETALLE WHERE ID_RUTA = :1", (self.id_ruta_a_editar,))
-                # Insertar nuevos detalles con orden
+                    self.db.execute_query(
+                        "UPDATE RUTA SET DURACION_ESTIMADA = :dur WHERE ID_RUTA = :id",
+                        {"dur": duracion_int, "id": self.id_ruta_a_editar},
+                    )
+                self.db.execute_query(
+                    "DELETE FROM RUTA_DETALLE WHERE ID_RUTA = :id",
+                    {"id": self.id_ruta_a_editar},
+                )
                 for orden, (id_estacion, _) in enumerate(self.estaciones_agregadas, start=1):
-                    cursor.execute("SELECT NVL(MAX(ID_RUTA_DETALLE), 0) + 1 FROM RUTA_DETALLE")
-                    id_detalle = cursor.fetchone()[0]
-                    cursor.execute("""
-                        INSERT INTO RUTA_DETALLE (ID_RUTA_DETALLE, ID_RUTA, ID_ESTACION)
-                        VALUES (:1, :2, :3)
-                    """, (id_detalle, self.id_ruta_a_editar, id_estacion))
-                self.db.connection.commit()
-                self.db.event_manager.update_triggered.emit()
+                    id_det_row = self.db.fetch_one("SELECT NVL(MAX(ID_RUTA_DETALLE), 0) + 1 AS ID FROM RUTA_DETALLE", None)
+                    id_detalle = id_det_row[0] if id_det_row else 1
+                    self.db.execute_query(
+                        """
+                            INSERT INTO RUTA_DETALLE (ID_RUTA_DETALLE, ID_RUTA, ID_ESTACION)
+                            VALUES (:id_det, :id_ruta, :id_est)
+                        """,
+                        {"id_det": id_detalle, "id_ruta": self.id_ruta_a_editar, "id_est": id_estacion},
+                    )
+                if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                    self.db.event_manager.update_triggered.emit()
+                if hasattr(self, "asignacion_exitosa"):
+                    try:
+                        self.asignacion_exitosa.emit()
+                    except Exception:
+                        pass
                 QMessageBox.information(self, "Éxito", f"Ruta actualizada correctamente.")
                 self.cancelar()
         except Exception as e:
-            self.db.connection.rollback()
+            self.logger.exception("Error al actualizar ruta")
             QMessageBox.critical(self, "Error", str(e))

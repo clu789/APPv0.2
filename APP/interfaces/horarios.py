@@ -8,6 +8,7 @@ from interfaces.asignacion import InterfazAsignacion, InterfazModificarAsignacio
 from interfaces.paneles.panel_horarios import InterfazAgregarHorario, InterfazEditarHorario
 from interfaces.paneles.panel_rutas import InterfazAgregarRuta, InterfazEditarRuta
 from utils import obtener_ruta_recurso
+import logging
 
 class GestionHorariosRutas(QWidget):
     def __init__(self, main_window, db, username):
@@ -15,6 +16,7 @@ class GestionHorariosRutas(QWidget):
         self.username = username
         self.main_window = main_window
         self.db = db
+        self._logger = logging.getLogger(__name__)
         # Aumentamos el tamaño inicial de la ventana
         self.setGeometry(100, 100, 1200, 800)  # Cambiado de 1000x600 a 1200x800
         self.initUI()
@@ -388,100 +390,7 @@ class GestionHorariosRutas(QWidget):
         # Añadir contenedor de contenido al layout principal
         self.main_layout.addWidget(self.content_container, 1)
 
-        # --- Botones de acción ---
-        #button_style = """
-        #    QPushButton {
-        #        padding: 8px 15px;
-        #        border: none;
-        #        border-radius: 4px;
-        #        min-width: 120px;
-        #        font-weight: bold;
-        #    }
-        #    QPushButton:hover {
-        #        opacity: 0.9;
-        #    }
-        #    QPushButton:disabled {
-        #        background-color: #95a5a6;
-        #    }
-        #"""
-
-        # Botones para horarios
-        #horario_buttons = QHBoxLayout()
-        #horario_buttons.setSpacing(10)
-
-        #self.btn_agregar_horario = QPushButton("Agregar Horario")
-        #self.btn_agregar_horario.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #2ecc71; color: white; }""")
-        #self.btn_agregar_horario.clicked.connect(lambda: self.mostrar_panel(0))
-
-        #self.btn_modificar_horario = QPushButton("Editar Horario")
-        #self.btn_modificar_horario.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #3498db; color: white; }""")
-        #self.btn_modificar_horario.setEnabled(False)
-        #self.btn_modificar_horario.clicked.connect(self.abrir_edicion_horario)
-
-        #self.btn_eliminar_horario = QPushButton("Eliminar Horario")
-        #self.btn_eliminar_horario.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #e74c3c; color: white; }""")
-        #self.btn_eliminar_horario.setEnabled(False)
-        #self.btn_eliminar_horario.clicked.connect(self.eliminar_horario)
-
-        #horario_buttons.addWidget(self.btn_agregar_horario)
-        #horario_buttons.addWidget(self.btn_modificar_horario)
-        #horario_buttons.addWidget(self.btn_eliminar_horario)
-        #self.main_layout.addLayout(horario_buttons)
-#
-        ## Botones para rutas (similar a los de horarios)
-        #ruta_buttons = QHBoxLayout()
-        #ruta_buttons.setSpacing(10)
-
-        #self.btn_agregar_ruta = QPushButton("Agregar Ruta")
-        #self.btn_agregar_ruta.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #2ecc71; color: white; }""")
-        #self.btn_agregar_ruta.clicked.connect(lambda: self.mostrar_panel(1))
-
-        #self.btn_modificar_ruta = QPushButton("Editar Ruta")
-        #self.btn_modificar_ruta.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #3498db; color: white; }""")
-        #self.btn_modificar_ruta.setEnabled(False)
-        #self.btn_modificar_ruta.clicked.connect(self.abrir_edicion_ruta)
-
-        #self.btn_eliminar_ruta = QPushButton("Eliminar Ruta")
-        #self.btn_eliminar_ruta.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #e74c3c; color: white; }""")
-        #self.btn_eliminar_ruta.setEnabled(False)
-        #self.btn_eliminar_ruta.clicked.connect(self.eliminar_ruta)
-
-        #ruta_buttons.addWidget(self.btn_agregar_ruta)
-        #ruta_buttons.addWidget(self.btn_modificar_ruta)
-        #ruta_buttons.addWidget(self.btn_eliminar_ruta)
-        #self.main_layout.addLayout(ruta_buttons)
-#
-        ## Botones para asignación de trenes
-        #asignacion_buttons = QHBoxLayout()
-        #asignacion_buttons.setSpacing(10)
-
-        #self.btn_asignar_tren = QPushButton("Asignar Tren")
-        #self.btn_asignar_tren.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #2ecc71; color: white; }""")
-        #self.btn_asignar_tren.clicked.connect(lambda: self.mostrar_panel(2))
-
-        #self.btn_modificar_asignacion = QPushButton("Modificar Asignación")
-        #self.btn_modificar_asignacion.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #3498db; color: white; }""")
-        #self.btn_modificar_asignacion.setEnabled(False)
-        #self.btn_modificar_asignacion.clicked.connect(self.abrir_edicion_asignacion)
-
-        #self.btn_quitar_asignacion = QPushButton("Quitar Asignación")
-        #self.btn_quitar_asignacion.setStyleSheet(button_style + """
-        #    QPushButton { background-color: #e74c3c; color: white; }""")
-        #self.btn_quitar_asignacion.setEnabled(False)
-        #self.btn_quitar_asignacion.clicked.connect(self.eliminar_asignacion)
-
-        #asignacion_buttons.addWidget(self.btn_asignar_tren)
-        #asignacion_buttons.addWidget(self.btn_modificar_asignacion)
-        #asignacion_buttons.addWidget(self.btn_quitar_asignacion)
-        #self.main_layout.addLayout(asignacion_buttons)
+    # --- Botones de acción --- (eliminado código obsoleto y comentado)
 
         # --- Paneles ocultos ---
         # Panel para agregar horarios
@@ -606,6 +515,17 @@ class GestionHorariosRutas(QWidget):
             )
             self.img_ruta.setPixmap(scaled)
 
+    def _get_selected_id(self, tabla, col=0, cast=int):
+        """Obtiene el valor de la columna 'col' de la fila seleccionada y lo castea si es posible."""
+        fila = tabla.currentRow()
+        if fila == -1:
+            return None
+        try:
+            val = tabla.item(fila, col).text()
+            return cast(val) if cast else val
+        except Exception:
+            return tabla.item(fila, col).text()
+
     def mostrar_panel(self, panel_type):
         """Muestra el panel correspondiente y ajusta el scroll"""
         panels = {
@@ -632,7 +552,7 @@ class GestionHorariosRutas(QWidget):
             self.tabla_asignaciones.setMaximumHeight(250)
             
             # Mover el scroll al panel
-            QTimer.singleShot(100, lambda: self.scroll_area.verticalScrollBar().setValue(
+            QTimer.singleShot(50, lambda: panel.isVisible() and self.scroll_area.verticalScrollBar().setValue(
                 self.scroll_area.verticalScrollBar().maximum()
             ))
 
@@ -724,7 +644,7 @@ class GestionHorariosRutas(QWidget):
 
     def actualizar_datos(self):
         """Recarga los datos de la interfaz"""
-        print("Actualizando datos de GestionHorariosRutas")
+        self._logger.debug("Actualizando datos de GestionHorariosRutas")
         self.load_routes()
         self.load_schedules()
         self.load_train_availability()
@@ -736,7 +656,7 @@ class GestionHorariosRutas(QWidget):
             QMessageBox.warning(self, "Advertencia", "Selecciona un horario para editar.")
             return
 
-        id_horario = self.tabla_horarios.item(fila, 0).text()
+        id_horario = self._get_selected_id(self.tabla_horarios, 0, cast=str)
         hora_salida = self.tabla_horarios.item(fila, 1).text()
         hora_llegada = self.tabla_horarios.item(fila, 2).text()
 
@@ -754,8 +674,8 @@ class GestionHorariosRutas(QWidget):
         if fila == -1:
             QMessageBox.warning(self, "Advertencia", "Selecciona una ruta para editar")
             return
-        
-        id_ruta = self.tabla_rutas.item(fila, 0).text()
+
+        id_ruta = self._get_selected_id(self.tabla_rutas, 0, cast=str)
         duracion = self.tabla_rutas.item(fila, 1).text()
         estaciones = self.tabla_rutas.item(fila, 2).text()
         datos_ruta = {
@@ -776,6 +696,7 @@ class GestionHorariosRutas(QWidget):
             JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
             GROUP BY R.ID_RUTA, R.DURACION_ESTIMADA
         """
+        self._logger.debug("Cargando rutas...")
         routes = self.db.fetch_all(query)
 
         # Configurar para permitir scrollbar horizontal y ver texto completo
@@ -828,6 +749,7 @@ class GestionHorariosRutas(QWidget):
             FROM HORARIO
             ORDER BY 1 ASC
         """
+        self._logger.debug("Cargando horarios...")
         schedules = self.db.fetch_all(query)
 
         self.tabla_horarios.setRowCount(len(schedules))
@@ -845,6 +767,7 @@ class GestionHorariosRutas(QWidget):
             SELECT T.ID_TREN, T.NOMBRE, T.ESTADO
             FROM TREN T
         """
+        self._logger.debug("Cargando disponibilidad de trenes...")
         trains = self.db.fetch_all(query)
 
         self.tabla_trenes.setRowCount(len(trains))
@@ -857,54 +780,50 @@ class GestionHorariosRutas(QWidget):
         self.tabla_trenes.resizeRowsToContents()
 
     def load_route_image(self, id_ruta):
-        """Carga la imagen de la ruta desde la base de datos"""
-        query = "SELECT IMAGEN FROM RUTA WHERE ID_RUTA = :1"
-        image_data = self.db.fetch_all(query, (id_ruta,))  # Ahora se usa fetch_all
-
-        if image_data and image_data[0][0]:
-            raw = image_data[0][0]
-            image_bytes = None
-
-            # Compatibilidad: cx_Oracle puede devolver un LOB con .read(), o bytes/memoryview directamente
-            try:
-                if hasattr(raw, 'read') and callable(raw.read):
-                    image_bytes = raw.read()
-                elif isinstance(raw, (bytes, bytearray)):
-                    image_bytes = bytes(raw)
-                elif isinstance(raw, memoryview):
-                    image_bytes = raw.tobytes()
-                else:
-                    # Último intento: convertir a bytes si es posible
-                    image_bytes = bytes(raw)
-            except Exception:
-                image_bytes = None
-
+        """Carga la imagen de la ruta desde la base de datos (robusto y con binds nombrados)."""
+        self._logger.debug("Cargando imagen para ruta id=%s", id_ruta)
+        row = self.db.fetch_one("SELECT IMAGEN FROM RUTA WHERE ID_RUTA = :id_ruta", {"id_ruta": id_ruta})
+        if row and row[0]:
+            image_bytes = self._read_blob_to_bytes(row[0])
             if image_bytes:
                 pixmap = QPixmap()
                 if pixmap.loadFromData(image_bytes):
-                    # Guardar pixmap original y escalar a tamaño del label
                     self._ruta_pixmap_orig = pixmap
                     self._scale_route_image()
-                    self.img_ruta.setText("")  # Asegura que no quede texto sobre la imagen
+                    self.img_ruta.setText("")
+                    return
                 else:
-                    # Datos no representaban una imagen válida
-                    self._ruta_pixmap_orig = None
-                    self.img_ruta.clear()
-                    self.img_ruta.setText("Imagen inválida")
+                    self._logger.warning("Datos de imagen inválidos para ruta id=%s", id_ruta)
             else:
-                # No se pudieron obtener bytes válidos
-                self._ruta_pixmap_orig = None
-                self.img_ruta.clear()
-                self.img_ruta.setText("Imagen no disponible")
+                self._logger.warning("No se pudieron obtener bytes de imagen para ruta id=%s", id_ruta)
+            # Si llegó aquí, hubo algún problema con la imagen
+            self._ruta_pixmap_orig = None
+            self.img_ruta.clear()
+            self.img_ruta.setText("Imagen inválida")
         else:
-            # Si no hay imagen disponible, mostrar mensaje y limpiar pixmap previo
             self._ruta_pixmap_orig = None
             self.img_ruta.clear()
             self.img_ruta.setText("No disponible")
 
+    def _read_blob_to_bytes(self, raw):
+        """Convierte un valor BLOB/bytes/memoryview en bytes de forma segura."""
+        try:
+            if raw is None:
+                return None
+            if isinstance(raw, (bytes, bytearray)):
+                return bytes(raw)
+            if isinstance(raw, memoryview):
+                return raw.tobytes()
+            if hasattr(raw, 'read') and callable(getattr(raw, 'read')):
+                return raw.read()
+            # Último intento: conversión directa
+            return bytes(raw)
+        except Exception:
+            return None
+
     def cargar_datos(self):
         """Recarga los datos de la interfaz de gestión de horarios y rutas"""
-        print("Cargando datos en GestionHorariosRutas...")
+        self._logger.debug("Cargando datos en GestionHorariosRutas...")
         self.load_routes()
         self.load_schedules()
         self.load_train_availability()
@@ -929,31 +848,43 @@ class GestionHorariosRutas(QWidget):
         
         try:
             if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                # Se genera el id del nuevo registro del historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-                # Se inserta en historial
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, self.tabla_horarios.item(fila, 1).text() + " - " + self.tabla_horarios.item(fila, 2).text(),
-                      self.username, self.tabla_horarios.item(fila, 0).text(),))
-                # Se elimina el horario
-                cursor.execute("""
-                    DELETE FROM HORARIO WHERE ID_HORARIO = :1
-                """, (self.tabla_horarios.item(fila, 0).text(),))
-                # Realiza commit
-                self.db.connection.commit()
-                # Se notifica que el horario se elimino
-                self.db.event_manager.update_triggered.emit()
+                id_horario = self._get_selected_id(self.tabla_horarios, 0, cast=str)
+                salida = self.tabla_horarios.item(fila, 1).text()
+                llegada = self.tabla_horarios.item(fila, 2).text()
+
+                plsql = (
+                    "BEGIN\n"
+                    "  INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)\n"
+                    "  VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :id_usuario, :id_horario, SYSDATE);\n"
+                    "  DELETE FROM HORARIO WHERE ID_HORARIO = :id_horario;\n"
+                    "END;"
+                )
+                params = {
+                    "info": f"{salida} - {llegada}",
+                    "id_usuario": self.username,
+                    "id_horario": id_horario,
+                }
+                self._logger.info("Eliminando horario id=%s", id_horario)
+                self.db.execute_query(plsql, params)
+
+                # Se notifica actualización si hay EventManager
+                if hasattr(self.db, 'event_manager') and self.db.event_manager and hasattr(self.db.event_manager, 'update_triggered'):
+                    try:
+                        self.db.event_manager.update_triggered.emit()
+                    except Exception:
+                        pass
                 QMessageBox.information(self, "Resultado", "El horario se ha eliminado correctamente.")
                 self.actualizar_datos()
                 self.bloquear_botones_horario()
             else:
                 self.bloquear_botones_horario()
         except Exception as e:
-            QMessageBox.critical(self, "Error al eliminar", str(e))
+            msg = str(e)
+            detalle = f"Error al eliminar horario #{self.tabla_horarios.item(fila, 0).text()}: {msg}"
+            if 'ORA-02292' in msg or 'ORA-02291' in msg:
+                detalle += "\nPosible causa: la entidad está referenciada por otros registros."
+            self._logger.error(detalle)
+            QMessageBox.critical(self, "Error al eliminar", detalle)
 
     def eliminar_ruta(self):
         """Elimina un horario seleccionado
@@ -975,32 +906,42 @@ class GestionHorariosRutas(QWidget):
 
         try:
             if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                # Se genera el id del nuevo registro del historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-                # Se inserta en historial
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, "Duracion: " + self.tabla_rutas.item(fila, 1).text() + "; Orden: "
-                      + self.tabla_rutas.item(fila, 2).text(),
-                      self.username, self.tabla_rutas.item(fila, 0).text(),))
-                # Se elimina el horario
-                cursor.execute("""
-                    DELETE FROM RUTA WHERE ID_RUTA = :1
-                """, (self.tabla_rutas.item(fila, 0).text(),))
-                # Realiza commit
-                self.db.connection.commit()
-                # Se notifica que el horario se elimino
-                self.db.event_manager.update_triggered.emit()
+                id_ruta = self._get_selected_id(self.tabla_rutas, 0, cast=str)
+                duracion = self.tabla_rutas.item(fila, 1).text()
+                estaciones = self.tabla_rutas.item(fila, 2).text()
+
+                plsql = (
+                    "BEGIN\n"
+                    "  INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_RUTA, FECHA_REGISTRO)\n"
+                    "  VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :id_usuario, :id_ruta, SYSDATE);\n"
+                    "  DELETE FROM RUTA WHERE ID_RUTA = :id_ruta;\n"
+                    "END;"
+                )
+                params = {
+                    "info": f"Duracion: {duracion}; Orden: {estaciones}",
+                    "id_usuario": self.username,
+                    "id_ruta": id_ruta,
+                }
+                self._logger.info("Eliminando ruta id=%s", id_ruta)
+                self.db.execute_query(plsql, params)
+
+                if hasattr(self.db, 'event_manager') and self.db.event_manager and hasattr(self.db.event_manager, 'update_triggered'):
+                    try:
+                        self.db.event_manager.update_triggered.emit()
+                    except Exception:
+                        pass
                 QMessageBox.information(self, "Resultado", "La ruta se ha eliminado correctamente.")
                 self.actualizar_datos()
                 self.bloquear_botones_ruta()
             else:
                 self.bloquear_botones_ruta()
         except Exception as e:
-            QMessageBox.critical(self, "Error al eliminar", str(e))
+            msg = str(e)
+            detalle = f"Error al eliminar ruta #{self.tabla_rutas.item(fila, 0).text()}: {msg}"
+            if 'ORA-02292' in msg or 'ORA-02291' in msg:
+                detalle += "\nPosible causa: la entidad está referenciada por otros registros."
+            self._logger.error(detalle)
+            QMessageBox.critical(self, "Error al eliminar", detalle)
 
     def eliminar_asignacion(self):
         """Elimina la asignación seleccionada en la tabla"""
@@ -1009,7 +950,7 @@ class GestionHorariosRutas(QWidget):
             QMessageBox.warning(self, "Advertencia", "Selecciona una asignación para eliminar.")
             return
 
-        id_asignacion = self.tabla_asignaciones.item(fila, 0).text()  # Columna 0 = ID Asignación
+        id_asignacion = self._get_selected_id(self.tabla_asignaciones, 0, cast=str)  # Columna 0 = ID Asignación
 
         confirmacion = QMessageBox.question(
             self,
@@ -1020,24 +961,32 @@ class GestionHorariosRutas(QWidget):
 
         if confirmacion == QMessageBox.StandardButton.Yes:
             try:
-                cursor = self.db.connection.cursor()
-                # Insertar en historial
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                    VALUES ((SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL), 
-                    'Asignación eliminada', :1, :2, SYSDATE)
-                """, (self.username, id_asignacion))
-                
-                # Eliminar asignación
-                cursor.execute("DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1", (id_asignacion,))
-                self.db.connection.commit()
-                self.db.event_manager.update_triggered.emit()
-                
+                plsql = (
+                    "BEGIN\n"
+                    "  INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)\n"
+                    "  VALUES (HISTORIAL_SEQ.NEXTVAL, 'Asignación eliminada', :id_usuario, :id_asignacion, SYSDATE);\n"
+                    "  DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :id_asignacion;\n"
+                    "END;"
+                )
+                params = {"id_usuario": self.username, "id_asignacion": id_asignacion}
+                self._logger.info("Eliminando asignación id=%s", id_asignacion)
+                self.db.execute_query(plsql, params)
+
+                if hasattr(self.db, 'event_manager') and self.db.event_manager and hasattr(self.db.event_manager, 'update_triggered'):
+                    try:
+                        self.db.event_manager.update_triggered.emit()
+                    except Exception:
+                        pass
+
                 QMessageBox.information(self, "Éxito", "Asignación eliminada correctamente.")
                 self.load_asignaciones()  # Recargar la tabla
             except Exception as e:
-                self.db.connection.rollback()
-                QMessageBox.critical(self, "Error", f"Error al eliminar: {str(e)}")
+                msg = str(e)
+                detalle = f"Error al eliminar asignación #{id_asignacion}: {msg}"
+                if 'ORA-02292' in msg or 'ORA-02291' in msg:
+                    detalle += "\nPosible causa: la entidad está referenciada por otros registros."
+                self._logger.error(detalle)
+                QMessageBox.critical(self, "Error", detalle)
                 
         self.bloquear_botones_asignacion()
 
@@ -1051,7 +1000,11 @@ class GestionHorariosRutas(QWidget):
 
         id_asignacion = self.tabla_asignaciones.item(fila, 0).text()
 
-        self.panel_modificar_asignacion.set_asignacion(int(id_asignacion))
+        # Cast defensivo a int
+        try:
+            self.panel_modificar_asignacion.set_asignacion(int(id_asignacion))
+        except Exception:
+            self.panel_modificar_asignacion.set_asignacion(id_asignacion)
         self.mostrar_panel(5)  # índice 5 corresponde a scroll_modificar_asignacion
 
 
@@ -1086,6 +1039,7 @@ class GestionHorariosRutas(QWidget):
             JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
             ORDER BY A.ID_ASIGNACION
         """
+        self._logger.debug("Cargando asignaciones de trenes...")
         asignaciones = self.db.fetch_all(query)
 
         self.tabla_asignaciones.setRowCount(len(asignaciones))
