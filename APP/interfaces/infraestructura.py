@@ -1,7 +1,8 @@
+import logging
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QLabel, QPushButton, QHBoxLayout,
                              QTableWidget, QTableWidgetItem, QMessageBox, QScrollArea,
                              QStackedWidget, QHeaderView, QFrame, QAbstractItemView, QSizePolicy)
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QTimer
 
 from interfaces.paneles.panel_trenes import InterfazAgregarTren, InterfazEditarTren  # pendiente definir
 from interfaces.paneles.panel_estaciones import InterfazAgregarEstacion, InterfazEditarEstacion  # pendiente definir
@@ -14,9 +15,14 @@ class GestionInfraestructura(QWidget):
         self.username = username
         self.main_window = main_window
         self.db = db
+        self.logger = logging.getLogger(__name__)
 
         self.setWindowTitle("Gestión de Infraestructura")
         self.setGeometry(100, 100, 1000, 600)
+        # Timer para coalescer recargas
+        self._refresh_timer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.timeout.connect(self._load_data_coalesced)
 
         self.initUI()
         self.actualizar_datos()
@@ -455,24 +461,59 @@ class GestionInfraestructura(QWidget):
     #    return widget_container
 
     def actualizar_datos(self):
+        # Programar recarga coalescida para evitar parpadeos/ráfagas
+        try:
+            if self._refresh_timer.isActive():
+                self._refresh_timer.stop()
+            self._refresh_timer.start(150)
+            self.logger.debug("Programada recarga de infraestructura en 150 ms")
+        except Exception:
+            self.logger.exception("Fallo programando recarga; cargando directamente")
+            self._load_data_coalesced()
+
+    def _load_data_coalesced(self):
         self.load_trenes_data()
         self.load_estaciones_data()
 
     def load_trenes_data(self):
-        query = "SELECT ID_TREN, NOMBRE, CAPACIDAD, ESTADO FROM TREN"
-        resultados = self.db.fetch_all(query)
-        self.trenes_table.setRowCount(len(resultados))
-        for i, fila in enumerate(resultados):
-            for j, valor in enumerate(fila):
-                self.trenes_table.setItem(i, j, QTableWidgetItem(str(valor)))
+        query = "SELECT ID_TREN, NOMBRE, CAPACIDAD, ESTADO FROM TREN ORDER BY 1"
+        try:
+            resultados = self.db.fetch_all(query) or []
+        except Exception:
+            self.logger.exception("Error cargando trenes")
+            resultados = []
+
+        self.trenes_table.setUpdatesEnabled(False)
+        self.trenes_table.setSortingEnabled(False)
+        try:
+            self.trenes_table.setRowCount(len(resultados))
+            for i, fila in enumerate(resultados):
+                for j, valor in enumerate(fila):
+                    self.trenes_table.setItem(i, j, QTableWidgetItem(str(valor)))
+            # self.trenes_table.resizeRowsToContents()  # activar si filas son pocas
+        finally:
+            self.trenes_table.setSortingEnabled(True)
+            self.trenes_table.setUpdatesEnabled(True)
 
     def load_estaciones_data(self):
-        query = "SELECT ID_ESTACION, NOMBRE FROM ESTACION"
-        resultados = self.db.fetch_all(query)
-        self.estaciones_table.setRowCount(len(resultados))
-        for i, fila in enumerate(resultados):
-            for j, valor in enumerate(fila):
-                self.estaciones_table.setItem(i, j, QTableWidgetItem(str(valor)))
+        query = "SELECT ID_ESTACION, NOMBRE FROM ESTACION ORDER BY 1"
+        try:
+            resultados = self.db.fetch_all(query) or []
+        except Exception:
+            self.logger.exception("Error cargando estaciones")
+            resultados = []
+
+        self.estaciones_table.setUpdatesEnabled(False)
+        self.estaciones_table.setSortingEnabled(False)
+        try:
+            self.estaciones_table.setRowCount(len(resultados))
+            for i, fila in enumerate(resultados):
+                for j, valor in enumerate(fila):
+                    self.estaciones_table.setItem(i, j, QTableWidgetItem(str(valor)))
+            # self.estaciones_table.resizeRowsToContents()
+        finally:
+            self.estaciones_table.setSortingEnabled(True)
+            self.estaciones_table.setUpdatesEnabled(True)
 
     def buscar_tren_disponible(self, id_horario):
         """
@@ -516,7 +557,7 @@ class GestionInfraestructura(QWidget):
             return resultados[0][0] if resultados else None
 
         except Exception as e:
-            print(f"Error al buscar tren disponible: {str(e)}")
+            self.logger.exception("Error al buscar tren disponible para horario %s", id_horario)
             return None
         
     def eliminar_tren(self):
@@ -529,82 +570,102 @@ class GestionInfraestructura(QWidget):
         id_tren = self.trenes_table.item(fila, 0).text()
         nombre = self.trenes_table.item(fila, 1).text()
     
-        confirmacion = QMessageBox()
+        confirmacion = QMessageBox(self)
         confirmacion.setIcon(QMessageBox.Icon.Question)
         confirmacion.setWindowTitle("Confirmar eliminación")
         confirmacion.setText(f"¿Estás seguro de que deseas eliminar el tren #{id_tren}?")
-        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        boton_si = confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
         confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
-    
-        if confirmacion.exec() != 2:
-            self.bloquear_botones_tren()
-            return
-    
+
         try:
-            cursor = self.db.connection.cursor()
-    
-            cursor.execute("""
-                SELECT ID_ASIGNACION FROM ASIGNACION_TREN WHERE ID_TREN = :1
-            """, (id_tren,))
-            asignaciones = cursor.fetchall()
-    
-            for asignacion in asignaciones:
-                id_asignacion = asignacion[0]
-    
-                cursor.execute("""
-                    SELECT ID_RUTA, ID_HORARIO FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1
-                """, (id_asignacion,))
-                id_ruta, id_horario = cursor.fetchone()
-    
-                nuevo_tren = self.buscar_tren_disponible(id_horario)
-                if not nuevo_tren:
-                    raise Exception("No hay trenes disponibles para reemplazar en todas las asignaciones. Cancelando eliminación.")
-    
-                # Actualizar la asignación con el nuevo tren
-                cursor.execute("""
-                    UPDATE ASIGNACION_TREN SET ID_TREN = :1 WHERE ID_ASIGNACION = :2
-                """, (nuevo_tren, id_asignacion))
-    
-                # Obtener datos para historial
-                cursor.execute("""
-                    SELECT DURACION_ESTIMADA,
-                           LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN) AS ESTACIONES
-                    FROM RUTA R
-                    JOIN RUTA_DETALLE RD ON R.ID_RUTA = RD.ID_RUTA
-                    JOIN ESTACION E ON RD.ID_ESTACION = E.ID_ESTACION
-                    WHERE R.ID_RUTA = :1
-                    GROUP BY R.DURACION_ESTIMADA
-                """, (id_ruta,))
-                duracion, estaciones = cursor.fetchone()
-    
-                cursor.execute("""
-                    SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
-                           TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
-                    FROM HORARIO WHERE ID_HORARIO = :1
-                """, (id_horario,))
-                hora_inicio, hora_fin = cursor.fetchone()
-    
-                info = f"Duración: {duracion}; Orden: {estaciones}; Horario: {hora_inicio} - {hora_fin}; Tren reemplazado: {nombre} → Nuevo tren ID: {nuevo_tren}"
-    
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-    
-                cursor.execute("""
-                    INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                    VALUES (:1, :2, :3, :4, SYSDATE)
-                """, (nuevo_id, info, self.username, id_asignacion))
-    
-            # Eliminar el tren
-            cursor.execute("DELETE FROM TREN WHERE ID_TREN = :1", (id_tren,))
-            self.db.connection.commit()
-    
-            self.db.event_manager.update_triggered.emit()
+            confirmacion.exec()
+            if confirmacion.clickedButton() != boton_si:
+                self.bloquear_botones_tren()
+                return
+
+            # Operación atómica en un solo bloque PL/SQL
+            plsql = """
+            DECLARE
+              v_username   VARCHAR2(200) := :usuario;
+              v_tren_id    NUMBER       := :id_tren;
+              v_nuevo_tren NUMBER;
+              v_duracion   VARCHAR2(200);
+              v_estaciones VARCHAR2(4000);
+              v_hora_ini   VARCHAR2(8);
+              v_hora_fin   VARCHAR2(8);
+              v_info       VARCHAR2(4000);
+            BEGIN
+              FOR rec IN (
+                SELECT A.ID_ASIGNACION, A.ID_RUTA, A.ID_HORARIO
+                  FROM ASIGNACION_TREN A
+                 WHERE A.ID_TREN = v_tren_id
+              ) LOOP
+                -- Buscar tren disponible que no solape
+                SELECT t.ID_TREN INTO v_nuevo_tren
+                  FROM TREN t
+                 WHERE t.ESTADO = 'ACTIVO'
+                   AND t.ID_TREN <> v_tren_id
+                   AND NOT EXISTS (
+                        SELECT 1 FROM ASIGNACION_TREN a
+                        JOIN HORARIO h ON a.ID_HORARIO = h.ID_HORARIO
+                        WHERE a.ID_TREN = t.ID_TREN
+                          AND h.HORA_SALIDA_PROGRAMADA < (SELECT HORA_LLEGADA_PROGRAMADA FROM HORARIO WHERE ID_HORARIO = rec.ID_HORARIO)
+                          AND h.HORA_LLEGADA_PROGRAMADA > (SELECT HORA_SALIDA_PROGRAMADA FROM HORARIO WHERE ID_HORARIO = rec.ID_HORARIO)
+                   )
+                 ORDER BY t.ID_TREN
+                 FETCH FIRST 1 ROWS ONLY;
+
+                -- Si no hay tren disponible, fallar toda la transacción
+                IF v_nuevo_tren IS NULL THEN
+                  RAISE_APPLICATION_ERROR(-20001, 'No hay trenes disponibles para reemplazar en todas las asignaciones.');
+                END IF;
+
+                -- Actualizar asignación
+                UPDATE ASIGNACION_TREN SET ID_TREN = v_nuevo_tren WHERE ID_ASIGNACION = rec.ID_ASIGNACION;
+
+                -- Construir información para historial
+                SELECT R.DURACION_ESTIMADA INTO v_duracion FROM RUTA R WHERE R.ID_RUTA = rec.ID_RUTA;
+
+                SELECT LISTAGG(E.NOMBRE, ' → ') WITHIN GROUP (ORDER BY RD.ORDEN)
+                  INTO v_estaciones
+                  FROM RUTA_DETALLE RD
+                  JOIN ESTACION E ON E.ID_ESTACION = RD.ID_ESTACION
+                 WHERE RD.ID_RUTA = rec.ID_RUTA;
+
+                SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'),
+                       TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
+                  INTO v_hora_ini, v_hora_fin
+                  FROM HORARIO WHERE ID_HORARIO = rec.ID_HORARIO;
+
+                v_info := 'Duración: ' || v_duracion || '; Orden: ' || NVL(v_estaciones,'') ||
+                          '; Horario: ' || v_hora_ini || ' - ' || v_hora_fin ||
+                          '; Tren reemplazado: ' || :nombre_tren || ' → Nuevo tren ID: ' || v_nuevo_tren;
+
+                INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
+                VALUES (HISTORIAL_SEQ.NEXTVAL, v_info, v_username, rec.ID_ASIGNACION, SYSDATE);
+
+              END LOOP;
+
+              -- Eliminar el tren al final
+              DELETE FROM TREN WHERE ID_TREN = v_tren_id;
+            END;
+            """
+
+            self.db.execute_query(plsql, {"usuario": self.username, "id_tren": id_tren, "nombre_tren": nombre})
+
+            # Emisión segura
+            try:
+                if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                    self.db.event_manager.update_triggered.emit()
+            except Exception:
+                self.logger.exception("Fallo al emitir update_triggered tras eliminar tren")
+
             QMessageBox.information(self, "Resultado", "El tren se ha eliminado correctamente y sus asignaciones fueron reasignadas.")
             self.actualizar_datos()
             self.bloquear_botones_tren()
-    
+
         except Exception as e:
-            self.db.connection.rollback()
+            self.logger.exception("Error al eliminar tren %s", id_tren)
             QMessageBox.critical(self, "Error al eliminar", f"No se pudo eliminar el tren.\n{str(e)}")
             self.bloquear_botones_tren()
 
@@ -616,28 +677,36 @@ class GestionInfraestructura(QWidget):
             return
         id_estacion = self.estaciones_table.item(fila, 0).text()
         
-        confirmacion = QMessageBox()
+        confirmacion = QMessageBox(self)
         confirmacion.setIcon(QMessageBox.Icon.Question)
         confirmacion.setWindowTitle("Confirmar eliminación")
         confirmacion.setText(f"¿Estás seguro de que deseas eliminar la estación #{id_estacion}?")
-        confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
+        boton_si = confirmacion.addButton("Sí", QMessageBox.ButtonRole.YesRole)
         confirmacion.addButton("No", QMessageBox.ButtonRole.NoRole)
         
         try:
-            if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                # Se elimina el tren
-                cursor.execute("""
-                    DELETE FROM ESTACION WHERE ID_ESTACION = :1
-                """, (id_estacion,))
-                # Realiza commit
-                self.db.connection.commit()
-                # Se notifica que el tren se elimino
-                self.db.event_manager.update_triggered.emit()
-                QMessageBox.information(self, "Resultado", "La estacion se ha eliminado correctamente.")
+            confirmacion.exec()
+            if confirmacion.clickedButton() == boton_si:
+                # Eliminar estación con helpers y binds nombrados
+                self.db.execute_query(
+                    "DELETE FROM ESTACION WHERE ID_ESTACION = :id",
+                    {"id": id_estacion},
+                )
+                # Emisión segura
+                try:
+                    if hasattr(self.db, "event_manager") and getattr(self.db.event_manager, "update_triggered", None):
+                        self.db.event_manager.update_triggered.emit()
+                except Exception:
+                    self.logger.exception("Fallo al emitir update_triggered tras eliminar estación")
+                QMessageBox.information(self, "Resultado", "La estación se ha eliminado correctamente.")
                 self.actualizar_datos()
                 self.bloquear_botones_estacion()
             else:
                 self.bloquear_botones_estacion()
         except Exception as e:
-            QMessageBox.critical(self, "Error al eliminar", str(e))
+            self.logger.exception("Error al eliminar estación %s", id_estacion)
+            # Mensaje más informativo ante integridad referencial
+            msg = str(e)
+            if "ORA-02291" in msg or "ORA-02292" in msg:
+                msg += "\nSugerencia: Verifica dependencias (rutas, asignaciones) antes de eliminar."
+            QMessageBox.critical(self, "Error al eliminar", msg)

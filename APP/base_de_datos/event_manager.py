@@ -66,6 +66,27 @@ class EventManager(QObject):
             self.thread_pool.setMaxThreadCount(max_threads)
         except Exception:
             pass
+
+        # Configuración de simulación de retrasos (salidas/llegadas)
+        # APP_DELAY_ENABLED: '1'/'true' para activar (por defecto activado)
+        # APP_DELAY_MODE: 'threshold' (por defecto) | 'prob'
+        #   - threshold: randint(0..MAX) y si > THRESHOLD, se usa ese valor como retraso
+        #   - prob: con PROB (0..1) hay retraso de randint(1..MAX), si no 0
+        # APP_DELAY_MAX_MINUTES: máximo minutos de retraso (default 15)
+        # APP_DELAY_THRESHOLD: umbral (default 5)
+        # APP_DELAY_PROB: probabilidad (0..1) para modo 'prob' (default 0.35)
+        try:
+            self._delay_enabled = os.getenv('APP_DELAY_ENABLED', '1').lower() in ('1', 'true', 'yes')
+            self._delay_mode = os.getenv('APP_DELAY_MODE', 'threshold').lower()
+            self._delay_max = max(0, int(os.getenv('APP_DELAY_MAX_MINUTES', '15')))
+            self._delay_threshold = max(0, int(os.getenv('APP_DELAY_THRESHOLD', '5')))
+            self._delay_prob = min(1.0, max(0.0, float(os.getenv('APP_DELAY_PROB', '0.35'))))
+        except Exception:
+            self._delay_enabled = True
+            self._delay_mode = 'threshold'
+            self._delay_max = 15
+            self._delay_threshold = 5
+            self._delay_prob = 0.35
         
         # Configurar timer de verificación periódica
         self.verification_timer = QTimer()
@@ -335,6 +356,11 @@ class EventManager(QObject):
         """Registra la salida real del tren"""
         try:
             hora_actual = QTime.currentTime()
+            # Simulación de retraso de salida
+            delay_min = self._random_delay_minutes('SALIDA')
+            if delay_min > 0:
+                hora_actual = hora_actual.addSecs(delay_min * 60)
+                self.log.info(f"Simulación: salida con retraso de {delay_min} min")
             self.log.debug(f"Intentando registrar salida asignación={evento.asignacion_id} hora={hora_actual.toString('HH:mm:ss')}")
             
             query = """
@@ -383,6 +409,11 @@ class EventManager(QObject):
         variacion = random.uniform(0.95, 1.10)  # -5% a +10% de variación
         duracion_segundos = int(evento.duracion_estimada * 60 * variacion)
         hora_llegada = hora_salida.addSecs(duracion_segundos)
+        # Simulación de retraso de llegada
+        delay_min = self._random_delay_minutes('LLEGADA')
+        if delay_min > 0:
+            hora_llegada = hora_llegada.addSecs(delay_min * 60)
+            self.log.info(f"Simulación: llegada con retraso de {delay_min} min")
         
         # Registrar llegada real
         query = """
@@ -412,6 +443,10 @@ class EventManager(QObject):
     def _task_manejar_salida(self, conn, evento):
         try:
             hora_actual = QTime.currentTime()
+            # Simulación de retraso de salida (worker)
+            delay_min = self._random_delay_minutes('SALIDA')
+            if delay_min > 0:
+                hora_actual = hora_actual.addSecs(delay_min * 60)
             with conn.cursor() as cur:
                 cur.execute(
                     """
@@ -467,6 +502,10 @@ class EventManager(QObject):
             variacion = random.uniform(0.95, 1.10)
             duracion_segundos = int(evento.duracion_estimada * 60 * variacion)
             hora_llegada = hora_salida.addSecs(duracion_segundos)
+            # Simulación de retraso de llegada (worker)
+            delay_min = self._random_delay_minutes('LLEGADA')
+            if delay_min > 0:
+                hora_llegada = hora_llegada.addSecs(delay_min * 60)
 
             with conn.cursor() as cur:
                 cur.execute(
@@ -498,6 +537,24 @@ class EventManager(QObject):
                 pass
             self.log.error(f"[Error worker] manejar_llegada: {e}")
             return False
+
+    # --- Simulación de retrasos ---
+    def _random_delay_minutes(self, tipo: str) -> int:
+        """Devuelve minutos de retraso simulados para SALIDA/LLEGADA.
+
+        Modo por defecto ('threshold'): randint(0..MAX). Si valor > THRESHOLD => retraso = valor, si no 0.
+        Modo 'prob': con PROB hay retraso randint(1..MAX), de lo contrario 0.
+        """
+        try:
+            if not self._delay_enabled or self._delay_max <= 0:
+                return 0
+            if self._delay_mode == 'prob':
+                return random.randint(1, self._delay_max) if random.random() < self._delay_prob else 0
+            # threshold (por defecto)
+            val = random.randint(0, self._delay_max)
+            return val if val > self._delay_threshold else 0
+        except Exception:
+            return 0
 
     def registrar_incidencia_retraso(self, evento, retraso_minutos, conn=None):
         """Registra incidencia por retraso en salida"""

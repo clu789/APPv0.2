@@ -1,8 +1,14 @@
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QLineEdit, QPushButton, QComboBox, QHBoxLayout, QMessageBox
 from PyQt6.QtCore import Qt
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 class InterfazAgregarTren(QWidget):
-    def __init__(self,main_window, db):
+    """Panel para agregar un nuevo tren."""
+
+    def __init__(self, main_window, db) -> None:
         super().__init__()
         self.main_window = main_window
         self.db = db
@@ -213,25 +219,31 @@ class InterfazAgregarTren(QWidget):
         self.btn_consultar.clicked.connect(self.verificar_nombre)
         self.btn_confirmar.clicked.connect(self.insertar_tren)
 
-    def cancelar(self):
+    def cancelar(self) -> None:
         self.input_nombre.clear()
         self.input_capacidad.clear()
         self.estado_combo.setCurrentIndex(0)
 
-    def verificar_nombre(self):
+    def verificar_nombre(self) -> None:
         nombre = self.input_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Advertencia", "Ingresa un nombre.")
             return
-        cursor = self.db.connection.cursor()
-        cursor.execute("SELECT COUNT(*) FROM TREN WHERE NOMBRE = :1", (nombre,))
-        resultado = cursor.fetchone()
+        try:
+            resultado = self.db.fetch_one(
+                "SELECT COUNT(*) FROM TREN WHERE UPPER(NOMBRE) = UPPER(:nombre)",
+                {"nombre": nombre},
+            )
+        except Exception as e:
+            logger.exception("Error verificando nombre de tren: %s", e)
+            QMessageBox.critical(self, "Error", "No se pudo verificar el nombre del tren.")
+            return
         if resultado and resultado[0] > 0:
             QMessageBox.warning(self, "Nombre duplicado", "Ya existe un tren con ese nombre.")
         else:
             QMessageBox.information(self, "Disponible", "El nombre está disponible.")
 
-    def insertar_tren(self):
+    def insertar_tren(self) -> None:
         nombre = self.input_nombre.text().strip()
         try:
             capacidad = int(self.input_capacidad.text())
@@ -247,26 +259,52 @@ class InterfazAgregarTren(QWidget):
             return
         
         try:
-            cursor = self.db.connection.cursor()
-            id_tren = self.db.fetch_one("SELECT NVL(MAX(ID_TREN), 0) + 1 FROM TREN")[0]
-            cursor.execute(
-                "INSERT INTO TREN (ID_TREN, NOMBRE, CAPACIDAD, ESTADO) VALUES (:1, :2, :3, UPPER(:4))",
-                [id_tren, nombre, capacidad, estado]
+            # Verificación de duplicado (case-insensitive)
+            dup = self.db.fetch_one(
+                "SELECT 1 FROM TREN WHERE UPPER(NOMBRE) = UPPER(:nombre)",
+                {"nombre": nombre},
             )
-            self.db.connection.commit()
-            QMessageBox.information(self, "Éxito", "Tren agregado correctamente.")
-            # Emitir la señal update_triggered
-            self.db.event_manager.update_triggered.emit()
-            self.cancelar()
+            if dup:
+                QMessageBox.warning(self, "Nombre duplicado", "Ya existe un tren con ese nombre.")
+                return
+
+            row = self.db.fetch_one("SELECT NVL(MAX(ID_TREN), 0) + 1 FROM TREN")
+            if not row:
+                logger.error("No se pudo obtener el siguiente ID_TREN")
+                QMessageBox.critical(self, "Error", "No se pudo obtener un nuevo ID para el tren.")
+                return
+            id_tren = row[0]
+
+            ok = self.db.execute_query(
+                "INSERT INTO TREN (ID_TREN, NOMBRE, CAPACIDAD, ESTADO) "
+                "VALUES (:id_tren, :nombre, :capacidad, UPPER(:estado))",
+                {"id_tren": id_tren, "nombre": nombre, "capacidad": capacidad, "estado": estado},
+            )
+            if ok:
+                QMessageBox.information(self, "Éxito", "Tren agregado correctamente.")
+                # Emitir la señal update_triggered con guardas
+                try:
+                    if getattr(self.db, "event_manager", None) and hasattr(self.db.event_manager, "update_triggered"):
+                        self.db.event_manager.update_triggered.emit()
+                except Exception as em:
+                    logger.warning("Fallo emitiendo update_triggered: %s", em)
+                self.cancelar()
+            else:
+                logger.error("execute_query devolvió False al insertar tren")
+                QMessageBox.critical(self, "Error", "No se pudo agregar el tren.")
         except Exception as e:
-            QMessageBox.critical(self, "Error", "Ya existe un tren con ese nombre.")
+            # Errores no esperados (los helpers suelen capturar los de DB)
+            logger.exception("Error al insertar tren: %s", e)
+            QMessageBox.critical(self, "Error", "Ocurrió un error al agregar el tren.")
 
 class InterfazEditarTren(QWidget):
-    def __init__(self, main_window, db):
+    """Panel para editar un tren existente."""
+
+    def __init__(self, main_window, db) -> None:
         super().__init__()
         self.main_window = main_window
         self.db = db
-        self.id_tren = None  # Se llena con el ID del tren seleccionado
+        self.id_tren: Optional[int] = None  # Se llena con el ID del tren seleccionado
         self.initUI()
 
     def initUI(self):
@@ -473,30 +511,38 @@ class InterfazEditarTren(QWidget):
         self.btn_consultar.clicked.connect(self.verificar_nombre)
         self.btn_confirmar.clicked.connect(self.actualizar_tren)
 
-    def cancelar(self):
+    def cancelar(self) -> None:
         self.input_nombre.clear()
         self.input_capacidad.clear()
         self.estado_combo.setCurrentIndex(0)
 
-    def cargar_datos(self, id_tren, nombre, capacidad, estado):
+    def cargar_datos(self, id_tren: int, nombre: str, capacidad: int, estado: str) -> None:
         """Carga los datos del tren seleccionado para editarlos"""
         self.id_tren = id_tren
         self.input_nombre.setText(nombre)
         self.input_capacidad.setText(str(capacidad))
         self.estado_combo.setCurrentText(estado)
 
-    def verificar_nombre(self):
+    def verificar_nombre(self) -> None:
         nombre = self.input_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Advertencia", "Ingresa un nombre.")
             return
-        resultado = self.db.fetch_one("SELECT COUNT(*) FROM TREN WHERE NOMBRE = :1 AND ID_TREN != :2", [nombre, self.id_tren])
+        try:
+            resultado = self.db.fetch_one(
+                "SELECT COUNT(*) FROM TREN WHERE UPPER(NOMBRE) = UPPER(:nombre) AND ID_TREN != :id_tren",
+                {"nombre": nombre, "id_tren": self.id_tren},
+            )
+        except Exception as e:
+            logger.exception("Error verificando nombre de tren (edición): %s", e)
+            QMessageBox.critical(self, "Error", "No se pudo verificar el nombre del tren.")
+            return
         if resultado and resultado[0] > 0:
             QMessageBox.warning(self, "Nombre duplicado", "Ya existe otro tren con ese nombre.")
         else:
             QMessageBox.information(self, "Disponible", "El nombre está disponible.")
 
-    def actualizar_tren(self):
+    def actualizar_tren(self) -> None:
         if self.id_tren is None:
             QMessageBox.warning(self, "Error", "No se ha seleccionado ningún tren.")
             return
@@ -524,15 +570,32 @@ class InterfazEditarTren(QWidget):
         
         try:
             if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                cursor.execute(
-                    "UPDATE TREN SET NOMBRE = :1, CAPACIDAD = :2, ESTADO = UPPER(:3) WHERE ID_TREN = :4",
-                    [nombre, capacidad, estado, self.id_tren]
+                # Verificación de duplicado (case-insensitive) excluyendo el propio ID
+                dup = self.db.fetch_one(
+                    "SELECT 1 FROM TREN WHERE UPPER(NOMBRE) = UPPER(:nombre) AND ID_TREN != :id_tren",
+                    {"nombre": nombre, "id_tren": self.id_tren},
                 )
-                self.db.connection.commit()
-                QMessageBox.information(self, "Éxito", "Tren actualizado correctamente.")
-                # Emitir la señal update_triggered
-                self.db.event_manager.update_triggered.emit()
-                self.cancelar()
+                if dup:
+                    QMessageBox.warning(self, "Nombre duplicado", "Ya existe otro tren con ese nombre.")
+                    return
+
+                ok = self.db.execute_query(
+                    "UPDATE TREN SET NOMBRE = :nombre, CAPACIDAD = :capacidad, ESTADO = UPPER(:estado) "
+                    "WHERE ID_TREN = :id_tren",
+                    {"nombre": nombre, "capacidad": capacidad, "estado": estado, "id_tren": self.id_tren},
+                )
+                if ok:
+                    QMessageBox.information(self, "Éxito", "Tren actualizado correctamente.")
+                    # Emitir la señal update_triggered con guardas
+                    try:
+                        if getattr(self.db, "event_manager", None) and hasattr(self.db.event_manager, "update_triggered"):
+                            self.db.event_manager.update_triggered.emit()
+                    except Exception as em:
+                        logger.warning("Fallo emitiendo update_triggered: %s", em)
+                    self.cancelar()
+                else:
+                    logger.error("execute_query devolvió False al actualizar tren")
+                    QMessageBox.critical(self, "Error", "No se pudo actualizar el tren.")
         except Exception as e:
-            QMessageBox.critical(self, "Error", "Ya existe un tren con ese nombre.")
+            logger.exception("Error al actualizar tren: %s", e)
+            QMessageBox.critical(self, "Error", "Ocurrió un error al actualizar el tren.")

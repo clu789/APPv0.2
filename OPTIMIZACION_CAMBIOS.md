@@ -103,6 +103,16 @@ Cambios implementados ahora (fase 2: 5 y 7):
 	- Métodos `start()`/`stop()` para controlar el ciclo de vida desde fuera.
 	- Métodos `attach_to_db()`/`detach_from_db()` y registro seguro de `db.event_manager` si está libre.
 
+Mejora adicional (2025-11-06): Simulación de retrasos
+- Se añade simulación de retrasos para SALIDA y LLEGADA con configuración por entorno:
+	- `APP_DELAY_ENABLED` (1/true por defecto): activa la simulación.
+	- `APP_DELAY_MODE`: `threshold` (por defecto) o `prob`.
+		- threshold: `randint(0..MAX)` y si el valor > `THRESHOLD` se usa como retraso, si no 0.
+		- prob: con `PROB` (0..1) hay retraso `randint(1..MAX)`; si no, 0.
+	- `APP_DELAY_MAX_MINUTES` (15 por defecto), `APP_DELAY_THRESHOLD` (5 por defecto), `APP_DELAY_PROB` (0.35 por defecto).
+- Los retrasos aplican tanto en `manejar_salida`/`manejar_llegada` como en los workers `_task_manejar_salida`/`_task_manejar_llegada`.
+- Se registran en logs los retrasos simulados aplicados.
+
 ## APP/interfaces/login.py
 
 Fecha: 2025-10-26
@@ -262,3 +272,100 @@ Cambios aprobados y aplicados (1, 2, 3[consolidado], 4, 6, 7):
 Notas:
 - Se mantienen los separadores "→" en las cadenas de rutas para coherencia visual con otras vistas.
 - Se eliminó el intento previo de usar `INCIDENCIA_SEQ` y se fijó la política de ID por `MAX+1` para `INCIDENCIA`.
+ - Se eliminó el intento previo de usar `INCIDENCIA_SEQ` y se fijó la política de ID por `MAX+1` para `INCIDENCIA`.
+
+## APP/interfaces/infraestructura.py
+
+Fecha: 2025-11-06
+
+Cambios aprobados y aplicados (1, 2, 3, 5, 6, 7, 12):
+- (1) Migración a helpers y binds nombrados: `eliminar_tren` y `eliminar_estacion` ahora usan `execute_query` y parámetros nombrados, sin cursores ni commits manuales.
+- (2) Transacción atómica para eliminación de tren: bloque PL/SQL reasigna todas las asignaciones y registra cada cambio; si no hay tren disponible, aborta todo.
+- (3) HISTORIAL con secuencia: inserciones dentro del bloque usan `HISTORIAL_SEQ.NEXTVAL` con formato uniforme de `INFORMACION`.
+- (5) Logger por módulo: se añade `logging.getLogger(__name__)` y se reemplazan prints por logs informativos y de error.
+- (6) Emisión segura de eventos: `update_triggered` se emite sólo si el `EventManager` y la señal existen, con captura de errores.
+- (7) Coalescer recargas: se introduce `_refresh_timer` (single-shot 150 ms) y `actualizar_datos()` programa la recarga en vez de ejecutarla inmediatamente.
+- (12) Limpieza y reducción de flicker: cargas de tablas con `setUpdatesEnabled(False)` y `setSortingEnabled(False)` durante el llenado; imports reorganizados.
+
+Notas:
+- Política mantenida: no se introducen nuevas secuencias fuera de HISTORIAL.
+- `resizeRowsToContents()` se mantiene comentado para activarlo manualmente si el volumen de filas es bajo.
+
+## APP/interfaces/paneles/panel_trenes.py
+
+Fecha: 2025-11-06
+
+Cambios aprobados y aplicados (1, 2, 4, 5, 12):
+- (1) Migración a helpers de BD: se reemplaza el uso directo de cursores/commit por `fetch_one` y `execute_query` en verificación, inserción y actualización.
+- (2) Binds nombrados y verificación case-insensitive: consultas con parámetros nombrados (`:nombre`, `:capacidad`, `:estado`, `:id_tren`) y comparación `UPPER(...)` para detectar duplicados.
+- (4) Manejo de errores + logging: se añade `logging.getLogger(__name__)`; los errores se registran con `logger.exception`/`logger.error` y se muestran mensajes adecuados al usuario.
+- (5) Emisión segura de eventos: `update_triggered` se emite sólo si existe `event_manager` y la señal; se captura cualquier fallo al emitir.
+- (12) Type hints y docstrings: anotaciones en métodos clave y docstrings breves para ambas clases.
+
+Notas:
+- No se modificó la lógica de confirmación (diálogo) en edición ni se añadieron validadores de UI, conforme al alcance aprobado.
+
+## APP/interfaces/paneles/panel_estaciones.py
+
+Fecha: 2025-11-06
+
+Cambios aprobados y aplicados (1, 2, 4, 6, 10):
+- (1) Migración a helpers de BD: inserción y actualización usan `fetch_one` y `execute_query` con commits gestionados por el helper; se elimina el cursor manual.
+- (2) Verificación case-insensitive de duplicados: consultas de disponibilidad usan `UPPER(NOMBRE) = UPPER(:nombre)` tanto en alta como en edición (excluyendo el propio ID).
+- (4) Logger por módulo: se añade `logging.getLogger(__name__)` y se registran excepciones con `logger.exception`, además de errores operativos.
+- (6) Emisión segura de eventos: `update_triggered` sólo se emite si existe `event_manager` y la señal, con captura de posibles fallos.
+- (10) Type hints y docstrings: anotaciones de tipos en métodos y docstrings breves en clases `InterfazAgregarEstacion` e `InterfazEditarEstacion`.
+
+Notas:
+- Se mantuvo el comportamiento del diálogo de confirmación en edición (`confirmacion.exec() == 2`) al no estar incluido en los cambios aprobados.
+- Mensajes de error genéricos se conservaron (no se incluyó manejo diferenciado de errores no duplicado).
+Cambio adicional (2025-11-06):
+- Se añadió verificación silenciosa case-insensitive previa a INSERT y UPDATE (punto 2 extendido) para evitar que se inserten nombres que difieran sólo en mayúsculas/minúsculas cuando el usuario no pulsa "Consultar".
+
+## APP/interfaces/optimizacion.py
+
+Fecha: 2025-11-06
+
+Cambios aprobados y aplicados (1, 2[solo secuencia], 3, 5, 6, 7, 14, 16):
+- (1) Helpers/binds nombrados: unificación de parámetros nombrados en consultas; eliminación de `DatabaseConnection` no usado. Se mantienen cursores manuales en confirmar/rechazar para transacción única.
+- (2) HISTORIAL con secuencia: todas las inserciones a `HISTORIAL` usan `HISTORIAL_SEQ.NEXTVAL`; se retiró el cálculo por `MAX+1`.
+- (3) Transacción atómica por confirmación/rechazo: las operaciones DML de confirmar/rechazar se ejecutan dentro de una única transacción con `commit()` al final y `rollback()` en errores.
+- (5) Emisión segura de eventos y coalescer: guardas al emitir `update_triggered` y `actualizar_datos()` ahora programa una recarga con `QTimer` single-shot (150 ms).
+- (6) Logger por módulo: se añade `logging.getLogger(__name__)`, se reemplaza `print()` por logs y se registran excepciones con contexto.
+- (7) Carga optimizada: se eliminan N+1 de horarios originales/nuevos incluyendo `TO_CHAR(...)` y cálculos de +15 min directamente en las consultas de afectadas.
+- (14) Type hints y docstrings: anotaciones de tipos en métodos clave y docstring de clase.
+- (16) Limpieza de imports: reordenamiento y remoción de imports no utilizados.
+
+Notas:
+- No se modificó la lógica de diálogos (`exec()` con valores numéricos) al no estar aprobada en esta ronda.
+- La selección de tren disponible sigue realizándose por el primer disponible; se añadieron logs de error en caso de fallos.
+
+## APP/interfaces/mejora.py
+
+Fecha: 2025-11-06
+
+Cambios aprobados y aplicados (1, 2, 3, 5, 6, 7, 10, 11, 12):
+- (1) Binds nombrados y helpers: migración a `fetch_one`/`fetch_all`/`execute_query` con parámetros nombrados de forma consistente.
+- (2) Logger por módulo: se añade `logging.getLogger(__name__)` y se reemplazan `print()` por logs; manejo de excepciones con `logger.exception`.
+- (3) Coalescer de recargas + enganche de evento: `actualizar_datos()` programa recarga con `QTimer` single-shot (150 ms) y se conecta a `db.event_manager.update_triggered` si existe.
+- (5) Reducción de N+1: cargas de historial (horarios, rutas, asignaciones) resueltas con consultas en lote y mapeos en memoria.
+- (6) Rendimiento UI: uso de `setUpdatesEnabled(False)` y `setSortingEnabled(False)` durante el llenado de tablas para evitar parpadeo.
+- (7) Reportes agregados: consultas únicas para conteos de asignaciones e incidencias por ruta y tren.
+- (10) Type hints y docstrings: anotaciones y docstring en la clase y métodos públicos clave.
+- (11) Limpieza de imports: eliminación de `DatabaseConnection` no usado y consolidación de imports.
+- (12) Botón Actualizar: ahora llama a `actualizar_datos()` (coalescido) en lugar de recargar directo.
+
+Cambio adicional (8): retraso promedio en SQL
+- Se movió el cálculo de “retraso promedio” a SQL en ambos reportes (rutas y trenes),
+  evitando bucles Python y múltiples consultas. La lógica replica la anterior: diferencia en minutos entre hora real y programada para salida y llegada, sólo cuenta si > 0 y <= 10; se promedia sobre todos los registros válidos.
+- El formato visual se mantiene: “N/A” cuando no hay datos; en caso contrario, minutos con un decimal.
+
+## APP/interfaces/menu_lateral.py
+
+Fecha: 2025-11-06
+
+Cambios aprobados y aplicados (1, 2, 3, 4):
+- (1) Acceso a BD consistente y seguro: `load_user_name` usa `fetch_one` con bind nombrado `:id_usuario`, reemplaza `print()` por logger y maneja errores; fallback a “Usuario” si no hay datos o el ID no es numérico.
+- (2) Logger por módulo: `logging.getLogger(__name__)` y logs `debug` en toggles y carga de usuario.
+- (3) Limpieza de imports: se eliminan duplicados/no usados y se consolida la cabecera.
+- (4) Type hints y docstrings: docstring de clase y anotaciones en métodos públicos; firmas tipadas para eventos de Qt.

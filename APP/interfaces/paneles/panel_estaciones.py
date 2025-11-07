@@ -1,7 +1,13 @@
 from PyQt6.QtWidgets import QWidget, QLabel, QVBoxLayout, QLineEdit, QPushButton, QHBoxLayout, QMessageBox
+import logging
+from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 class InterfazAgregarEstacion(QWidget):
-    def __init__(self, main_window, db):
+    """Panel para agregar una nueva estación."""
+
+    def __init__(self, main_window, db) -> None:
         super().__init__()
         self.main_window = main_window
         self.db = db
@@ -182,52 +188,83 @@ class InterfazAgregarEstacion(QWidget):
         self.setLayout(layout)
 
         # Conexiones se mantienen exactamente igual
+        self.btn_cancelar.clicked.connect(self.cancelar)
         self.btn_consultar.clicked.connect(self.verificar_nombre)
         self.btn_confirmar.clicked.connect(self.insertar_estacion)
 
-    def cancelar(self):
+    def cancelar(self) -> None:
         self.input_nombre.clear()
 
-    def verificar_nombre(self):
+    def verificar_nombre(self) -> None:
         nombre = self.input_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Advertencia", "Ingresa un nombre.")
             return
-        cursor = self.db.connection.cursor()
-        cursor.execute("SELECT COUNT(*) FROM ESTACION WHERE NOMBRE = :1", (nombre,))
-        resultado = cursor.fetchone()
+        try:
+            resultado = self.db.fetch_one(
+                "SELECT COUNT(*) FROM ESTACION WHERE UPPER(NOMBRE) = UPPER(:nombre)",
+                {"nombre": nombre},
+            )
+        except Exception as e:
+            logger.exception("Error verificando nombre de estación: %s", e)
+            QMessageBox.critical(self, "Error", "No se pudo verificar el nombre de la estación.")
+            return
         if resultado and resultado[0] > 0:
             QMessageBox.warning(self, "Nombre duplicado", "Ya existe una estación con ese nombre.")
         else:
             QMessageBox.information(self, "Disponible", "El nombre está disponible.")
 
-    def insertar_estacion(self):
+    def insertar_estacion(self) -> None:
         nombre = self.input_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Error", "El nombre no puede estar vacío.")
             return
         
         try:
-            cursor = self.db.connection.cursor()
-            id_estacion = self.db.fetch_one("SELECT NVL(MAX(ID_ESTACION), 0) + 1 FROM ESTACION")[0]
-            cursor.execute(
-                "INSERT INTO ESTACION (ID_ESTACION, NOMBRE) VALUES (:1, :2)",
-                [id_estacion, nombre]
+            # Verificación de duplicado (case-insensitive) antes de insertar
+            dup = self.db.fetch_one(
+                "SELECT 1 FROM ESTACION WHERE UPPER(NOMBRE) = UPPER(:nombre)",
+                {"nombre": nombre},
             )
-            self.db.connection.commit()
+            if dup:
+                QMessageBox.warning(self, "Nombre duplicado", "Ya existe una estación con ese nombre.")
+                return
+
+            row = self.db.fetch_one("SELECT NVL(MAX(ID_ESTACION), 0) + 1 FROM ESTACION")
+            if not row:
+                logger.error("No se pudo obtener el siguiente ID_ESTACION")
+                QMessageBox.critical(self, "Error", "No se pudo generar un nuevo ID para la estación.")
+                return
+            id_estacion = row[0]
+
+            ok = self.db.execute_query(
+                "INSERT INTO ESTACION (ID_ESTACION, NOMBRE) VALUES (:id_estacion, :nombre)",
+                {"id_estacion": id_estacion, "nombre": nombre},
+            )
+            if not ok:
+                logger.error("execute_query devolvió False al insertar estación")
+                QMessageBox.critical(self, "Error", "No se pudo agregar la estación.")
+                return
             QMessageBox.information(self, "Éxito", "Estación agregado correctamente.")
             # Emitir la señal update_triggered
-            self.db.event_manager.update_triggered.emit()
+            try:
+                if getattr(self.db, "event_manager", None) and hasattr(self.db.event_manager, "update_triggered"):
+                    self.db.event_manager.update_triggered.emit()
+            except Exception as em:
+                logger.warning("Fallo emitiendo update_triggered: %s", em)
             self.cancelar()
         except Exception as e:
+            logger.exception("Error al insertar estación: %s", e)
             QMessageBox.critical(self, "Error", "Ya existe una estación con ese nombre.")
 
 class InterfazEditarEstacion(QWidget):
-    def __init__(self, main_window, db):
+    """Panel para editar una estación existente."""
+
+    def __init__(self, main_window, db) -> None:
         super().__init__()
         self.main_window = main_window
         self.db = db
-        self.id_estacion = None  # Se asigna desde la tabla principal
+        self.id_estacion: Optional[int] = None  # Se asigna desde la tabla principal
         self.initUI()
 
     def initUI(self):
@@ -405,29 +442,38 @@ class InterfazEditarEstacion(QWidget):
         self.setLayout(layout)
     
         # Conexiones se mantienen exactamente igual
+        self.btn_cancelar.clicked.connect(self.cancelar)
         self.btn_consultar.clicked.connect(self.verificar_nombre)
         self.btn_confirmar.clicked.connect(self.actualizar_estacion)
 
-    def cancelar(self):
+    def cancelar(self) -> None:
         self.input_nombre.clear()
 
-    def cargar_datos(self, id_estacion, nombre):
+    def cargar_datos(self, id_estacion: int, nombre: str) -> None:
         """Carga los datos de la estación seleccionada"""
         self.id_estacion = id_estacion
         self.input_nombre.setText(nombre)
 
-    def verificar_nombre(self):
+    def verificar_nombre(self) -> None:
         nombre = self.input_nombre.text().strip()
         if not nombre:
             QMessageBox.warning(self, "Advertencia", "Ingresa un nombre.")
             return
-        resultado = self.db.fetch_one("SELECT COUNT(*) FROM ESTACION WHERE NOMBRE = :1 AND ID_ESTACION != :2", [nombre, self.id_estacion])
+        try:
+            resultado = self.db.fetch_one(
+                "SELECT COUNT(*) FROM ESTACION WHERE UPPER(NOMBRE) = UPPER(:nombre) AND ID_ESTACION != :id_estacion",
+                {"nombre": nombre, "id_estacion": self.id_estacion},
+            )
+        except Exception as e:
+            logger.exception("Error verificando nombre de estación (edición): %s", e)
+            QMessageBox.critical(self, "Error", "No se pudo verificar el nombre de la estación.")
+            return
         if resultado and resultado[0] > 0:
             QMessageBox.warning(self, "Nombre duplicado", "Ya existe otra estación con ese nombre.")
         else:
             QMessageBox.information(self, "Disponible", "El nombre está disponible.")
 
-    def actualizar_estacion(self):
+    def actualizar_estacion(self) -> None:
         if self.id_estacion is None:
             QMessageBox.warning(self, "Error", "No se ha seleccionado ninguna estación.")
             return
@@ -446,15 +492,31 @@ class InterfazEditarEstacion(QWidget):
         
         try:
             if confirmacion.exec() == 2:
-                cursor = self.db.connection.cursor()
-                cursor.execute(
-                    "UPDATE ESTACION SET NOMBRE = :1 WHERE ID_ESTACION = :2",
-                    [nombre, self.id_estacion]
+                # Verificación de duplicado (case-insensitive) excluyendo el propio ID antes de actualizar
+                dup = self.db.fetch_one(
+                    "SELECT 1 FROM ESTACION WHERE UPPER(NOMBRE) = UPPER(:nombre) AND ID_ESTACION != :id_estacion",
+                    {"nombre": nombre, "id_estacion": self.id_estacion},
                 )
-                self.db.connection.commit()
+                if dup:
+                    QMessageBox.warning(self, "Nombre duplicado", "Ya existe otra estación con ese nombre.")
+                    return
+
+                ok = self.db.execute_query(
+                    "UPDATE ESTACION SET NOMBRE = :nombre WHERE ID_ESTACION = :id_estacion",
+                    {"nombre": nombre, "id_estacion": self.id_estacion},
+                )
+                if not ok:
+                    logger.error("execute_query devolvió False al actualizar estación")
+                    QMessageBox.critical(self, "Error", "No se pudo actualizar la estación.")
+                    return
                 QMessageBox.information(self, "Éxito", "Estación actualizada correctamente.")
                 # Emitir la señal update_triggered
-                self.db.event_manager.update_triggered.emit()
+                try:
+                    if getattr(self.db, "event_manager", None) and hasattr(self.db.event_manager, "update_triggered"):
+                        self.db.event_manager.update_triggered.emit()
+                except Exception as em:
+                    logger.warning("Fallo emitiendo update_triggered: %s", em)
                 self.cancelar()
         except Exception as e:
+            logger.exception("Error al actualizar estación: %s", e)
             QMessageBox.critical(self, "Error", "Ya existe una estación con ese nombre.")

@@ -1,18 +1,31 @@
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QLabel, QTableWidget,
                              QTableWidgetItem, QPushButton, QMessageBox, QDialog, QLineEdit,
                              QScrollArea, QFrame, QHeaderView, QAbstractItemView, QSizePolicy)
-from PyQt6.QtCore import Qt
-from base_de_datos.db import DatabaseConnection
+from PyQt6.QtCore import Qt, QTimer
+import logging
+from typing import Optional, List, Tuple, Dict
 import re
 from PyQt6.QtGui import QPixmap
 from utils import obtener_ruta_recurso
 
+logger = logging.getLogger(__name__)
+
 class OptimizacionDinamica(QWidget):
-    def __init__(self, main_window, db, username):
+    """Panel de optimización dinámica de incidencias y asignaciones.
+
+    Agrupa incidencias abiertas, propone acciones y permite confirmarlas o rechazarlas.
+    """
+
+    def __init__(self, main_window, db, username: str):
         super().__init__()
         self.username = username
         self.main_window = main_window
         self.db = db
+        # Coalescer de recarga
+        self._refresh_timer: QTimer = QTimer(self)
+        self._refresh_timer.setSingleShot(True)
+        self._refresh_timer.setInterval(150)
+        self._refresh_timer.timeout.connect(self.cargar_datos)
 
         self.setWindowTitle("Optimización Dinámica")
         self.setGeometry(100, 100, 1200, 600)  # Aumenté el ancho para acomodar más columnas
@@ -301,10 +314,17 @@ class OptimizacionDinamica(QWidget):
         self.btn_editar_cambio.setEnabled(False)
         self.btn_rechazar_cambio.setEnabled(False)
 
-    def actualizar_datos(self):
-        self.cargar_datos()
+    def actualizar_datos(self) -> None:
+        """Programa una recarga coalescida de datos para evitar ráfagas y parpadeos."""
+        try:
+            if self._refresh_timer.isActive():
+                self._refresh_timer.stop()
+            self._refresh_timer.start()
+        except Exception:
+            # Fallback directo si el timer falla
+            self.cargar_datos()
 
-    def calcular_nuevo_horario(self, id_horario):
+    def calcular_nuevo_horario(self, id_horario: int) -> str:
         query = """
             SELECT 
                 HORA_SALIDA_PROGRAMADA + INTERVAL '15' MINUTE,
@@ -319,7 +339,7 @@ class OptimizacionDinamica(QWidget):
             return f"{nueva_salida} - {nueva_llegada}"
         return "N/A - N/A"
 
-    def obtener_horario_original(self, id_horario):
+    def obtener_horario_original(self, id_horario: int) -> str:
         query = """
             SELECT TO_CHAR(HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS'), TO_CHAR(HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS')
             FROM HORARIO
@@ -330,7 +350,7 @@ class OptimizacionDinamica(QWidget):
             return f"{resultado[0]} - {resultado[1]}"
         return "N/A"
 
-    def buscar_tren_disponible(self, id_horario):
+    def buscar_tren_disponible(self, id_horario: int) -> str:
         """
         Busca trenes disponibles para reasignación durante un horario específico.
         Devuelve el nombre del primer tren disponible encontrado o "Ninguno disponible".
@@ -379,10 +399,11 @@ class OptimizacionDinamica(QWidget):
             return "Ninguno disponible"
             
         except Exception as e:
-            print(f"Error al buscar tren disponible: {str(e)}")
+            logger.exception("Error al buscar tren disponible para horario %s: %s", id_horario, e)
             return "Error en búsqueda"
 
-    def cargar_datos(self):
+    def cargar_datos(self) -> None:
+        logger.debug("Cargando datos de optimización dinámica...")
         self.tabla.setRowCount(0)
 
         # 1. Obtener incidencias no resueltas
@@ -396,8 +417,10 @@ class OptimizacionDinamica(QWidget):
         if not incidencias:
             return
 
-        id_asignaciones = [str(row[1]) for row in incidencias]  # ID_ASIGNACION
-        placeholders = ','.join([':{}'.format(i + 1) for i in range(len(id_asignaciones))])
+        id_asignaciones = [row[1] for row in incidencias]  # ID_ASIGNACION
+        # Construir binds nombrados para IN
+        bind_map: Dict[str, int] = {f"id{i}": int(val) for i, val in enumerate(id_asignaciones)}
+        placeholders = ','.join(f":{k}" for k in bind_map.keys())
 
         # 2. Obtener información de cada asignación (ID_HORARIO, ID_TREN, ID_RUTA)
         query_asignaciones = f"""
@@ -405,7 +428,7 @@ class OptimizacionDinamica(QWidget):
             FROM ASIGNACION_TREN
             WHERE ID_ASIGNACION IN ({placeholders})
         """
-        asignaciones = self.db.fetch_all(query_asignaciones, id_asignaciones)
+        asignaciones = self.db.fetch_all(query_asignaciones, bind_map)
 
         mapa_asignaciones = {a[0]: a for a in asignaciones}
 
@@ -419,35 +442,51 @@ class OptimizacionDinamica(QWidget):
             id_horario, id_tren, id_ruta = mapa_asignaciones[id_asig][1:]
         
             if tipo == 'RETRASO':
-                # Buscar asignaciones futuras con la misma ruta
+                # Asignaciones futuras con misma ruta, incluyendo horarios original y nuevo calculado
                 query_afectadas = """
-                    SELECT A.ID_HORARIO, A.ID_TREN, T.NOMBRE
+                    SELECT A.ID_HORARIO,
+                           A.ID_TREN,
+                           T.NOMBRE,
+                           TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SAL_ORIG,
+                           TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEG_ORIG,
+                           TO_CHAR(H.HORA_SALIDA_PROGRAMADA + INTERVAL '15' MINUTE, 'HH24:MI:SS') AS SAL_NUEVA,
+                           TO_CHAR(H.HORA_LLEGADA_PROGRAMADA + INTERVAL '15' MINUTE, 'HH24:MI:SS') AS LLEG_NUEVA
                     FROM ASIGNACION_TREN A
+                    JOIN HORARIO H ON H.ID_HORARIO = A.ID_HORARIO
                     LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
-                    WHERE A.ID_HORARIO > :1 AND A.ID_RUTA = :2
+                    WHERE A.ID_HORARIO > :id_horario AND A.ID_RUTA = :id_ruta
                 """
-                afectadas = self.db.fetch_all(query_afectadas, [id_horario, id_ruta])
-        
+                afectadas = self.db.fetch_all(query_afectadas, {"id_horario": id_horario, "id_ruta": id_ruta})
+
             elif tipo in ('AVERIA', 'EMERGENCIA'):
-                # Buscar otras asignaciones del mismo tren
+                # Otras asignaciones del mismo tren, incluyendo horario original
                 query_afectadas = """
-                    SELECT A.ID_HORARIO, A.ID_TREN, T.NOMBRE
+                    SELECT A.ID_HORARIO,
+                           A.ID_TREN,
+                           T.NOMBRE,
+                           TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI:SS') AS SAL_ORIG,
+                           TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI:SS') AS LLEG_ORIG
                     FROM ASIGNACION_TREN A
+                    JOIN HORARIO H ON H.ID_HORARIO = A.ID_HORARIO
                     LEFT JOIN TREN T ON A.ID_TREN = T.ID_TREN
-                    WHERE A.ID_TREN = :1 AND A.ID_HORARIO > :2
+                    WHERE A.ID_TREN = :id_tren AND A.ID_HORARIO > :id_horario
                 """
-                afectadas = self.db.fetch_all(query_afectadas, [id_tren, id_horario])
+                afectadas = self.db.fetch_all(query_afectadas, {"id_tren": id_tren, "id_horario": id_horario})
             else:
                 afectadas = []
         
             for af in afectadas:
-                id_hor, id_tren_af, nombre_tren = af
-                horario_original = self.obtener_horario_original(id_hor)
+                if tipo == 'RETRASO':
+                    id_hor, id_tren_af, nombre_tren, sal_orig, lleg_orig, sal_nueva, lleg_nueva = af
+                    horario_original = f"{sal_orig} - {lleg_orig}"
+                    nuevo_horario = f"{sal_nueva} - {lleg_nueva}"
+                else:
+                    id_hor, id_tren_af, nombre_tren, sal_orig, lleg_orig = af
+                    horario_original = f"{sal_orig} - {lleg_orig}"
         
                 # Acción sugerida según tipo
                 if tipo == 'RETRASO':
                     accion = 'REPROGRAMAR'
-                    nuevo_horario = self.calcular_nuevo_horario(id_hor)
                     tren_sugerido = ""
                 elif tipo == 'AVERIA':
                     accion = 'REASIGNAR TREN'
@@ -480,17 +519,22 @@ class OptimizacionDinamica(QWidget):
                     tren_sugerido
                 ))
 
-        self.tabla.setRowCount(len(filas_resultantes))
-        self.tabla.setSortingEnabled(False)  # Desactivar ordenamiento temporal
-        for fila_idx, fila_datos in enumerate(filas_resultantes):
-            for col_idx, dato in enumerate(fila_datos):
-                self.tabla.setItem(fila_idx, col_idx, QTableWidgetItem(str(dato)))
-        
-        self.tabla.resizeColumnsToContents()
-        self.tabla.resizeRowsToContents()
-        self.tabla.sortItems(0, Qt.SortOrder.AscendingOrder)
+        # Volcado eficiente en tabla
+        self.tabla.setUpdatesEnabled(False)
+        try:
+            self.tabla.setRowCount(len(filas_resultantes))
+            self.tabla.setSortingEnabled(False)  # Desactivar ordenamiento temporal
+            for fila_idx, fila_datos in enumerate(filas_resultantes):
+                for col_idx, dato in enumerate(fila_datos):
+                    self.tabla.setItem(fila_idx, col_idx, QTableWidgetItem(str(dato)))
+            self.tabla.resizeColumnsToContents()
+            self.tabla.resizeRowsToContents()
+            self.tabla.setSortingEnabled(True)
+            self.tabla.sortItems(0, Qt.SortOrder.AscendingOrder)
+        finally:
+            self.tabla.setUpdatesEnabled(True)
 
-    def confirmar_cambio(self):
+    def confirmar_cambio(self) -> None:
         fila = self.tabla.currentRow()
         if fila < 0:
             QMessageBox.warning(self, "Advertencia", "Selecciona una fila para confirmar.")
@@ -533,10 +577,6 @@ class OptimizacionDinamica(QWidget):
                 id_tren = self.tabla.item(fila_idx, 2).text()  # ID_TREN
                 accion = self.tabla.item(fila_idx, 6).text()  # Acción sugerida
     
-                # Obtener nuevo ID para el historial
-                cursor.execute("SELECT NVL(MAX(ID_HISTORIAL), 0) + 1 FROM HISTORIAL")
-                nuevo_id = cursor.fetchone()[0]
-    
                 if tipo_incidencia == 'RETRASO':
                     # Procesamiento para RETRASO (cambio de horario)
                     horario_anterior = self.tabla.item(fila_idx, 7).text()  # Horario Original
@@ -544,19 +584,25 @@ class OptimizacionDinamica(QWidget):
     
                     if nuevo_horario != "N/A - N/A":
                         # Registrar cambio de horario en la base de datos
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_HORARIO, FECHA_REGISTRO)
-                            VALUES (:1, :2, :3, :4, SYSDATE)
-                        """, (nuevo_id, horario_anterior, self.username, id_horario,))
+                            VALUES (HISTORIAL_SEQ.NEXTVAL, :info, :id_usuario, :id_horario, SYSDATE)
+                            """,
+                            {"info": horario_anterior, "id_usuario": self.username, "id_horario": id_horario},
+                        )
     
                         # Actualizar horario
                         nueva_salida, nueva_llegada = nuevo_horario.split(' - ')
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE HORARIO
-                            SET HORA_SALIDA_PROGRAMADA = TO_DATE(:1, 'HH24:MI:SS'),
-                                HORA_LLEGADA_PROGRAMADA = TO_DATE(:2, 'HH24:MI:SS')
-                            WHERE ID_HORARIO = :3
-                        """, [nueva_salida, nueva_llegada, id_horario])
+                            SET HORA_SALIDA_PROGRAMADA = TO_DATE(:sal, 'HH24:MI:SS'),
+                                HORA_LLEGADA_PROGRAMADA = TO_DATE(:lleg, 'HH24:MI:SS')
+                            WHERE ID_HORARIO = :id_hor
+                            """,
+                            {"sal": nueva_salida, "lleg": nueva_llegada, "id_hor": id_horario},
+                        )
     
                 elif tipo_incidencia in ('AVERIA', 'EMERGENCIA'):
                     # Procesamiento para AVERÍA/EMERGENCIA (reasignación de tren)
@@ -565,63 +611,102 @@ class OptimizacionDinamica(QWidget):
     
                     if accion == 'REASIGNAR TREN' and tren_sugerido != "Ninguno disponible":
                         if bandera_tren:
-                            cursor.execute("""
-                                SELECT ID_ASIGNACION FROM INCIDENCIA WHERE ID_INCIDENCIA = :1
-                            """, (id_incidencia,))
+                            cursor.execute(
+                                """
+                                SELECT ID_ASIGNACION FROM INCIDENCIA WHERE ID_INCIDENCIA = :id_inc
+                                """,
+                                {"id_inc": id_incidencia},
+                            )
                             id_asignacion = cursor.fetchone()[0]
                             # Actualizar asignación de tren
-                            cursor.execute("""
+                            cursor.execute(
+                                """
                                 UPDATE ASIGNACION_TREN
-                                SET ID_TREN = (SELECT ID_TREN FROM TREN WHERE NOMBRE = :1)
-                                WHERE ID_ASIGNACION = :2
-                            """, [tren_sugerido, id_asignacion])
+                                SET ID_TREN = (SELECT ID_TREN FROM TREN WHERE NOMBRE = :nom_tren)
+                                WHERE ID_ASIGNACION = :id_asig
+                                """,
+                                {"nom_tren": tren_sugerido, "id_asig": id_asignacion},
+                            )
                             bandera_tren = False
                         # Obtener id_asignacion
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             SELECT ID_ASIGNACION FROM ASIGNACION_TREN
-                            WHERE ID_HORARIO = :1
-                            AND ID_TREN = :2
-                        """, (id_horario, id_tren,))
+                            WHERE ID_HORARIO = :id_hor
+                              AND ID_TREN = :id_tren
+                            """,
+                            {"id_hor": id_horario, "id_tren": id_tren},
+                        )
                         id_asignacion = cursor.fetchone()[0]
                         # Registrar en historial
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                            VALUES (:1, 'Reasignación de tren por ' || :2 || '. Anterior: ' || :3 || ' Nuevo: ' || :4, :5, :6, SYSDATE)
-                        """, (nuevo_id, tipo_incidencia, tren_anterior, tren_sugerido, self.username, id_asignacion))
+                            VALUES (HISTORIAL_SEQ.NEXTVAL,
+                                    'Reasignación de tren por ' || :tipo || '. Anterior: ' || :ant || ' Nuevo: ' || :nuevo,
+                                    :id_usuario, :id_asig, SYSDATE)
+                            """,
+                            {
+                                "tipo": tipo_incidencia,
+                                "ant": tren_anterior,
+                                "nuevo": tren_sugerido,
+                                "id_usuario": self.username,
+                                "id_asig": id_asignacion,
+                            },
+                        )
     
                         # Actualizar asignación de tren
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             UPDATE ASIGNACION_TREN
-                            SET ID_TREN = (SELECT ID_TREN FROM TREN WHERE NOMBRE = :1)
-                            WHERE ID_HORARIO = :2
-                        """, [tren_sugerido, id_horario])
+                            SET ID_TREN = (SELECT ID_TREN FROM TREN WHERE NOMBRE = :nom_tren)
+                            WHERE ID_HORARIO = :id_hor
+                            """,
+                            {"nom_tren": tren_sugerido, "id_hor": id_horario},
+                        )
     
                     elif accion == 'CANCELAR VIAJE':
                         # Obtener id_asignacion
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             SELECT ID_ASIGNACION FROM ASIGNACION_TREN
-                            WHERE ID_HORARIO = :1
-                            AND ID_TREN = :2
-                        """, (id_horario, id_tren,))
+                            WHERE ID_HORARIO = :id_hor
+                              AND ID_TREN = :id_tren
+                            """,
+                            {"id_hor": id_horario, "id_tren": id_tren},
+                        )
                         id_asignacion = cursor.fetchone()[0]
                         # Eliminar asignación
-                        self.db.execute_query("DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :1", [id_asignacion])
+                        cursor.execute(
+                            "DELETE FROM ASIGNACION_TREN WHERE ID_ASIGNACION = :id_asig",
+                            {"id_asig": id_asignacion},
+                        )
                         # Registrar cancelación en historial
-                        cursor.execute("""
+                        cursor.execute(
+                            """
                             INSERT INTO HISTORIAL (ID_HISTORIAL, INFORMACION, ID_USUARIO, ID_ASIGNACION, FECHA_REGISTRO)
-                            VALUES (:1, 'Viaje cancelado por ' || :2, :3, :4, SYSDATE)
-                        """, (nuevo_id, tipo_incidencia, self.username, id_asignacion))
+                            VALUES (HISTORIAL_SEQ.NEXTVAL, 'Viaje cancelado por ' || :tipo, :id_usuario, :id_asig, SYSDATE)
+                            """,
+                            {"tipo": tipo_incidencia, "id_usuario": self.username, "id_asig": id_asignacion},
+                        )
     
     
             # Marcar incidencia como resuelta
-            cursor.execute("""
+            cursor.execute(
+                """
                 UPDATE INCIDENCIA 
                 SET ESTADO = 'RESUELTO'
-                WHERE ID_INCIDENCIA = :1
-            """, [id_incidencia])
+                WHERE ID_INCIDENCIA = :id_inc
+                """,
+                {"id_inc": id_incidencia},
+            )
     
             self.db.connection.commit()
-            self.db.event_manager.update_triggered.emit()
+            try:
+                if getattr(self.db, "event_manager", None) and hasattr(self.db.event_manager, "update_triggered"):
+                    self.db.event_manager.update_triggered.emit()
+            except Exception as em:
+                logger.warning("Fallo emitiendo update_triggered: %s", em)
             
             QMessageBox.information(
                 self, 
@@ -629,7 +714,7 @@ class OptimizacionDinamica(QWidget):
                 f"Se procesaron {len(filas_afectadas)} registros afectados por la incidencia {id_incidencia}\n"
                 f"Incidencia marcada como RESUELTO."
             )
-            self.cargar_datos()
+            self.actualizar_datos()
     
         except Exception as e:
             self.db.connection.rollback()
@@ -638,7 +723,8 @@ class OptimizacionDinamica(QWidget):
                 "Error", 
                 f"No se pudo confirmar el cambio:\n{str(e)}"
             )
-            self.cargar_datos()
+            logger.exception("Error confirmando cambio para incidencia %s: %s", id_incidencia, e)
+            self.actualizar_datos()
 
     def editar_cambio(self):
         fila = self.tabla.currentRow()
@@ -715,7 +801,7 @@ class OptimizacionDinamica(QWidget):
         dialog.exec()
         self.ocultar_botones()
 
-    def rechazar_cambio(self):
+    def rechazar_cambio(self) -> None:
         fila = self.tabla.currentRow()
         if fila < 0:
             QMessageBox.warning(self, "Advertencia", "Selecciona una fila para rechazar.")
@@ -734,14 +820,22 @@ class OptimizacionDinamica(QWidget):
         if confirmacion.exec() == 2:
             try:
                 cursor = self.db.connection.cursor()
-                cursor.execute("UPDATE INCIDENCIA SET ESTADO = 'RESUELTO' WHERE ID_INCIDENCIA = :1", [id_incidencia])
+                cursor.execute(
+                    "UPDATE INCIDENCIA SET ESTADO = 'RESUELTO' WHERE ID_INCIDENCIA = :id_inc",
+                    {"id_inc": id_incidencia},
+                )
                 self.db.connection.commit()
                 # Emitir la señal update_triggered
-                self.db.event_manager.update_triggered.emit()
+                try:
+                    if getattr(self.db, "event_manager", None) and hasattr(self.db.event_manager, "update_triggered"):
+                        self.db.event_manager.update_triggered.emit()
+                except Exception as em:
+                    logger.warning("Fallo emitiendo update_triggered: %s", em)
                 QMessageBox.information(self, "Éxito", f"Cambios para la incidencia {id_incidencia} rechazados")
-                self.cargar_datos()
+                self.actualizar_datos()
             except Exception as e:
                 QMessageBox.critical(self, "Error", f"No se pudo rechazar el cambio:\n{str(e)}")
+                logger.exception("Error rechazando cambio para incidencia %s: %s", id_incidencia, e)
             finally:
                 cursor.close()
         self.ocultar_botones()

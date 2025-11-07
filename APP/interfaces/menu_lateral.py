@@ -1,22 +1,36 @@
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel,
-                            QFrame, QSpacerItem, QSizePolicy)
-from PyQt6.QtCore import pyqtSignal, Qt, QPropertyAnimation, QEasingCurve, QTimer
-from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QBrush
-from PyQt6.QtCore import QSize, QPoint
-
-
-from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QPushButton, QLabel, 
-                            QFrame, QSpacerItem, QSizePolicy, QHBoxLayout)
-from PyQt6.QtCore import pyqtSignal, Qt, QPropertyAnimation, QEasingCurve
-from PyQt6.QtGui import QIcon, QFont, QPixmap, QColor, QPainter, QBrush
-from PyQt6.QtCore import QSize
+from PyQt6.QtWidgets import (
+    QWidget,
+    QVBoxLayout,
+    QPushButton,
+    QLabel,
+    QFrame,
+    QSizePolicy,
+    QHBoxLayout,
+)
+from PyQt6.QtCore import (
+    pyqtSignal,
+    Qt,
+    QPropertyAnimation,
+    QEasingCurve,
+    QTimer,
+    QSize,
+    QEvent,
+)
+from PyQt6.QtGui import QIcon, QPixmap, QColor, QPainter, QBrush, QPaintEvent
+import logging
 
 from utils import obtener_ruta_recurso
 
+logger = logging.getLogger(__name__)
+
+
 class MenuLateral(QWidget):
+    """Menú lateral de navegación con colapso/expansión, fijación y cabecera de usuario."""
+
     cambio_interfaz = pyqtSignal(int)
     cerrar_sesion = pyqtSignal()  # Señal para cerrar sesión
-    def __init__(self, db, username):
+
+    def __init__(self, db, username) -> None:
         super().__init__()
         self.username = username
         self.db = db
@@ -36,7 +50,7 @@ class MenuLateral(QWidget):
         
         self.initUI()
 
-    def initUI(self):
+    def initUI(self) -> None:
         # Fondo base del widget (pintado también en paintEvent)
         self.setStyleSheet(f"background-color: {self.menu_color.name()};")
         
@@ -295,7 +309,7 @@ class MenuLateral(QWidget):
         # del event loop para asentar correctamente la geometría y evitar "aplastamiento" inicial.
         QTimer.singleShot(0, self._kickstart_layout)
 
-    def _kickstart_layout(self):
+    def _kickstart_layout(self) -> None:
         """Forzar un ciclo colapso/expansión rápido para estabilizar la geometría inicial sin animación."""
         # Colapsamos sin animación
         self.is_expanded = False
@@ -305,14 +319,15 @@ class MenuLateral(QWidget):
         # En el próximo tick expandimos de nuevo
         QTimer.singleShot(0, self._kickstart_expand)
 
-    def _kickstart_expand(self):
+    def _kickstart_expand(self) -> None:
         self.is_expanded = True
         self.setMinimumWidth(self.expanded_width)
         self.setMaximumWidth(self.expanded_width)
         self.update_visibility()
 
-    def toggle_menu(self):
-        """Alternar entre estado expandido y colapsado"""
+    def toggle_menu(self) -> None:
+        """Alternar entre estado expandido y colapsado."""
+        logger.debug("Toggle menú: expandido=%s", not self.is_expanded)
         self.is_expanded = not self.is_expanded
         
         if self.is_expanded:
@@ -322,8 +337,8 @@ class MenuLateral(QWidget):
         
         self.update_visibility()
 
-    def update_visibility(self):
-        """Mostrar/ocultar elementos según el estado"""
+    def update_visibility(self) -> None:
+        """Mostrar/ocultar elementos según el estado."""
         # Elementos que se muestran solo cuando está expandido
         elements_to_toggle = [
             self.user_frame,
@@ -349,8 +364,8 @@ class MenuLateral(QWidget):
         if hasattr(self, 'pin_toggle'):
             self.pin_toggle.setVisible(self.is_expanded)
 
-    def animar_expansion(self):
-        """Animación para expandir el menú"""
+    def animar_expansion(self) -> None:
+        """Animación para expandir el menú."""
         self.animation = QPropertyAnimation(self, b"minimumWidth")
         self.animation.setDuration(200)
         self.animation.setStartValue(self.width())
@@ -359,8 +374,8 @@ class MenuLateral(QWidget):
         self.animation.finished.connect(self._on_expand_finished)
         self.animation.start()
 
-    def animar_colapso(self):
-        """Animación para colapsar el menú"""
+    def animar_colapso(self) -> None:
+        """Animación para colapsar el menú."""
         self.animation = QPropertyAnimation(self, b"minimumWidth")
         self.animation.setDuration(200)
         self.animation.setStartValue(self.width())
@@ -369,25 +384,25 @@ class MenuLateral(QWidget):
         self.animation.finished.connect(self._on_collapse_finished)
         self.animation.start()
 
-    def _on_expand_finished(self):
+    def _on_expand_finished(self) -> None:
         # Fijamos los límites al ancho expandido, evitando que el layout lo aplaste
         self.setMinimumWidth(self.expanded_width)
         self.setMaximumWidth(self.expanded_width)
 
-    def _on_collapse_finished(self):
+    def _on_collapse_finished(self) -> None:
         # Fijamos los límites al ancho colapsado para que el header no impida cerrar del todo
         self.setMinimumWidth(self.collapsed_width)
         self.setMaximumWidth(self.collapsed_width)
 
-    def leaveEvent(self, event):
-        """Colapsar el menú cuando el cursor sale (solo si no está fijado)"""
+    def leaveEvent(self, event: QEvent) -> None:
+        """Colapsar el menú cuando el cursor sale (solo si no está fijado)."""
         if self.is_expanded and not getattr(self, 'is_pinned', False):
             self.is_expanded = False
             self.animar_colapso()
             self.update_visibility()
         super().leaveEvent(event)
  
-    def paintEvent(self, event):
+    def paintEvent(self, event: QPaintEvent) -> None:
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
@@ -398,17 +413,37 @@ class MenuLateral(QWidget):
         # No dibujamos overlay extra: queremos que el menú expandido tenga
         # exactamente el mismo color que el colapsado.
     
-    def load_user_name(self):
-        print(self.username)
-        query = "SELECT NOMBRE||' '||APELLIDO_PATERNO FROM USUARIO WHERE ID_USUARIO = :1"
-        result = self.db.fetch_all(query, (self.username,))
-        print(result)
-        if result:
-            nombre_usuario = result[0][0]
-            self.user_label.setText(f"{nombre_usuario}")
+    def load_user_name(self) -> None:
+        """Carga el nombre del usuario desde BD y lo muestra en el encabezado.
 
-    def on_pin_toggled(self, checked: bool):
+        Intenta castear `username` a entero como ID; si falla, deja "Usuario" y registra aviso.
+        """
+        try:
+            user_id = int(self.username)
+        except Exception:
+            logger.warning("ID de usuario no numérico en MenuLateral: %r", self.username)
+            self.user_label.setText("Usuario")
+            return
+
+        try:
+            row = self.db.fetch_one(
+                """
+                SELECT NOMBRE || ' ' || APELLIDO_PATERNO
+                FROM USUARIO
+                WHERE ID_USUARIO = :id_usuario
+                """,
+                {"id_usuario": user_id},
+            )
+            nombre = row[0] if row and row[0] else "Usuario"
+            self.user_label.setText(str(nombre))
+            logger.debug("Usuario cargado en menú: %s", nombre)
+        except Exception as e:
+            logger.exception("Error al cargar nombre de usuario %s: %s", user_id, e)
+            self.user_label.setText("Usuario")
+
+    def on_pin_toggled(self, checked: bool) -> None:
         """Maneja el cambio de estado fijado/no fijado del menú."""
+        logger.debug("Pin toggled: %s", checked)
         self.is_pinned = checked
         if checked:
             self.pin_toggle.setToolTip("Menú fijado: no se autocierra al salir el mouse")
