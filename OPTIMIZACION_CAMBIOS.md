@@ -153,6 +153,16 @@ Cambios aprobados y aplicados (1, 2, 3, 4, 5, 6, 9, 14[seq HISTORIAL]):
 - (6) Coalescer recargas: se introduce `self._refresh_timer` (single-shot) y `actualizar_datos()` programa la recarga.
 - (9) Limpiezas menores: eliminación de `hide()` duplicado, conversión del timer de reloj a atributo y remoción de configuraciones duplicadas de scrollbars.
 
+Cambio adicional (2025-11-11): Corrección de ordenamiento "Próximamente"
+- Síntoma: Asignaciones con horas como 14:00 aparecían listadas después de una de 21:00, rompiendo el orden cronológico esperado.
+- Causa raíz: El `ORDER BY H.HORA_SALIDA_PROGRAMADA` utilizaba directamente la columna DATE cuyo componente de fecha (posiblemente distinto o normalizado) interfería con el orden puro por hora; además el filtro sólo comparaba cadenas `TO_CHAR(..., 'HH24:MI')` sin normalizar a valor numérico.
+- Solución: Se reemplazó tanto el filtro de "futuros" como el orden por una comparación aritmética basada en minutos del día:
+	`(TO_NUMBER(TO_CHAR(H.HORA_SALIDA_PROGRAMADA,'HH24'))*60 + TO_NUMBER(TO_CHAR(H.HORA_SALIDA_PROGRAMADA,'MI')))`. Esto garantiza orden y filtrado independiente del componente de fecha.
+- Alcance: Sólo método `cargar_datos_proximos`; no altera lógica de "En curso". Se mantiene compatibilidad con datos existentes.
+- Impacto: Orden estable y consistente de horarios futuros; elimina saltos visuales y evita agrupaciones erróneas.
+
+Recomendación futura: Replicar la estrategia de minutos del día en otros módulos que ordenen por hora para robustez ante variaciones de fecha almacenada.
+
 ## APP/interfaces/asignacion.py
 
 Fecha: 2025-10-26
@@ -369,3 +379,11 @@ Cambios aprobados y aplicados (1, 2, 3, 4):
 - (2) Logger por módulo: `logging.getLogger(__name__)` y logs `debug` en toggles y carga de usuario.
 - (3) Limpieza de imports: se eliminan duplicados/no usados y se consolida la cabecera.
 - (4) Type hints y docstrings: docstring de clase y anotaciones en métodos públicos; firmas tipadas para eventos de Qt.
+
+# Bugs identificados 11 de noviembre del 2025
+
+- Home > Próximamente: desorden en filas posteriores a una asignación de 21:00, donde horarios de 14:00/14:30/15:00 quedaban después de 21:00.
+	- Causa raíz: el `ORDER BY` utilizaba la columna DATE completa, afectada por el componente de fecha, y el filtro de "futuros" comparaba cadenas de hora (`TO_CHAR(...,'HH24:MI')`).
+	- Solución aplicada: normalización a minutos del día tanto para el filtro de "futuros" como para el orden, usando `HH24*60 + MI`. Esto hace el orden independiente del día almacenado y NLS-seguro.
+	- Resultado esperado: las asignaciones se agrupan y ordenan correctamente por hora, eliminando los saltos donde 14:00 aparecía después de 21:00.
+	- Seguimiento: evaluar aplicar la misma normalización en otras vistas que ordenen por horas si se detectan casos similares.

@@ -597,8 +597,20 @@ class GestionHorariosRutas(QWidget):
             }
         """)
         tabla.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        tabla.horizontalHeader().setStretchLastSection(True)
+        tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         tabla.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+
+    def _enforce_full_width(self, tabla: QTableWidget):
+        """Fuerza que la tabla utilice todo el ancho disponible re-aplicando Stretch por columna."""
+        try:
+            header = tabla.horizontalHeader()
+            for c in range(tabla.columnCount()):
+                header.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch)
+            header.setStretchLastSection(True)
+            tabla.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        except Exception:
+            pass
 
     def bloquear_botones_horario(self):
         self.tabla_horarios.clearSelection()
@@ -760,6 +772,8 @@ class GestionHorariosRutas(QWidget):
 
         self.tabla_horarios.resizeColumnsToContents()
         self.tabla_horarios.resizeRowsToContents()
+        # Evitar contracción horizontal tras recargas
+        self._enforce_full_width(self.tabla_horarios)
 
     def load_train_availability(self):
         """Calcula la disponibilidad de los trenes"""
@@ -1052,3 +1066,5 @@ class GestionHorariosRutas(QWidget):
 
         self.tabla_asignaciones.resizeColumnsToContents()
         self.tabla_asignaciones.resizeRowsToContents()
+        # Evitar contracción horizontal tras recargas
+        self._enforce_full_width(self.tabla_asignaciones)

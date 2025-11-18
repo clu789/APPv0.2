@@ -137,6 +137,8 @@ class MonitoreoInterface(QWidget):
 
         # Ajustes de tabla mejorados
         self.tabla_trenes.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
+        self.tabla_trenes.horizontalHeader().setStretchLastSection(True)
+        self.tabla_trenes.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.tabla_trenes.setWordWrap(True)
         self.tabla_trenes.setAlternatingRowColors(True)
         self.tabla_trenes.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
@@ -257,7 +259,11 @@ class MonitoreoInterface(QWidget):
                 self.tabla_trenes.setItem(i, 5, QTableWidgetItem(asignacion[5]))      # Hora Salida
                 self.tabla_trenes.setItem(i, 6, QTableWidgetItem(asignacion[6]))      # Hora Llegada
                 self.tabla_trenes.setItem(i, 7, QTableWidgetItem(estado))             # Estado
-            self.tabla_trenes.resizeColumnsToContents()
+            # Asegurar que las columnas ocupen todo el ancho disponible
+            header = self.tabla_trenes.horizontalHeader()
+            for c in range(self.tabla_trenes.columnCount()):
+                header.setSectionResizeMode(c, QHeaderView.ResizeMode.Stretch)
+            header.setStretchLastSection(True)
             self.tabla_trenes.resizeRowsToContents()
         finally:
             self.tabla_trenes.setUpdatesEnabled(True)

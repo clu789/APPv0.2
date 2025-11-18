@@ -79,13 +79,13 @@ class EventManager(QObject):
             self._delay_enabled = os.getenv('APP_DELAY_ENABLED', '1').lower() in ('1', 'true', 'yes')
             self._delay_mode = os.getenv('APP_DELAY_MODE', 'threshold').lower()
             self._delay_max = max(0, int(os.getenv('APP_DELAY_MAX_MINUTES', '15')))
-            self._delay_threshold = max(0, int(os.getenv('APP_DELAY_THRESHOLD', '5')))
+            self._delay_threshold = max(0, int(os.getenv('APP_DELAY_THRESHOLD', '1')))
             self._delay_prob = min(1.0, max(0.0, float(os.getenv('APP_DELAY_PROB', '0.35'))))
         except Exception:
             self._delay_enabled = True
             self._delay_mode = 'threshold'
             self._delay_max = 15
-            self._delay_threshold = 5
+            self._delay_threshold = 1
             self._delay_prob = 0.35
         
         # Configurar timer de verificación periódica

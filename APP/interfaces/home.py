@@ -580,28 +580,41 @@ class InterfazHome(QWidget):
             self.tabla_viajes.setItem(i, 2, QTableWidgetItem(tren))
 
     def cargar_datos_proximos(self):
+                # Nota: Se mantiene la semántica de filtrar solo por hora del día (> ahora), pero el orden
+                # se fuerza a ser estrictamente por HH:MI para evitar que el componente de fecha en la columna DATE
+                # afecte el orden y provoque que, por ejemplo, 14:00 aparezca después de 21:00.
         query = """
-                SELECT
-                    A.ID_ASIGNACION,
-                    H.ID_HORARIO,
-                    E1.NOMBRE AS ORIGEN,
-                    E2.NOMBRE AS DESTINO,
-                    TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI') AS SALIDA_PROG,
-                    TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI') AS LLEGADA_PROG,
-                    T.ID_TREN,
-                    T.NOMBRE AS NOMBRE_TREN
-                FROM ASIGNACION_TREN A
-                JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
-                JOIN TREN T ON A.ID_TREN = T.ID_TREN
-                JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
-                JOIN RUTA_DETALLE RD1 ON RD1.ID_RUTA = A.ID_RUTA AND
-                RD1.ORDEN = 1
-                JOIN ESTACION E1 ON RD1.ID_ESTACION = E1.ID_ESTACION
-                JOIN RUTA_DETALLE RD2 ON RD2.ID_RUTA = A.ID_RUTA
-                JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
-                WHERE RD2.ORDEN = (SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = A.ID_RUTA)
-                AND TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI') > TO_CHAR(SYSDATE, 'HH24:MI')
-                ORDER BY H.HORA_SALIDA_PROGRAMADA ASC, A.ID_ASIGNACION ASC
+            SELECT
+                A.ID_ASIGNACION,
+                H.ID_HORARIO,
+                E1.NOMBRE AS ORIGEN,
+                E2.NOMBRE AS DESTINO,
+                TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24:MI') AS SALIDA_PROG,
+                TO_CHAR(H.HORA_LLEGADA_PROGRAMADA, 'HH24:MI') AS LLEGADA_PROG,
+                T.ID_TREN,
+                T.NOMBRE AS NOMBRE_TREN
+            FROM ASIGNACION_TREN A
+            JOIN HORARIO H ON A.ID_HORARIO = H.ID_HORARIO
+            JOIN TREN T ON A.ID_TREN = T.ID_TREN
+            JOIN RUTA R ON A.ID_RUTA = R.ID_RUTA
+            JOIN RUTA_DETALLE RD1 ON RD1.ID_RUTA = A.ID_RUTA AND RD1.ORDEN = 1
+            JOIN ESTACION E1 ON RD1.ID_ESTACION = E1.ID_ESTACION
+            JOIN RUTA_DETALLE RD2 ON RD2.ID_RUTA = A.ID_RUTA
+            JOIN ESTACION E2 ON RD2.ID_ESTACION = E2.ID_ESTACION
+            WHERE RD2.ORDEN = (
+                    SELECT MAX(ORDEN) FROM RUTA_DETALLE WHERE ID_RUTA = A.ID_RUTA
+                )
+                            AND (
+                                        TO_NUMBER(TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'HH24')) * 60 +
+                                        TO_NUMBER(TO_CHAR(H.HORA_SALIDA_PROGRAMADA, 'MI'))
+                                    ) > (
+                                        TO_NUMBER(TO_CHAR(SYSDATE, 'HH24')) * 60 +
+                                        TO_NUMBER(TO_CHAR(SYSDATE, 'MI'))
+                                    )
+            ORDER BY
+              (TO_NUMBER(TO_CHAR(H.HORA_SALIDA_PROGRAMADA,'HH24')) * 60 +
+               TO_NUMBER(TO_CHAR(H.HORA_SALIDA_PROGRAMADA,'MI'))) ASC,     -- Orden estrictamente por hora/minuto
+              A.ID_ASIGNACION ASC
         """
         proximos = self.db.fetch_all(query)
         self.tabla_proximos.setRowCount(0)
